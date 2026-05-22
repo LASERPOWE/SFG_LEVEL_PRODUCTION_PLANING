@@ -1,0 +1,1453 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>SFG BOM Requirements Dashboard</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #fff; color: #1a1a1a; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  body { padding: 16px 18px 60px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: #6b6b6b; font-size: 12px; margin-bottom: 18px; }
+  .refresh-btn { padding: 6px 14px; font-size: 12px; border: 1px solid #4a7dd6; border-radius: 6px; background: #4a7dd6; color: #fff; cursor: pointer; margin-left: 10px; }
+  .refresh-btn:hover { background: #3a6ac0; }
+  .refresh-btn:disabled { opacity: 0.6; cursor: wait; }
+  .loading { padding: 60px; text-align: center; color: #888; font-size: 14px; }
+  .error { background: #fff3f3; border: 1px solid #f3b8b8; color: #8a2020; padding: 14px; border-radius: 8px; font-size: 13px; margin-bottom: 18px; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-bottom: 22px; }
+  .kpi { background: #f7f8fa; border: 1px solid #e6e8eb; border-radius: 10px; padding: 12px 14px; }
+  .kpi .label { font-size: 11px; color: #6b6b6b; text-transform: uppercase; letter-spacing: 0.04em; }
+  .kpi .value { font-size: 22px; font-weight: 600; margin-top: 4px; color: #111; }
+  .kpi .sub2 { font-size: 11px; color: #6b6b6b; margin-top: 2px; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 18px; }
+  @media (max-width: 900px) { .row { grid-template-columns: 1fr; } }
+  .card { background: #fff; border: 1px solid #e6e8eb; border-radius: 10px; padding: 14px; }
+  .card h3 { margin: 0 0 12px; font-size: 13px; color: #333; font-weight: 600; }
+  .chart-wrap { position: relative; height: 320px; }
+  .filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; align-items: center; }
+  .filters select, .filters input { padding: 6px 8px; font-size: 12px; border: 1px solid #d6d8db; border-radius: 6px; background: #fff; }
+  .filters label { font-size: 11px; color: #555; display: inline-flex; flex-direction: column; gap: 2px; }
+  .filters .check { flex-direction: row; align-items: center; gap: 4px; }
+  .hint { font-size: 11px; color: #4a7dd6; margin-left: 8px; font-style: italic; }
+  .table-wrap { overflow-x: auto; max-height: 600px; overflow-y: auto; border: 1px solid #e6e8eb; border-radius: 6px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  thead th { background: #f3f4f6; padding: 10px 8px; border-bottom: 1px solid #d6d8db; text-align: left; font-weight: 600; white-space: nowrap; position: sticky; top: 0; cursor: pointer; user-select: none; z-index: 2; }
+  thead th:hover { background: #ebedf0; }
+  thead th.sorted::after { content: ' \25BE'; color: #4a7dd6; }
+  thead th.sorted.asc::after { content: ' \25B4'; }
+  tbody td { padding: 7px 8px; border-bottom: 1px solid #eef0f2; vertical-align: top; }
+  tbody tr { cursor: pointer; }
+  tbody tr:hover { background: #eef4ff; }
+  tbody tr.zero { color: #aaa; cursor: default; }
+  tbody tr.zero:hover { background: #fafbfc; }
+  tfoot td { background: #f7f8fa; padding: 10px 8px; font-weight: 600; border-top: 2px solid #d6d8db; position: sticky; bottom: 0; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 500; }
+  .pill-km { background: #e6efff; color: #2a52a8; }
+  .pill-kg { background: #fff4e0; color: #a8650a; }
+  .pill-empty { background: #f0f0f0; color: #888; }
+  .pill-open { background: #fff4e0; color: #a8650a; }
+  .pill-closed { background: #e6f6ec; color: #1f7a3a; }
+  .empty { text-align: center; padding: 40px; color: #888; font-size: 13px; }
+  .bom-empty { color: #b0b0b0; font-style: italic; }
+  .input-cell { background: #fffbe6; }
+  .prod-input { width: 90px; padding: 4px 6px; font-size: 12px; text-align: right; border: 1px solid #d6d8db; border-radius: 4px; background: #fff; font-variant-numeric: tabular-nums; }
+  .prod-input:focus { outline: none; border-color: #4a7dd6; box-shadow: 0 0 0 2px rgba(74,125,214,0.15); }
+  .bal-cell { background: #f5f9f5; }
+  .bal-neg { color: #b03030 !important; }
+  .bal-zero { color: #1f7a3a !important; }
+  .clear-btn { padding: 4px 10px; font-size: 11px; border: 1px solid #d6d8db; border-radius: 6px; background: #fff; color: #555; cursor: pointer; }
+  .clear-btn:hover { background: #fff3f3; border-color: #f3b8b8; color: #8a2020; }
+  .modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 50; align-items: flex-start; justify-content: center; padding: 30px 16px; overflow-y: auto; }
+  .modal-backdrop.open { display: flex; }
+  .modal { background: #fff; border-radius: 10px; width: 100%; max-width: 96vw; box-shadow: 0 20px 60px rgba(0,0,0,0.25); display: flex; flex-direction: column; max-height: 92vh; }
+  .modal-head { padding: 14px 18px; border-bottom: 1px solid #e6e8eb; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .modal-head h2 { font-size: 16px; margin: 0 0 2px; }
+  .modal-head .meta { font-size: 12px; color: #666; }
+  .modal-close { background: #f0f2f5; border: none; width: 28px; height: 28px; border-radius: 50%; cursor: pointer; font-size: 16px; color: #555; flex-shrink: 0; }
+  .modal-close:hover { background: #e2e5e9; color: #111; }
+  .modal-body { padding: 14px 18px; overflow-y: auto; }
+  .drill-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 16px; }
+  .drill-stat { background: #f7f8fa; border: 1px solid #e6e8eb; border-radius: 8px; padding: 8px 10px; }
+  .drill-stat .l { font-size: 10px; color: #6b6b6b; text-transform: uppercase; letter-spacing: 0.04em; }
+  .drill-stat .v { font-size: 16px; font-weight: 600; margin-top: 2px; }
+  .party-group { border: 1px solid #e6e8eb; border-radius: 8px; margin-bottom: 10px; overflow: hidden; }
+  .party-head { background: #f3f4f6; padding: 8px 12px; font-weight: 600; font-size: 12px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+  .party-head:hover { background: #ebedf0; }
+  .party-head .right { font-weight: 400; color: #555; font-size: 11px; }
+  .party-body { display: none; padding: 6px 12px 10px; }
+  .party-group.open .party-body { display: block; }
+  .party-head::before { content: '\25B8 '; color: #888; }
+  .party-group.open .party-head::before { content: '\25BE '; color: #4a7dd6; }
+  .mc-block { margin: 8px 0; padding-left: 10px; border-left: 3px solid #cfd7e5; }
+  .mc-head { font-size: 12px; font-weight: 600; color: #333; margin-bottom: 4px; }
+  .pord-wrap { overflow-x: auto; overflow-y: hidden; max-width: 100%; margin: 4px 0 6px; border: 1px solid #eef0f2; border-radius: 4px; -webkit-overflow-scrolling: touch; }
+  .pord-wrap::-webkit-scrollbar { height: 10px; }
+  .pord-wrap::-webkit-scrollbar-track { background: #f3f4f6; }
+  .pord-wrap::-webkit-scrollbar-thumb { background: #cfd7e5; border-radius: 5px; }
+  .pord-wrap::-webkit-scrollbar-thumb:hover { background: #a3b1c4; }
+  .pord-table { border-collapse: collapse; font-size: 11px; width: max-content; min-width: 100%; }
+  .pord-table th { background: #fafbfc; padding: 4px 6px; text-align: left; font-weight: 500; color: #555; border-bottom: 1px solid #eef0f2; white-space: nowrap; position: sticky; top: 0; z-index: 1; }
+  .pord-table td { padding: 4px 6px; border-bottom: 1px solid #f3f4f6; white-space: nowrap; }
+  .pord-table tr:last-child td { border-bottom: none; }
+  .pord-table .fg-item-cell { max-width: 280px; overflow: hidden; text-overflow: ellipsis; }
+  .progress { background: #eef0f2; border-radius: 3px; height: 5px; overflow: hidden; min-width: 50px; }
+  .progress > span { display: block; height: 100%; background: #4a7dd6; }
+  .pord-table tr.line-done td { background: #eaf7ee; color: #1f7a3a; text-decoration: line-through; }
+  .pord-table tr.line-done td .pill { text-decoration: none; }
+  .pord-table tr.line-done td .line-pd-input { text-decoration: none; }
+  .line-done-cell { text-align: center; background: #fffbe6; }
+  .line-done-cell input { width: 16px; height: 16px; cursor: pointer; }
+  .line-pd-input { width: 80px; }
+  .line-pd-locked { background: #eaf7ee !important; color: #1f7a3a; font-weight: 600; cursor: not-allowed; }
+  .line-date-input { width: 130px; padding: 3px 5px; font-size: 11px; border: 1px solid #d6d8db; border-radius: 4px; background: #fff; font-family: inherit; }
+  .line-date-input:focus { outline: none; border-color: #4a7dd6; box-shadow: 0 0 0 2px rgba(74,125,214,0.15); }
+  .eqpt-cell { background: #fffbe6; }
+  .hod-cell { background: #eef5ff; }
+  .line-eqpt-select, .line-hod-select { width: 130px; padding: 3px 5px; font-size: 11px; border: 1px solid #d6d8db; border-radius: 4px; background: #fff; cursor: pointer; font-family: inherit; }
+  .line-eqpt-select:focus, .line-hod-select:focus { outline: none; border-color: #4a7dd6; box-shadow: 0 0 0 2px rgba(74,125,214,0.15); }
+  .equipment-block-card { margin-bottom: 18px; }
+  .equipment-block-wrap { overflow-x: auto; border: 1px solid #e6e8eb; border-radius: 6px; }
+  .equipment-block-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .equipment-block-table th { background: #f3f4f6; padding: 8px 10px; border-bottom: 1px solid #d6d8db; text-align: left; font-weight: 600; white-space: nowrap; }
+  .equipment-block-table td { padding: 7px 10px; border-bottom: 1px solid #eef0f2; vertical-align: top; }
+  .equipment-block-table tr:last-child td { border-bottom: none; }
+  .equipment-block-table .blocked-date { font-weight: 600; color: #333; }
+  .drill-toolbar { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; padding: 8px 10px; background: #f7f8fa; border: 1px solid #e6e8eb; border-radius: 8px; font-size: 12px; }
+  .drill-toolbar label.check { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+  .drill-toolbar input[type=checkbox] { width: 14px; height: 14px; cursor: pointer; }
+  .drill-clear-btn { padding: 4px 10px; font-size: 11px; border: 1px solid #d6d8db; border-radius: 6px; background: #fff; color: #555; cursor: pointer; margin-left: 8px; }
+  .drill-clear-btn:hover { background: #fff3f3; border-color: #f3b8b8; color: #8a2020; }
+</style>
+</head>
+<body>
+  <h1>SFG BOM Requirements <span style="font-weight: 400; font-size: 14px; color: #666;">- Static GitHub Pages</span>
+    <button class="refresh-btn" id="refreshBtn" onclick="loadData(true)">Refresh</button>
+  </h1>
+  <div class="sub" id="sub">Loading...</div>
+
+  <div id="error" class="error" style="display:none"></div>
+
+  <div id="loading" class="loading">Fetching live data from Google Sheets...</div>
+
+  <div id="content" style="display:none">
+    <div class="kpis" id="kpis"></div>
+
+    <div class="card equipment-block-card">
+      <h3>Equipment Blocking Status</h3>
+      <div class="equipment-block-wrap">
+        <table class="equipment-block-table">
+          <thead>
+            <tr>
+              <th>EQPT</th>
+              <th style="text-align:right;">Open Lines</th>
+              <th style="text-align:right;">MC Count</th>
+              <th style="text-align:right;">Balance Qty</th>
+              <th>Blocked Till</th>
+              <th style="text-align:right;">Days</th>
+            </tr>
+          </thead>
+          <tbody id="equipmentBlockBody">
+            <tr><td colspan="6" class="empty">Assign EQPT in drill-down to see blocking status.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="card">
+        <h3>Balance Quantity by SFG Level 4 Category (KM)</h3>
+        <div class="chart-wrap"><canvas id="chart-top-km"></canvas></div>
+      </div>
+      <div class="card">
+        <h3>Balance Quantity by SFG Level 3 Category</h3>
+        <div class="chart-wrap"><canvas id="chart-l3"></canvas></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>SFG BOM Requirements (Pivot) <span class="hint">- click any row to drill down; Production Done = sum of per-line entries in drill-down; Balance = SFG Net Qty &minus; Production Done</span></h3>
+      <div class="filters">
+        <label>Unit
+          <select id="fltUm">
+            <option value="">All</option>
+            <option value="KM">KM</option>
+            <option value="KG">KG</option>
+          </select>
+        </label>
+        <label>SFG Level 3
+          <select id="fltL3"><option value="">All</option></select>
+        </label>
+        <label>SFG Level 4
+          <select id="fltL4"><option value="">All</option></select>
+        </label>
+        <label>EQPT
+          <select id="fltEqpt"><option value="">All</option></select>
+        </label>
+        <label>HOD
+          <select id="fltHod"><option value="">All</option></select>
+        </label>
+        <label>Search
+          <input id="fltSearch" type="text" placeholder="BOM, code, name..." />
+        </label>
+        <label class="check"><input type="checkbox" id="fltNonzero" checked /> Non-zero only</label>
+        <label class="check"><input type="checkbox" id="fltBalanceNonzero" checked /> Balance non-zero only</label>
+        <button class="clear-btn" type="button" onclick="clearFilters()">Clear Filters</button>
+        <button class="clear-btn" onclick="clearAllProdDone()">Clear Production Done</button>
+        <span id="rowCount" style="margin-left:auto;font-size:11px;color:#666;"></span>
+      </div>
+      <div class="table-wrap">
+        <table id="pivot">
+          <thead><tr id="pivot-head"></tr></thead>
+          <tbody id="pivot-body"></tbody>
+          <tfoot id="pivot-foot"></tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="drillModal">
+    <div class="modal">
+      <div class="modal-head">
+        <div>
+          <h2 id="drillTitle">Drill Down</h2>
+          <div class="meta" id="drillMeta"></div>
+        </div>
+        <button class="modal-close" id="drillClose">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="drill-toolbar">
+          <label class="check"><input type="checkbox" id="drillShowDone" /> Show Done (ticked) lines</label>
+          <span id="drillHiddenInfo" class="hint"></span>
+        </div>
+        <div class="drill-stats" id="drillStats"></div>
+        <div id="drillContent"></div>
+      </div>
+    </div>
+  </div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js"></script>
+<script>
+let ROWS = [];
+let LINES = [];
+let EQPT_MASTER = [];
+let HOD_MASTER = [];
+let META = {};
+
+// ---- Per-line EQPT selection (drill-down dropdown) ----
+const LINE_EQPT_KEY = "erp_line_eqpt_v1";
+const LINE_EQPT = (function() { try { return JSON.parse(localStorage.getItem(LINE_EQPT_KEY) || "{}"); } catch(e) { return {}; } })();
+function saveLineEqpt() { try { localStorage.setItem(LINE_EQPT_KEY, JSON.stringify(LINE_EQPT)); } catch(e) {} }
+function getLineEqpt(lk) { return LINE_EQPT[lk] || ""; }
+function setLineEqpt(lk, v) {
+  if (!v) delete LINE_EQPT[lk];
+  else LINE_EQPT[lk] = v;
+  saveLineEqpt();
+}
+
+// ---- Per-line HOD selection (drill-down dropdown) ----
+const LINE_HOD_KEY = "erp_line_hod_v1";
+const LINE_HOD = (function() { try { return JSON.parse(localStorage.getItem(LINE_HOD_KEY) || "{}"); } catch(e) { return {}; } })();
+function saveLineHod() { try { localStorage.setItem(LINE_HOD_KEY, JSON.stringify(LINE_HOD)); } catch(e) {} }
+function getLineHod(lk) { return LINE_HOD[lk] || ""; }
+function setLineHod(lk, v) {
+  if (!v) delete LINE_HOD[lk];
+  else LINE_HOD[lk] = v;
+  saveLineHod();
+}
+
+// ---- Rollup: which EQPTs / HODs are assigned across each BOM's lines? ----
+// Used by parent-table EQPT and HOD filters: a BOM passes the filter if at
+// least one of its lines (with SFG_REQ > 0) has the selected EQPT / HOD.
+var EQPT_BY_BOM = new Map();
+var HOD_BY_BOM = new Map();
+// Index of all SFG_REQ>0 lines grouped by BOM key â€” lets us recompute parent
+// aggregates per-filter without re-scanning all LINES per row.
+var LINES_BY_BOM = new Map();
+function buildLineAssignmentMaps() {
+  EQPT_BY_BOM = new Map();
+  HOD_BY_BOM = new Map();
+  LINES_BY_BOM = new Map();
+  if (!Array.isArray(LINES)) return;
+  LINES.forEach(function(l){
+    if (num(l["SFG_REQUIRED_AG_BAL TO PRD FG"]) <= 0) return;
+    var k = (l.SFG_BOM || "") + "||" + (l.SFG_CODE || "");
+    if (!LINES_BY_BOM.has(k)) LINES_BY_BOM.set(k, []);
+    LINES_BY_BOM.get(k).push(l);
+    var lk = lineKey(l);
+    var e = LINE_EQPT[lk];
+    if (e) {
+      if (!EQPT_BY_BOM.has(k)) EQPT_BY_BOM.set(k, new Set());
+      EQPT_BY_BOM.get(k).add(e);
+    }
+    var h = LINE_HOD[lk];
+    if (h) {
+      if (!HOD_BY_BOM.has(k)) HOD_BY_BOM.set(k, new Set());
+      HOD_BY_BOM.get(k).add(h);
+    }
+  });
+}
+
+// Aggregates for one parent row. When EQPT/HOD filters are active, the parent
+// figures (Lines, MC Count, SFG Net, SFG Req, Prod Done, Balance, Target Date)
+// reflect only the child lines matching those filters; otherwise they fall back
+// to the server-computed totals.
+var AGG_CACHE = new Map();
+function rowAggregates(r, fEqpt, fHod) {
+  var ck = prodKey(r) + "||" + (fEqpt || "") + "||" + (fHod || "");
+  if (AGG_CACHE.has(ck)) return AGG_CACHE.get(ck);
+  var out;
+  if (!fEqpt && !fHod) {
+    out = {
+      lines: r.LINES, mc_count: r.MC_COUNT,
+      net_sum: r.NET_SUM || 0, req_sum: r.REQ_SUM,
+      prod_done: getProdDone(r), balance: getBalance(r),
+      target_date: getTargetCloseDate(r)
+    };
+  } else {
+    var matching = (LINES_BY_BOM.get(prodKey(r)) || []).filter(function(l){
+      var lk = lineKey(l);
+      if (fEqpt === BLANK_FILTER) { if (LINE_EQPT[lk]) return false; }
+      else if (fEqpt && getLineEqpt(lk) !== fEqpt) return false;
+      if (fHod === BLANK_FILTER) { if (LINE_HOD[lk]) return false; }
+      else if (fHod && getLineHod(lk) !== fHod) return false;
+      return true;
+    });
+    var net = 0, req = 0, pd = 0, td = "";
+    var mcs = new Set();
+    matching.forEach(function(l){
+      net += num(l.SFG_NET_ORD_QTY);
+      req += num(l["SFG_REQUIRED_AG_BAL TO PRD FG"]);
+      pd  += getLineProdDone(l);
+      if (l.MC_NO) mcs.add(String(l.MC_NO).trim());
+      if (!isLineDone(l)) {
+        var d = getLineDateFromRow(l);
+        if (d && (!td || d > td)) td = d;
+      }
+    });
+    out = {
+      lines: matching.length, mc_count: mcs.size,
+      net_sum: net, req_sum: req,
+      prod_done: pd, balance: net - pd,
+      target_date: td
+    };
+  }
+  AGG_CACHE.set(ck, out);
+  return out;
+}
+const COLORS = ["#4a7dd6","#5ab17a","#e09b3d","#c95d5d","#8a6fd0","#3aa7b3","#d9748c","#7a8b9b","#b78bd9","#5a9b6b","#d68a4a","#4a6fb5"];
+let CHARTS = {};
+
+function esc(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
+    return { "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c];
+  });
+}
+function num(v) {
+  if (v == null || v === "") return 0;
+  var n = typeof v === "number" ? v : parseFloat(String(v).replace(/,/g, ""));
+  return isFinite(n) ? n : 0;
+}
+function fmt(n, d) {
+  if (d == null) d = 3;
+  if (n == null || isNaN(n)) return "-";
+  return Number(n).toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: d });
+}
+
+// Parent-row "Production Done" is now rolled-up from per-line entries in the
+// drill-down (sum across lines belonging to that BOM, where each line
+// contributes either SFG_NET_ORD_QTY when ticked Done, or its manually-typed
+// Production Done Qty otherwise).
+// Parent "Balance" formula: SFG Net Qty (NET_SUM) - Production Done (rolled-up).
+function prodKey(r) { return (r.SFG_BOM || "") + "||" + (r.SFG_CODE || ""); }
+var LINE_PD_BY_BOM = new Map();
+function buildLinePDMap() {
+  var map = new Map();
+  if (!Array.isArray(LINES)) return map;
+  LINES.forEach(function(l){
+    if (num(l["SFG_REQUIRED_AG_BAL TO PRD FG"]) <= 0) return;
+    var k = (l.SFG_BOM || "") + "||" + (l.SFG_CODE || "");
+    map.set(k, (map.get(k) || 0) + getLineProdDone(l));
+  });
+  return map;
+}
+function getProdDone(r) { return LINE_PD_BY_BOM.get(prodKey(r)) || 0; }
+function getBalance(r) { return (r.NET_SUM || 0) - getProdDone(r); }
+function clearAllProdDone() {
+  if (!confirm("Clear all per-line Done ticks and manually entered Production Done Qty?")) return;
+  for (var k in LINE_DONE) delete LINE_DONE[k];
+  for (var k2 in LINE_PD) delete LINE_PD[k2];
+  saveLineDone();
+  saveLinePD();
+  renderTable();
+}
+window.clearAllProdDone = clearAllProdDone;
+
+// ---- Per-line manual "Done" tick store ----
+const LINE_DONE_KEY = "erp_line_done_v1";
+const LINE_DONE = (function() { try { return JSON.parse(localStorage.getItem(LINE_DONE_KEY) || "{}"); } catch(e) { return {}; } })();
+function saveLineDone() { try { localStorage.setItem(LINE_DONE_KEY, JSON.stringify(LINE_DONE)); } catch(e) {} }
+function lineKey(l) {
+  return (l.PORD_NO || "") + "||" + (l.MC_NO || "") + "||" + (l.SFG_BOM || "") + "||" + (l.SFG_CODE || "");
+}
+function isLineDone(l) { return !!LINE_DONE[lineKey(l)]; }
+function setLineDone(l, done) {
+  var k = lineKey(l);
+  if (done) LINE_DONE[k] = 1;
+  else delete LINE_DONE[k];
+  saveLineDone();
+}
+
+// ---- Per-line manual Production Done qty store ----
+const LINE_PD_KEY = "erp_line_prod_done_v1";
+const LINE_PD = (function() { try { return JSON.parse(localStorage.getItem(LINE_PD_KEY) || "{}"); } catch(e) { return {}; } })();
+function saveLinePD() { try { localStorage.setItem(LINE_PD_KEY, JSON.stringify(LINE_PD)); } catch(e) {} }
+function getLinePDManual(lk) { return num(LINE_PD[lk]); }
+function setLinePDManual(lk, v) {
+  if (v == null || v === "" || isNaN(v) || v === 0) delete LINE_PD[lk];
+  else LINE_PD[lk] = v;
+  saveLinePD();
+}
+// Effective per-line Production Done = SFG_NET_ORD_QTY when ticked, else manual entry.
+function getLineProdDone(l) {
+  if (isLineDone(l)) return num(l.SFG_NET_ORD_QTY);
+  return getLinePDManual(lineKey(l));
+}
+
+// ---- Per-line Target Date of Production Closer (read from sheet column) ----
+// Date arrives under the canonical key `TARGET_DATE_OF_PROD_CLOSER` on every line.
+// We normalize whatever the ERP sends (ISO with time, DD/MM/YYYY, JS Date string)
+// to ISO `YYYY-MM-DD` so comparisons / max-rollups work.
+function normalizeISO(v) {
+  if (v == null || v === "") return "";
+  var s = String(v).trim();
+  if (!s) return "";
+  // Already starts with YYYY-MM-DD?
+  var m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return m[1] + "-" + m[2] + "-" + m[3];
+  // DD/MM/YYYY or DD-MM-YYYY
+  m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+  if (m) {
+    var dd = ("0" + m[1]).slice(-2);
+    var mm = ("0" + m[2]).slice(-2);
+    return m[3] + "-" + mm + "-" + dd;
+  }
+  // Last resort: let Date parse it
+  var d = new Date(s);
+  if (!isNaN(d.getTime())) {
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  }
+  return "";
+}
+function getLineDateFromRow(l) {
+  return normalizeISO(l && l.TARGET_DATE_OF_PROD_CLOSER);
+}
+// Parent rollup: MAX target date across ONLY the un-ticked lines for each BOM.
+var LINE_DATE_BY_BOM = new Map();
+function buildLineDateMap() {
+  var map = new Map();
+  if (!Array.isArray(LINES)) return map;
+  LINES.forEach(function(l){
+    if (num(l["SFG_REQUIRED_AG_BAL TO PRD FG"]) <= 0) return;
+    if (isLineDone(l)) return; // skip ticked-Done lines
+    var d = getLineDateFromRow(l);
+    if (!d) return;
+    var k = (l.SFG_BOM || "") + "||" + (l.SFG_CODE || "");
+    var existing = map.get(k);
+    if (!existing || d > existing) map.set(k, d);
+  });
+  return map;
+}
+function getTargetCloseDate(r) {
+  return LINE_DATE_BY_BOM.get(prodKey(r)) || "";
+}
+function fmtDateDMY(s) {
+  if (!s) return "";
+  var parts = String(s).split("-");
+  if (parts.length !== 3) return s;
+  return parts[2] + "-" + parts[1] + "-" + parts[0];
+}
+function isPastISODate(s) {
+  if (!s) return false;
+  var today = new Date();
+  var t = today.getFullYear() + "-" + String(today.getMonth() + 1).padStart(2, "0") + "-" + String(today.getDate()).padStart(2, "0");
+  return s < t;
+}
+
+const APP_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzJn0_gDs_nvFeg5X7nlM99dUZ4tnhI3Z1ionkM9RGfU_TS4lIWYThEGjt6EpTnMtHbgQ/exec";
+
+async function fetchLiveData(tab) {
+  const url = new URL(APP_SCRIPT_URL);
+  url.searchParams.set("format", "json");
+  if (tab) url.searchParams.set("tab", tab);
+  url.searchParams.set("_", String(Date.now()));
+  const resp = await fetch(url.toString(), { cache: "no-store", redirect: "follow" });
+  if (!resp.ok) throw new Error("Apps Script HTTP " + resp.status);
+  return resp.json();
+}
+
+function findEqptKey(rows) {
+  if (!rows || !rows.length) return null;
+  var keys = Object.keys(rows[0]);
+  var candidates = ["EQPT_ID_NAME", "EQPT_NAME", "EQPT_ID", "EQPTID", "EQUIPMENT"];
+  for (var i = 0; i < candidates.length; i++) if (keys.indexOf(candidates[i]) >= 0) return candidates[i];
+  for (var j = 0; j < keys.length; j++) {
+    var k = keys[j].toUpperCase();
+    if (k.indexOf("EQPT") >= 0 || k.indexOf("EQUIP") >= 0) return keys[j];
+  }
+  return null;
+}
+
+function findHodKey(rows) {
+  if (!rows || !rows.length) return null;
+  var keys = Object.keys(rows[0]);
+  var candidates = ["HOD_NAME", "HOD NAME", "HOD", "HOD_ID_NAME", "HOD_FULL_NAME"];
+  for (var i = 0; i < candidates.length; i++) if (keys.indexOf(candidates[i]) >= 0) return candidates[i];
+  for (var j = 0; j < keys.length; j++) {
+    if (keys[j].toUpperCase().replace(/_/g, " ").indexOf("HOD") >= 0) return keys[j];
+  }
+  return null;
+}
+
+function uniqSortedByKey(rows, key) {
+  var seen = new Set();
+  var out = [];
+  (rows || []).forEach(function(r){
+    var v = r && r[key];
+    if (v == null) return;
+    var s = String(v).trim();
+    if (!s || seen.has(s)) return;
+    seen.add(s);
+    out.push(s);
+  });
+  return out.sort();
+}
+
+async function fetchEqptMasterStatic() {
+  try {
+    var live = await fetchLiveData("EQPT_MASTER");
+    var rows = live && Array.isArray(live.rows) ? live.rows : [];
+    var key = findEqptKey(rows);
+    return key ? uniqSortedByKey(rows, key) : [];
+  } catch(e) {
+    console.warn("EQPT_MASTER fetch failed", e);
+    return [];
+  }
+}
+
+async function fetchHodMasterStatic() {
+  var tabNames = ["HOD MASTER", "HOD_MASTER", "HODMASTER"];
+  for (var i = 0; i < tabNames.length; i++) {
+    try {
+      var live = await fetchLiveData(tabNames[i]);
+      var rows = live && Array.isArray(live.rows) ? live.rows : [];
+      if (!rows.length) continue;
+      var key = findHodKey(rows);
+      return key ? uniqSortedByKey(rows, key) : [];
+    } catch(e) {
+      console.warn(tabNames[i] + " fetch failed", e);
+    }
+  }
+  return [];
+}
+
+function findNetKey(rows) {
+  if (!rows || !rows.length) return "SFG_NET_ORD_QTY";
+  var keys = Object.keys(rows[0]);
+  var candidates = ["SFG_NET_ORD_QTY", "SFG_NET_ORDQTY", "SFG_NET_ORDERQTY", "SFG_NET_ORDER_QTY", "SFG_NETORDQTY"];
+  for (var i = 0; i < candidates.length; i++) if (keys.indexOf(candidates[i]) >= 0) return candidates[i];
+  for (var j = 0; j < keys.length; j++) {
+    var ku = keys[j].toUpperCase().replace(/[ _]/g, "");
+    if (ku.indexOf("SFG") >= 0 && ku.indexOf("NET") >= 0 && (ku.indexOf("ORD") >= 0 || ku.indexOf("QTY") >= 0)) return keys[j];
+  }
+  return "SFG_NET_ORD_QTY";
+}
+
+function findTargetDateKey(rows) {
+  if (!rows || !rows.length) return null;
+  var keys = Object.keys(rows[0]);
+  var candidates = ["TARGET DATE OF PROD CLOSER", "TARGET_DATE_OF_PROD_CLOSER", "TARGET_DATE_PROD_CLOSER", "TARGET DATE PROD CLOSER"];
+  for (var i = 0; i < candidates.length; i++) if (keys.indexOf(candidates[i]) >= 0) return candidates[i];
+  for (var j = 0; j < keys.length; j++) {
+    var ku = keys[j].toUpperCase().replace(/_/g, " ");
+    if (ku.indexOf("TARGET") >= 0 && ku.indexOf("DATE") >= 0 && (ku.indexOf("CLOSER") >= 0 || ku.indexOf("CLOSURE") >= 0 || ku.indexOf("PROD") >= 0)) return keys[j];
+  }
+  return null;
+}
+
+function buildPivotStatic(rows, netKey) {
+  var REQ_KEY = "SFG_REQUIRED_AG_BAL TO PRD FG";
+  var groups = new Map();
+  rows.forEach(function(r){
+    var bom = String(r.SFG_BOM || "").trim();
+    var code = String(r.SFG_CODE || "").trim();
+    var name = String(r.SFG_NAME || "").trim();
+    var key = bom + "||" + code + "||" + name;
+    if (!groups.has(key)) {
+      groups.set(key, { bom: bom, code: code, name: name, sum: 0, net_sum: 0, rows: 0, um: "", l3: "", l4: "", customers: new Set(), mc_nos: new Set(), ports: new Set() });
+    }
+    var g = groups.get(key);
+    var req = num(r[REQ_KEY]);
+    var net = num(r[netKey]);
+    g.sum += req;
+    g.um = r.SFG_UM || g.um;
+    g.l3 = r.SFG_LEVEL_3_NAME || g.l3;
+    g.l4 = r.SFG_LEVEL_4_NAME || g.l4;
+    if (req > 0) {
+      g.rows += 1;
+      g.net_sum += net;
+      if (r.ACC_NAME) g.customers.add(String(r.ACC_NAME).trim());
+      if (r.MC_NO) g.mc_nos.add(String(r.MC_NO).trim());
+      if (r.PORD_NO) g.ports.add(String(r.PORD_NO).trim());
+    }
+  });
+  var pivot = Array.from(groups.values()).map(function(g){
+    return {
+      SFG_BOM: g.bom, SFG_CODE: g.code, SFG_NAME: g.name,
+      REQ_SUM: Math.round(g.sum * 10000) / 10000,
+      NET_SUM: Math.round(g.net_sum * 10000) / 10000,
+      UM: g.um, L3: g.l3, L4: g.l4,
+      LINES: g.rows, CUSTOMERS: g.customers.size, MC_COUNT: g.mc_nos.size, PORD_COUNT: g.ports.size
+    };
+  });
+  pivot.sort(function(a,b){ return ((a.SFG_BOM || "zzz") + a.SFG_CODE).localeCompare((b.SFG_BOM || "zzz") + b.SFG_CODE); });
+  return pivot;
+}
+
+function buildLinesStatic(rows, netKey, dateKey) {
+  var keep = ["PORD_NO", "PORD_DATE", "MC_NO", "ACC_NAME", "SFG_CODE", "SFG_NAME", "SFG_BOM", "SFG_UM", "FG_ITEM_NAME", "FG_LEVEL_4_NAME", "FG_NET_ORDERQTY", "FG_PRODUCTION_QTY", "FG_BALANCE_TO_PRODUCTION", "SFG_REQUIRED_AG_BAL TO PRD FG", "CONTRACT_VRNO"];
+  return rows.map(function(r){
+    var row = {};
+    keep.forEach(function(k){ row[k] = r[k]; });
+    row.SFG_NET_ORD_QTY = r[netKey];
+    row.TARGET_DATE_OF_PROD_CLOSER = dateKey ? r[dateKey] : null;
+    return row;
+  });
+}
+
+async function loadData(force) {
+  const btn = document.getElementById("refreshBtn");
+  const errEl = document.getElementById("error");
+  const loadingEl = document.getElementById("loading");
+  const contentEl = document.getElementById("content");
+  errEl.style.display = "none";
+  btn.disabled = true;
+  btn.textContent = "Refreshing...";
+
+  try {
+    const live = await fetchLiveData();
+    if (live && live.error) throw new Error(live.error);
+    const rawRows = live && Array.isArray(live.rows) ? live.rows : [];
+    const rows = rawRows.filter(function(r){ return r && r.PORD_NO; });
+    const netKey = findNetKey(rows);
+    const dateKey = findTargetDateKey(rows);
+    const masters = await Promise.all([fetchEqptMasterStatic(), fetchHodMasterStatic()]);
+    ROWS = buildPivotStatic(rows, netKey);
+    LINES = buildLinesStatic(rows, netKey, dateKey);
+    EQPT_MASTER = masters[0];
+    HOD_MASTER = masters[1];
+    META = { exported_at: live.exported_at, fetched_at: new Date().toISOString(), row_count: rows.length };
+    document.getElementById("sub").textContent =
+      ROWS.length + " distinct SFG BOMs / " + LINES.length + " underlying lines / " + EQPT_MASTER.length + " EQPTs / " + HOD_MASTER.length + " HODs / live as of " + (META.fetched_at || "").slice(0,19).replace("T", " ");
+    loadingEl.style.display = "none";
+    contentEl.style.display = "";
+    renderAll();
+  } catch(e) {
+    errEl.style.display = "block";
+    errEl.textContent = "Failed to load live data: " + e.message + " - Check Apps Script deployment access and URL.";
+    loadingEl.style.display = "none";
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Refresh";
+  }
+}
+
+function renderAll() {
+  renderKpis();
+  refreshFilters();
+  // EQPT / HOD filter dropdowns are populated straight from the masters
+  populateSelect(document.getElementById("fltEqpt"), EQPT_MASTER);
+  populateSelect(document.getElementById("fltHod"), HOD_MASTER);
+  addBlankOption(document.getElementById("fltEqpt"));
+  addBlankOption(document.getElementById("fltHod"));
+  document.getElementById("fltL3").onchange = onAnyFilterChange;
+  document.getElementById("fltL4").onchange = onAnyFilterChange;
+  document.getElementById("fltUm").onchange = onAnyFilterChange;
+  document.getElementById("fltEqpt").onchange = onAnyFilterChange;
+  document.getElementById("fltHod").onchange = onAnyFilterChange;
+  document.getElementById("fltNonzero").onchange = onAnyFilterChange;
+  document.getElementById("fltBalanceNonzero").onchange = onAnyFilterChange;
+  document.getElementById("fltSearch").oninput = renderTable;
+  renderTable();
+}
+
+function renderKpis() {
+  var total = ROWS.length;
+  var nz = ROWS.filter(function(r){return r.REQ_SUM > 0;}).length;
+  var kmRows = ROWS.filter(function(r){return r.UM === "KM";});
+  var kgRows = ROWS.filter(function(r){return r.UM === "KG";});
+  var sumKm = kmRows.reduce(function(a,r){return a + r.REQ_SUM;}, 0);
+  var sumKg = kgRows.reduce(function(a,r){return a + r.REQ_SUM;}, 0);
+  var kmNz = kmRows.filter(function(r){return r.REQ_SUM > 0;}).length;
+  var kgNz = kgRows.filter(function(r){return r.REQ_SUM > 0;}).length;
+  var topKm = kmRows.slice().sort(function(a,b){return b.REQ_SUM - a.REQ_SUM;})[0];
+  var topKg = kgRows.slice().sort(function(a,b){return b.REQ_SUM - a.REQ_SUM;})[0];
+  var kpis = [
+    { label: "Distinct BOMs", value: total, sub: nz + " with requirement > 0" },
+    { label: "Required (KM)", value: fmt(sumKm, 2) + " km", sub: kmNz + " BOMs / " + kmRows.length + " total in KM" },
+    { label: "Required (KG)", value: fmt(sumKg, 0) + " kg", sub: kgNz + " BOMs / " + kgRows.length + " total in KG" },
+    { label: "Top BOM (KM)", value: topKm ? fmt(topKm.REQ_SUM, 2) + " km" : "-", sub: topKm ? (topKm.SFG_NAME || "").slice(0, 40) : "" },
+    { label: "Top BOM (KG)", value: topKg ? fmt(topKg.REQ_SUM, 0) + " kg" : "-", sub: topKg ? (topKg.SFG_NAME || "").slice(0, 40) : "" }
+  ];
+  document.getElementById("kpis").innerHTML = kpis.map(function(k){
+    return '<div class="kpi"><div class="label">' + esc(k.label) + '</div><div class="value">' + esc(String(k.value)) + '</div>' + (k.sub ? '<div class="sub2">' + esc(k.sub) + '</div>' : '') + '</div>';
+  }).join("");
+}
+
+function daysUntilISO(s) {
+  if (!s) return null;
+  var today = new Date();
+  var start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  var parts = String(s).split("-");
+  if (parts.length !== 3) return null;
+  var target = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+  if (isNaN(target.getTime())) return null;
+  return Math.round((target - start) / 86400000);
+}
+
+function renderEquipmentBlockTable() {
+  var body = document.getElementById("equipmentBlockBody");
+  if (!body) return;
+  var map = new Map();
+  if (Array.isArray(LINES)) {
+    LINES.forEach(function(l){
+      if (num(l["SFG_REQUIRED_AG_BAL TO PRD FG"]) <= 0) return;
+      if (isLineDone(l)) return;
+      var lk = lineKey(l);
+      var eqpt = getLineEqpt(lk);
+      if (!eqpt) return;
+      var d = getLineDateFromRow(l);
+      var balance = Math.max(num(l.SFG_NET_ORD_QTY) - getLineProdDone(l), 0);
+      if (!map.has(eqpt)) {
+        map.set(eqpt, { eqpt: eqpt, lines: 0, mcs: new Set(), balance: 0, maxDate: "" });
+      }
+      var g = map.get(eqpt);
+      g.lines += 1;
+      if (l.MC_NO) g.mcs.add(String(l.MC_NO).trim());
+      g.balance += balance;
+      if (d && (!g.maxDate || d > g.maxDate)) g.maxDate = d;
+    });
+  }
+  var rows = Array.from(map.values()).sort(function(a,b){
+    if (a.maxDate && b.maxDate && a.maxDate !== b.maxDate) return b.maxDate.localeCompare(a.maxDate);
+    if (a.maxDate && !b.maxDate) return -1;
+    if (!a.maxDate && b.maxDate) return 1;
+    return b.balance - a.balance;
+  });
+  if (!rows.length) {
+    body.innerHTML = '<tr><td colspan="6" class="empty">Assign EQPT in drill-down to see blocking status.</td></tr>';
+    return;
+  }
+  body.innerHTML = rows.map(function(r){
+    var days = daysUntilISO(r.maxDate);
+    var daysText = days == null ? "-" : (days < 0 ? Math.abs(days) + " overdue" : days);
+    var dateCls = isPastISODate(r.maxDate) ? "blocked-date bal-neg" : "blocked-date";
+    return '<tr>' +
+      '<td><strong>' + esc(r.eqpt) + '</strong></td>' +
+      '<td class="num">' + fmt(r.lines, 0) + '</td>' +
+      '<td class="num">' + fmt(r.mcs.size, 0) + '</td>' +
+      '<td class="num">' + fmt(r.balance, 3) + '</td>' +
+      '<td class="' + dateCls + '">' + (r.maxDate ? esc(fmtDateDMY(r.maxDate)) : '-') + '</td>' +
+      '<td class="num' + (days != null && days < 0 ? ' bal-neg' : '') + '">' + esc(String(daysText)) + '</td>' +
+    '</tr>';
+  }).join("");
+}
+
+function makeChart(id, type, labels, data, opts) {
+  opts = opts || {};
+  if (CHARTS[id]) CHARTS[id].destroy();
+  var ctx = document.getElementById(id).getContext("2d");
+  CHARTS[id] = new Chart(ctx, {
+    type: type,
+    data: { labels: labels, datasets: [{ data: data, backgroundColor: opts.colors || labels.map(function(_,i){return COLORS[i % COLORS.length];}), borderWidth: 0 }] },
+    options: Object.assign({
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: type === "bar" ? Object.assign({
+        x: { ticks: { font: { size: 10 } }, grid: { color: "#eef0f2" }, beginAtZero: true },
+        y: { ticks: { font: { size: 10 }, autoSkip: false }, grid: { display: false } }
+      }, opts.scales || {}) : {}
+    }, opts.chartOpts || {})
+  });
+}
+
+function renderTopKmChart() {
+  var map = new Map();
+  ROWS.forEach(function(r){
+    var balance = getBalance(r);
+    if (r.UM !== "KM" || balance <= 0.0005) return;
+    var l = r.L4 || "-";
+    map.set(l, (map.get(l) || 0) + balance);
+  });
+  var entries = Array.from(map.entries()).sort(function(a,b){return b[1]-a[1];}).slice(0, 10);
+  var labels = entries.map(function(e){
+    var name = e[0];
+    return name.slice(0, 38) + (name.length > 38 ? "..." : "");
+  });
+  makeChart("chart-top-km", "bar", labels, entries.map(function(e){return e[1];}), { chartOpts: { indexAxis: "y" } });
+}
+
+function renderL3Chart() {
+  var map = new Map();
+  ROWS.forEach(function(r){
+    var balance = getBalance(r);
+    if (r.UM !== "KM" || balance <= 0.0005) return;
+    var l = r.L3 || "-";
+    map.set(l, (map.get(l) || 0) + balance);
+  });
+  var entries = Array.from(map.entries()).sort(function(a,b){return b[1]-a[1];});
+  makeChart("chart-l3", "bar", entries.map(function(e){return e[0];}), entries.map(function(e){return e[1];}), { chartOpts: { indexAxis: "y" } });
+}
+
+var COLS = [
+  { key: "SFG_BOM", label: "SFG_BOM" },
+  { key: "SFG_CODE", label: "SFG_CODE" },
+  { key: "SFG_NAME", label: "SFG_NAME" },
+  { key: "UM", label: "Unit", pill: true },
+  { key: "L3", label: "Level 3" },
+  { key: "L4", label: "Level 4" },
+  { key: "LINES", label: "Lines", num: true },
+  { key: "MC_COUNT", label: "MC Count", num: true },
+  { key: "NET_SUM", label: "SFG Net Qty", num: true },
+  { key: "REQ_SUM", label: "SFG REQUIRED", num: true, primary: true },
+  { key: "PROD_DONE", label: "Production Done", num: true, computed: true },
+  { key: "BALANCE", label: "Balance", num: true, computed: true },
+  { key: "TARGET_DATE", label: "Target Close Date", computed: true }
+];
+
+var SORT = { key: "SFG_BOM", asc: true };
+
+function renderTable() {
+  // Recompute parent rollups from per-line state.
+  LINE_PD_BY_BOM = buildLinePDMap();
+  LINE_DATE_BY_BOM = buildLineDateMap();
+  buildLineAssignmentMaps();
+  AGG_CACHE = new Map();
+  renderEquipmentBlockTable();
+  renderTopKmChart();
+  renderL3Chart();
+  var head = document.getElementById("pivot-head");
+  head.innerHTML = COLS.map(function(c){
+    return '<th data-k="' + c.key + '" class="' + (SORT.key === c.key ? "sorted " + (SORT.asc ? "asc" : "") : "") + (c.primary ? " primary" : "") + '"' + (c.num ? ' style="text-align:right;"' : "") + '>' + esc(c.label) + '</th>';
+  }).join("");
+  head.querySelectorAll("th").forEach(function(th){
+    th.onclick = function(){
+      var k = th.dataset.k;
+      if (SORT.key === k) SORT.asc = !SORT.asc;
+      else { SORT.key = k; SORT.asc = (k === "SFG_BOM" || k === "SFG_CODE" || k === "SFG_NAME" || k === "L3" || k === "L4" || k === "UM"); }
+      renderTable();
+    };
+  });
+
+  var fUm = document.getElementById("fltUm").value;
+  var fL3 = document.getElementById("fltL3").value;
+  var fL4 = document.getElementById("fltL4").value;
+  var fEqpt = document.getElementById("fltEqpt").value;
+  var fHod = document.getElementById("fltHod").value;
+  var q = document.getElementById("fltSearch").value.toLowerCase().trim();
+  var nzOnly = document.getElementById("fltNonzero").checked;
+  var balanceNzOnly = document.getElementById("fltBalanceNonzero").checked;
+
+  var filtered = ROWS.filter(function(r){
+    if (fUm && r.UM !== fUm) return false;
+    if (fL3 && r.L3 !== fL3) return false;
+    if (fL4 && r.L4 !== fL4) return false;
+    if (nzOnly && r.REQ_SUM <= 0) return false;
+    if (fEqpt === BLANK_FILTER) {
+      var blines = LINES_BY_BOM.get(prodKey(r)) || [];
+      if (!blines.some(function(l){ return !LINE_EQPT[lineKey(l)]; })) return false;
+    } else if (fEqpt) {
+      var es = EQPT_BY_BOM.get(prodKey(r));
+      if (!es || !es.has(fEqpt)) return false;
+    }
+    if (fHod === BLANK_FILTER) {
+      var blines2 = LINES_BY_BOM.get(prodKey(r)) || [];
+      if (!blines2.some(function(l){ return !LINE_HOD[lineKey(l)]; })) return false;
+    } else if (fHod) {
+      var hs = HOD_BY_BOM.get(prodKey(r));
+      if (!hs || !hs.has(fHod)) return false;
+    }
+    // If both EQPT and HOD filters are active, require at least one line that
+    // matches BOTH together (not just the BOM having SOME line for each).
+    if (fEqpt && fHod) {
+      var agg = rowAggregates(r, fEqpt, fHod);
+      if (agg.lines === 0) return false;
+    }
+    if (balanceNzOnly) {
+      var balAgg = rowAggregates(r, fEqpt, fHod);
+      if (Math.abs(balAgg.balance) < 0.0005) return false;
+    }
+    if (q) {
+      var blob = [r.SFG_BOM, r.SFG_CODE, r.SFG_NAME, r.L3, r.L4].join(" ").toLowerCase();
+      if (blob.indexOf(q) < 0) return false;
+    }
+    return true;
+  });
+
+  filtered = filtered.slice().sort(function(a,b){
+    var av, bv;
+    var aA = rowAggregates(a, fEqpt, fHod);
+    var bA = rowAggregates(b, fEqpt, fHod);
+    if (SORT.key === "PROD_DONE") { av = aA.prod_done; bv = bA.prod_done; }
+    else if (SORT.key === "BALANCE") { av = aA.balance; bv = bA.balance; }
+    else if (SORT.key === "TARGET_DATE") { av = aA.target_date; bv = bA.target_date; }
+    else if (SORT.key === "LINES") { av = aA.lines; bv = bA.lines; }
+    else if (SORT.key === "MC_COUNT") { av = aA.mc_count; bv = bA.mc_count; }
+    else if (SORT.key === "NET_SUM") { av = aA.net_sum; bv = bA.net_sum; }
+    else if (SORT.key === "REQ_SUM") { av = aA.req_sum; bv = bA.req_sum; }
+    else { av = a[SORT.key]; bv = b[SORT.key]; }
+    if (typeof av === "number" || typeof bv === "number") {
+      av = Number(av) || 0; bv = Number(bv) || 0;
+      return SORT.asc ? av - bv : bv - av;
+    }
+    av = String(av || ""); bv = String(bv || "");
+    if (SORT.key === "SFG_BOM") {
+      if (!av && bv) return 1;
+      if (av && !bv) return -1;
+    }
+    return SORT.asc ? av.localeCompare(bv) : bv.localeCompare(av);
+  });
+
+  document.getElementById("rowCount").textContent = filtered.length + " of " + ROWS.length + " BOMs";
+
+  var body = document.getElementById("pivot-body");
+  if (!filtered.length) {
+    body.innerHTML = '<tr><td colspan="' + COLS.length + '" class="empty">No matching BOMs.</td></tr>';
+    document.getElementById("pivot-foot").innerHTML = "";
+    return;
+  }
+
+  body.innerHTML = filtered.map(function(r){
+    var agg = rowAggregates(r, fEqpt, fHod);
+    var zero = agg.req_sum <= 0;
+    var done = agg.prod_done;
+    var bal = agg.balance;
+    var net = agg.net_sum;
+    return '<tr class="' + (zero ? "zero" : "") + '" data-bom="' + esc(r.SFG_BOM) + '" data-code="' + esc(r.SFG_CODE) + '" data-name="' + esc(r.SFG_NAME) + '">' + COLS.map(function(c){
+      var v = r[c.key];
+      if (c.key === "SFG_BOM") return '<td>' + (v ? esc(v) : '<span class="bom-empty">(no BOM)</span>') + '</td>';
+      if (c.pill) {
+        if (!v) return '<td><span class="pill pill-empty">-</span></td>';
+        return '<td><span class="pill pill-' + v.toLowerCase() + '">' + esc(v) + '</span></td>';
+      }
+      if (c.key === "LINES") return '<td class="num">' + fmt(agg.lines, 0) + '</td>';
+      if (c.key === "MC_COUNT") return '<td class="num">' + fmt(agg.mc_count, 0) + '</td>';
+      if (c.key === "NET_SUM") return '<td class="num">' + fmt(agg.net_sum, 3) + '</td>';
+      if (c.key === "REQ_SUM") return '<td class="num"><strong>' + fmt(agg.req_sum, 3) + '</strong></td>';
+      if (c.computed && c.key === "PROD_DONE") {
+        return '<td class="num bal-cell"><strong>' + (done > 0 ? fmt(done, 3) : "-") + '</strong></td>';
+      }
+      if (c.computed && c.key === "BALANCE") {
+        var cls = bal < 0 ? "bal-neg" : (Math.abs(bal) < 0.0005 && done > 0 ? "bal-zero" : "");
+        var display = (net === 0 && done === 0) ? "-" : fmt(bal, 3);
+        return '<td class="num bal-cell ' + cls + '"><strong>' + display + '</strong></td>';
+      }
+      if (c.computed && c.key === "TARGET_DATE") {
+        var td = agg.target_date;
+        if (!td) return '<td><span style="color:#bbb;">-</span></td>';
+        var pastCls = isPastISODate(td) ? ' bal-neg' : '';
+        return '<td class="' + pastCls + '" style="white-space:nowrap;">' + esc(fmtDateDMY(td)) + '</td>';
+      }
+      if (c.num) {
+        return '<td class="num">' + (v == null ? "-" : fmt(v, 0)) + '</td>';
+      }
+      return '<td>' + esc(v) + '</td>';
+    }).join("") + '</tr>';
+  }).join("");
+
+  body.querySelectorAll("tr").forEach(function(tr, i){
+    if (tr.classList.contains("zero")) return;
+    tr.onclick = function(e){
+      openDrillDown(tr.dataset.bom, tr.dataset.code, tr.dataset.name);
+    };
+  });
+
+  function updateFooter() {
+    // Sum each filtered BOM's aggregate values (which already respect EQPT/HOD filters).
+    var totalKmReq = 0, totalKgReq = 0, totalKmNet = 0, totalKgNet = 0;
+    var totalKmDone = 0, totalKgDone = 0, totalLines = 0;
+    var mcSet = new Set();
+    var maxDate = "";
+    filtered.forEach(function(r){
+      var a = rowAggregates(r, fEqpt, fHod);
+      totalLines += a.lines;
+      if (r.UM === "KM") { totalKmReq += a.req_sum; totalKmNet += a.net_sum; totalKmDone += a.prod_done; }
+      else if (r.UM === "KG") { totalKgReq += a.req_sum; totalKgNet += a.net_sum; totalKgDone += a.prod_done; }
+      if (a.target_date && (!maxDate || a.target_date > maxDate)) maxDate = a.target_date;
+    });
+    // Distinct MC count across all filtered BOMs (respecting EQPT/HOD filters)
+    if (fEqpt || fHod) {
+      filtered.forEach(function(r){
+        (LINES_BY_BOM.get(prodKey(r)) || []).forEach(function(l){
+          if (fEqpt && getLineEqpt(lineKey(l)) !== fEqpt) return;
+          if (fHod && getLineHod(lineKey(l)) !== fHod) return;
+          if (l.MC_NO) mcSet.add(String(l.MC_NO).trim());
+        });
+      });
+    } else {
+      var filteredKeys = new Set(filtered.map(function(r){ return prodKey(r); }));
+      LINES.forEach(function(l){
+        if (!filteredKeys.has((l.SFG_BOM || "") + "||" + (l.SFG_CODE || ""))) return;
+        if (l.MC_NO) mcSet.add(String(l.MC_NO).trim());
+      });
+    }
+    var totalMc = mcSet.size;
+    var totalKmBal = totalKmNet - totalKmDone;
+    var totalKgBal = totalKgNet - totalKgDone;
+    document.getElementById("pivot-foot").innerHTML =
+      '<tr>' +
+        '<td colspan="6" style="text-align:right;">Totals (filtered):</td>' +
+        '<td class="num">' + fmt(totalLines, 0) + '</td>' +
+        '<td class="num">' + fmt(totalMc, 0) + '</td>' +
+        '<td class="num">KM: ' + fmt(totalKmNet, 3) + '<br>KG: ' + fmt(totalKgNet, 3) + '</td>' +
+        '<td class="num">KM: ' + fmt(totalKmReq, 3) + '<br>KG: ' + fmt(totalKgReq, 3) + '</td>' +
+        '<td class="num">KM: ' + fmt(totalKmDone, 3) + '<br>KG: ' + fmt(totalKgDone, 3) + '</td>' +
+        '<td class="num"><span class="' + (totalKmBal < 0 ? "bal-neg" : "") + '">KM: ' + fmt(totalKmBal, 3) + '</span><br><span class="' + (totalKgBal < 0 ? "bal-neg" : "") + '">KG: ' + fmt(totalKgBal, 3) + '</span></td>' +
+        '<td style="white-space:nowrap;">' + (maxDate ? "Latest: <strong>" + esc(fmtDateDMY(maxDate)) + "</strong>" : "-") + '</td>' +
+      '</tr>';
+  }
+  updateFooter();
+}
+
+function openDrillDown(bom, code, name) {
+  // Parent EQPT/HOD filter is propagated into the drill-down. We re-read it
+  // inside every render so edits inside the drill stay consistent.
+  function computeMatching() {
+    var fE = document.getElementById("fltEqpt").value;
+    var fH = document.getElementById("fltHod").value;
+    return LINES.filter(function(l){
+      if ((l.SFG_BOM || "") !== (bom || "") || (l.SFG_CODE || "") !== (code || "")) return false;
+      if (num(l["SFG_REQUIRED_AG_BAL TO PRD FG"]) <= 0) return false;
+      var lk = lineKey(l);
+      if (fE === BLANK_FILTER) { if (LINE_EQPT[lk]) return false; }
+      else if (fE && getLineEqpt(lk) !== fE) return false;
+      if (fH === BLANK_FILTER) { if (LINE_HOD[lk]) return false; }
+      else if (fH && getLineHod(lk) !== fH) return false;
+      return true;
+    });
+  }
+  // UM (KM/KG) is the same for any line of the BOM â€” pick from any line
+  // (unaffected by filter) so it stays correct when the filter excludes
+  // everything visible.
+  var firstAny = LINES.find(function(l){
+    return (l.SFG_BOM || "") === (bom || "") && (l.SFG_CODE || "") === (code || "");
+  });
+  var um = firstAny ? (firstAny.SFG_UM || "") : "";
+
+  document.getElementById("drillTitle").textContent = name || code || bom;
+  var _fE = document.getElementById("fltEqpt").value;
+  var _fH = document.getElementById("fltHod").value;
+  var filterBits = [];
+  if (_fE === BLANK_FILTER) filterBits.push("EQPT = (blank)");
+  else if (_fE) filterBits.push("EQPT = " + _fE);
+  if (_fH === BLANK_FILTER) filterBits.push("HOD = (blank)");
+  else if (_fH) filterBits.push("HOD = " + _fH);
+  var filterDesc = filterBits.length
+    ? ' &nbsp; / &nbsp; <span style="color:#a85;font-weight:600;">Filtered: ' + esc(filterBits.join(", ")) + '</span>'
+    : '';
+  document.getElementById("drillMeta").innerHTML = '<strong>BOM:</strong> ' + esc(bom || "(no BOM)") + ' &nbsp; / &nbsp; <strong>SFG Code:</strong> ' + esc(code) + filterDesc;
+
+  function renderDrillStats() {
+    var matching = computeMatching();
+    var totalLines = matching.length;
+    var parties = new Set(matching.map(function(l){return l.ACC_NAME;}).filter(Boolean));
+    var mcs = new Set(matching.map(function(l){return l.MC_NO;}).filter(Boolean));
+    var ports = new Set(matching.map(function(l){return l.PORD_NO;}).filter(Boolean));
+    var sumReq = matching.reduce(function(a,l){return a + num(l["SFG_REQUIRED_AG_BAL TO PRD FG"]);}, 0);
+    var sumSfgNet = matching.reduce(function(a,l){return a + num(l.SFG_NET_ORD_QTY);}, 0);
+    var doneCount = matching.filter(isLineDone).length;
+    var sumProdDone = matching.reduce(function(a,l){return a + getLineProdDone(l);}, 0);
+    document.getElementById("drillStats").innerHTML = [
+      { l: "Parties", v: parties.size },
+      { l: "MC Numbers", v: mcs.size },
+      { l: "Production Orders", v: ports.size },
+      { l: "Total Lines", v: totalLines },
+      { l: "Lines Done (ticked)", v: doneCount + " / " + totalLines },
+      { l: "SFG Net Qty", v: fmt(sumSfgNet, 3) + " " + (um || "") },
+      { l: "SFG Required", v: fmt(sumReq, 3) + " " + (um || "") },
+      { l: "Production Done", v: fmt(sumProdDone, 3) + " " + (um || "") }
+    ].map(function(s){ return '<div class="drill-stat"><div class="l">' + esc(s.l) + '</div><div class="v">' + esc(String(s.v)) + '</div></div>'; }).join("");
+    refreshDrillRollups();
+  }
+  function refreshDrillRollups() {
+    document.querySelectorAll("#drillContent .party-group").forEach(function(grp){
+      var rows = grp.querySelectorAll("tbody tr[data-lk]");
+      var pdSum = 0;
+      rows.forEach(function(tr){
+        var lk = tr.getAttribute("data-lk") || "";
+        var sfgNet = parseFloat(tr.getAttribute("data-sfgnet") || "0") || 0;
+        pdSum += LINE_DONE[lk] ? sfgNet : num(LINE_PD[lk]);
+      });
+      var pdSlot = grp.querySelector(".party-pd-slot");
+      if (pdSlot) pdSlot.textContent = fmt(pdSum, 3) + " " + (um || "");
+    });
+    document.querySelectorAll("#drillContent .mc-block").forEach(function(blk){
+      var rows = blk.querySelectorAll("tbody tr[data-lk]");
+      var pdSum = 0;
+      rows.forEach(function(tr){
+        var lk = tr.getAttribute("data-lk") || "";
+        var sfgNet = parseFloat(tr.getAttribute("data-sfgnet") || "0") || 0;
+        pdSum += LINE_DONE[lk] ? sfgNet : num(LINE_PD[lk]);
+      });
+      var pdSlot = blk.querySelector(".mc-pd-slot");
+      if (pdSlot) pdSlot.textContent = fmt(pdSum, 3) + " " + (um || "");
+    });
+  }
+  renderDrillStats();
+  window.__currentDrillRecompute = renderDrillStats;
+
+  // ---- Body rendering (re-runs when ticks change or showDone toggles) ----
+  function renderDrillBody() {
+    var matching = computeMatching();
+    var showDone = document.getElementById("drillShowDone").checked;
+    var visible = showDone ? matching : matching.filter(function(l){ return !isLineDone(l); });
+
+    // Update "X ticked line(s) hidden" hint next to the toggle
+    var hiddenEl = document.getElementById("drillHiddenInfo");
+    var hiddenCount = matching.length - visible.length;
+    if (hiddenEl) {
+      hiddenEl.textContent = hiddenCount > 0
+        ? "(" + hiddenCount + " ticked line" + (hiddenCount === 1 ? "" : "s") + " hidden)"
+        : "";
+    }
+
+    // Group visible lines by Party -> MC
+    var byParty = new Map();
+    visible.forEach(function(l){
+      var party = l.ACC_NAME || "(no party)";
+      if (!byParty.has(party)) byParty.set(party, new Map());
+      var byMc = byParty.get(party);
+      var mc = l.MC_NO || "(no MC)";
+      if (!byMc.has(mc)) byMc.set(mc, []);
+      byMc.get(mc).push(l);
+    });
+
+    var partyArr = Array.from(byParty.entries()).map(function(entry){
+      var pName = entry[0], mcMap = entry[1];
+      var allLines = [];
+      mcMap.forEach(function(arr){ arr.forEach(function(l){ allLines.push(l); }); });
+      return {
+        party: pName, mcMap: mcMap,
+        totalReq: allLines.reduce(function(a,l){return a + num(l["SFG_REQUIRED_AG_BAL TO PRD FG"]);}, 0),
+        totalSfgNet: allLines.reduce(function(a,l){return a + num(l.SFG_NET_ORD_QTY);}, 0),
+        totalBal: allLines.reduce(function(a,l){return a + num(l.FG_BALANCE_TO_PRODUCTION);}, 0),
+        lineCount: allLines.length
+      };
+    }).sort(function(a,b){return b.totalReq - a.totalReq;});
+
+    var html = "";
+    if (!visible.length) {
+      var fEnow = document.getElementById("fltEqpt").value;
+      var fHnow = document.getElementById("fltHod").value;
+      if (matching.length) {
+        html = '<div class="empty">All ' + matching.length + ' line' + (matching.length === 1 ? "" : "s") + ' for this BOM are ticked Done. Tick "Show Done (ticked) lines" above to view / un-tick them.</div>';
+      } else if (fEnow || fHnow) {
+        html = '<div class="empty">No lines match the active EQPT / HOD filter for this BOM. Clear the parent filter to see all lines.</div>';
+      } else {
+        html = '<div class="empty">No underlying production order lines for this BOM.</div>';
+      }
+    } else {
+      partyArr.forEach(function(p){
+        var mcArr = Array.from(p.mcMap.entries()).sort(function(a,b){
+          var ar = a[1].reduce(function(s,l){return s + num(l["SFG_REQUIRED_AG_BAL TO PRD FG"]);}, 0);
+          var br = b[1].reduce(function(s,l){return s + num(l["SFG_REQUIRED_AG_BAL TO PRD FG"]);}, 0);
+          return br - ar;
+        });
+        var partyPDInit = (function(){
+          var s = 0;
+          p.mcMap.forEach(function(arr){ arr.forEach(function(l){ s += getLineProdDone(l); }); });
+          return s;
+        })();
+        html += '<div class="party-group open">' +
+          '<div class="party-head"><span>' + esc(p.party) + '</span>' +
+          '<span class="right">' + mcArr.length + ' MC / ' + p.lineCount + ' lines / SFG Net ' + fmt(p.totalSfgNet, 3) + ' ' + esc(um) + ' / SFG Req <strong>' + fmt(p.totalReq, 3) + ' ' + esc(um) + '</strong> / Prod Done <span class="party-pd-slot">' + fmt(partyPDInit, 3) + ' ' + esc(um) + '</span></span></div>' +
+          '<div class="party-body">';
+        mcArr.forEach(function(pair){
+          var mc = pair[0], mcLines = pair[1];
+          var mcReq = mcLines.reduce(function(a,l){return a + num(l["SFG_REQUIRED_AG_BAL TO PRD FG"]);}, 0);
+          var mcSfgNet = mcLines.reduce(function(a,l){return a + num(l.SFG_NET_ORD_QTY);}, 0);
+          var mcPDInit = mcLines.reduce(function(a,l){return a + getLineProdDone(l);}, 0);
+          html += '<div class="mc-block">' +
+            '<div class="mc-head">MC ' + esc(mc) + ' &nbsp; <span style="font-weight:400;color:#666;">- ' + mcLines.length + ' line(s) / SFG Net ' + fmt(mcSfgNet, 3) + ' ' + esc(um) + ' / SFG Req ' + fmt(mcReq, 3) + ' ' + esc(um) + ' / Prod Done <span class="mc-pd-slot">' + fmt(mcPDInit, 3) + ' ' + esc(um) + '</span></span></div>' +
+            renderPordTable(mcLines, um) +
+          '</div>';
+        });
+        html += '</div></div>';
+      });
+    }
+    document.getElementById("drillContent").innerHTML = html;
+    document.getElementById("drillContent").querySelectorAll(".party-head").forEach(function(h){
+      h.onclick = function(){ h.parentElement.classList.toggle("open"); };
+    });
+    wireDoneTicksGlobal();
+  }
+  window.__drillRenderBody = renderDrillBody;
+
+  // Reset and wire the "Show Done lines" toggle
+  var showDoneInp = document.getElementById("drillShowDone");
+  if (showDoneInp) {
+    showDoneInp.checked = false;  // default: hide ticked lines
+    showDoneInp.onchange = function(){ renderDrillBody(); };
+  }
+
+  renderDrillBody();
+  document.getElementById("drillModal").classList.add("open");
+}
+
+function renderPordTable(lines, um) {
+  var cols = [
+    { key: "_done", label: "Done" },
+    { key: "PORD_NO", label: "PORD No" },
+    { key: "PORD_DATE", label: "Date" },
+    { key: "FG_ITEM_NAME", label: "FG Item" },
+    { key: "FG_LEVEL_4_NAME", label: "FG L4" },
+    { key: "FG_NET_ORDERQTY", label: "FG Net (" + um + ")", num: true },
+    { key: "FG_PRODUCTION_QTY", label: "Produced", num: true },
+    { key: "FG_BALANCE_TO_PRODUCTION", label: "Balance", num: true },
+    { key: "_pct", label: "Compl %" },
+    { key: "SFG_NET_ORD_QTY", label: "SFG Net", num: true },
+    { key: "SFG_REQUIRED_AG_BAL TO PRD FG", label: "SFG Req", num: true },
+    { key: "_line_pd", label: "Production Done Qty", num: true, editable: true },
+    { key: "_line_date", label: "Target Date of Prod Closer" },
+    { key: "_eqpt", label: "EQPT" },
+    { key: "_hod", label: "HOD" },
+    { key: "_status", label: "Status" }
+  ];
+  var sorted = lines.slice().sort(function(a,b){return (a.PORD_NO || "").localeCompare(b.PORD_NO || "");});
+  var rowsHtml = sorted.map(function(l, idx){
+    var open = num(l.FG_BALANCE_TO_PRODUCTION) > 0.001;
+    var net = num(l.FG_NET_ORDERQTY);
+    var prod = num(l.FG_PRODUCTION_QTY);
+    var pct = net > 0 ? Math.min(100, prod/net*100) : 0;
+    var done = isLineDone(l);
+    var lk = esc(lineKey(l));
+    var sfgNet = num(l.SFG_NET_ORD_QTY);
+    var manualPD = getLinePDManual(lineKey(l));
+    return '<tr class="' + (done ? "line-done" : "") + '" data-lk="' + lk + '" data-sfgnet="' + sfgNet + '">' + cols.map(function(c){
+      if (c.key === "_done") {
+        return '<td class="line-done-cell"><input type="checkbox" class="line-done-chk"' + (done ? ' checked' : '') + ' title="Tick when production complete (auto-fills SFG Net Qty as Production Done)" /></td>';
+      }
+      if (c.key === "_status") return '<td>' + (open ? '<span class="pill pill-open">Open</span>' : '<span class="pill pill-closed">Done</span>') + '</td>';
+      if (c.key === "_pct") {
+        if (net <= 0) return '<td>-</td>';
+        return '<td><div class="progress"><span style="width:' + pct + '%"></span></div><div style="font-size:10px;color:#666;text-align:right;">' + pct.toFixed(0) + '%</div></td>';
+      }
+      if (c.key === "_line_pd") {
+        // If ticked: show SFG Net (locked). Else: manual editable.
+        var dispVal = done ? sfgNet : (manualPD > 0 ? manualPD : "");
+        var readonly = done ? ' readonly' : '';
+        var extraCls = done ? ' line-pd-locked' : '';
+        return '<td class="num input-cell"><input type="number" step="any" min="0" class="line-pd-input prod-input' + extraCls + '" value="' + esc(dispVal) + '" placeholder="0"' + readonly + ' /></td>';
+      }
+      if (c.key === "_line_date") {
+        var d = getLineDateFromRow(l);
+        if (!d) return '<td style="color:#bbb;">-</td>';
+        var pastCls = isPastISODate(d) ? ' bal-neg' : '';
+        return '<td class="' + pastCls + '" style="white-space:nowrap;">' + esc(fmtDateDMY(d)) + '</td>';
+      }
+      if (c.key === "_eqpt") {
+        var selE = getLineEqpt(lineKey(l));
+        var optsE = '<option value="">-- select --</option>' + EQPT_MASTER.map(function(e){
+          return '<option value="' + esc(e) + '"' + (selE === e ? ' selected' : '') + '>' + esc(e) + '</option>';
+        }).join("");
+        return '<td class="eqpt-cell"><select class="line-eqpt-select">' + optsE + '</select></td>';
+      }
+      if (c.key === "_hod") {
+        var selH = getLineHod(lineKey(l));
+        var optsH = '<option value="">-- select --</option>' + HOD_MASTER.map(function(h){
+          return '<option value="' + esc(h) + '"' + (selH === h ? ' selected' : '') + '>' + esc(h) + '</option>';
+        }).join("");
+        return '<td class="hod-cell"><select class="line-hod-select">' + optsH + '</select></td>';
+      }
+      var v = l[c.key];
+      if (c.num) return '<td class="num">' + (v == null || v === "" ? "-" : fmt(num(v), 3)) + '</td>';
+      if (c.key === "FG_ITEM_NAME") return '<td class="fg-item-cell" title="' + esc(v) + '">' + esc(v) + '</td>';
+      return '<td>' + esc(v) + '</td>';
+    }).join("") + '</tr>';
+  }).join("");
+  return '<div class="pord-wrap"><table class="pord-table">' +
+    '<thead><tr>' + cols.map(function(c){return '<th' + (c.num ? ' style="text-align:right;"' : '') + '>' + esc(c.label) + '</th>';}).join("") + '</tr></thead>' +
+    '<tbody>' + rowsHtml + '</tbody></table></div>';
+}
+
+function wireDoneTicksGlobal() {
+  // Wire ALL .line-done-chk checkboxes + Production Done Qty inputs in the
+  // drill modal in a single pass, using the data-lk attribute on the row.
+  var content = document.getElementById("drillContent");
+  if (!content) return;
+
+  // 1) Tick (Done) checkboxes
+  content.querySelectorAll(".line-done-chk").forEach(function(chk){
+    chk.onclick = function(e){ e.stopPropagation(); };
+    chk.onchange = function(){
+      var tr = chk.closest("tr");
+      if (!tr) return;
+      var lk = tr.getAttribute("data-lk") || "";
+      if (chk.checked) {
+        LINE_DONE[lk] = 1;
+        // Production closed on this line â€” clear EQPT and HOD so they no longer
+        // count in parent filters / aggregates.
+        if (lk in LINE_EQPT) { delete LINE_EQPT[lk]; saveLineEqpt(); }
+        if (lk in LINE_HOD)  { delete LINE_HOD[lk];  saveLineHod();  }
+      } else {
+        delete LINE_DONE[lk];
+      }
+      saveLineDone();
+      // Re-render drill body â€” ticked lines disappear (unless "Show Done" is on);
+      // un-ticked lines re-appear normally.
+      if (typeof window.__drillRenderBody === "function") window.__drillRenderBody();
+      if (typeof window.__currentDrillRecompute === "function") window.__currentDrillRecompute();
+      // Live-update the parent pivot row's Production Done / Balance.
+      if (typeof renderTable === "function") renderTable();
+    };
+  });
+
+  // 2) Per-line Production Done Qty inputs (manual entry when not ticked)
+  content.querySelectorAll(".line-pd-input").forEach(function(inp){
+    inp.onclick = function(e){ e.stopPropagation(); };
+    inp.onkeydown = function(e){ e.stopPropagation(); };
+    var update = function(){
+      if (inp.readOnly) return;  // ticked rows are auto-filled, ignore user edits
+      var tr = inp.closest("tr");
+      if (!tr) return;
+      var lk = tr.getAttribute("data-lk") || "";
+      var v = inp.value.trim();
+      setLinePDManual(lk, v === "" ? null : parseFloat(v));
+      if (typeof window.__currentDrillRecompute === "function") window.__currentDrillRecompute();
+      if (typeof renderTable === "function") renderTable();
+    };
+    inp.oninput = update;
+    inp.onchange = update;
+  });
+
+  // (Target Date is now read-only from the sheet column â€” no wiring needed.)
+
+  // 3) Per-line EQPT dropdowns
+  content.querySelectorAll(".line-eqpt-select").forEach(function(sel){
+    sel.onclick = function(e){ e.stopPropagation(); };
+    sel.onmousedown = function(e){ e.stopPropagation(); };
+    sel.onkeydown = function(e){ e.stopPropagation(); };
+    sel.onchange = function(){
+      var tr = sel.closest("tr");
+      if (!tr) return;
+      var lk = tr.getAttribute("data-lk") || "";
+      setLineEqpt(lk, sel.value);
+      if (typeof window.__currentDrillRecompute === "function") window.__currentDrillRecompute();
+      if (typeof window.__drillRenderBody === "function") window.__drillRenderBody();
+      if (typeof renderTable === "function") renderTable();
+    };
+  });
+
+  // 4) Per-line HOD dropdowns
+  content.querySelectorAll(".line-hod-select").forEach(function(sel){
+    sel.onclick = function(e){ e.stopPropagation(); };
+    sel.onmousedown = function(e){ e.stopPropagation(); };
+    sel.onkeydown = function(e){ e.stopPropagation(); };
+    sel.onchange = function(){
+      var tr = sel.closest("tr");
+      if (!tr) return;
+      var lk = tr.getAttribute("data-lk") || "";
+      setLineHod(lk, sel.value);
+      if (typeof window.__currentDrillRecompute === "function") window.__currentDrillRecompute();
+      if (typeof window.__drillRenderBody === "function") window.__drillRenderBody();
+      if (typeof renderTable === "function") renderTable();
+    };
+  });
+}
+
+document.getElementById("drillClose").onclick = function(){ document.getElementById("drillModal").classList.remove("open"); };
+document.getElementById("drillModal").onclick = function(e){
+  if (e.target.id === "drillModal") document.getElementById("drillModal").classList.remove("open");
+};
+document.addEventListener("keydown", function(e){
+  if (e.key === "Escape") document.getElementById("drillModal").classList.remove("open");
+});
+
+function populateSelect(sel, vals) {
+  var prev = sel.value;
+  sel.innerHTML = '<option value="">All</option>' + vals.map(function(v){return '<option value="' + esc(v) + '">' + esc(v) + '</option>';}).join("");
+  if (prev && vals.indexOf(prev) >= 0) sel.value = prev;
+  else sel.value = "";
+}
+
+// Sentinel used in EQPT/HOD filter dropdowns to mean "lines with no assignment".
+var BLANK_FILTER = "__BLANK__";
+function addBlankOption(sel) {
+  // Insert "(blank â€” not assigned)" right after the "All" entry, preserving
+  // any prior selection.
+  if (!sel) return;
+  var prev = sel.value;
+  // Remove an existing blank option, if any (to avoid duplicates across reruns).
+  Array.from(sel.options).forEach(function(o){ if (o.value === BLANK_FILTER) sel.removeChild(o); });
+  var opt = document.createElement("option");
+  opt.value = BLANK_FILTER;
+  opt.textContent = "(blank â€” not assigned)";
+  if (sel.options.length >= 2) sel.insertBefore(opt, sel.options[1]);
+  else sel.appendChild(opt);
+  sel.value = prev;
+}
+
+function rowsExcluding(exclude) {
+  var fUm = document.getElementById("fltUm").value;
+  var fL3 = document.getElementById("fltL3").value;
+  var fL4 = document.getElementById("fltL4").value;
+  var nzOnly = document.getElementById("fltNonzero").checked;
+  return ROWS.filter(function(r){
+    if (exclude !== "UM" && fUm && r.UM !== fUm) return false;
+    if (exclude !== "L3" && fL3 && r.L3 !== fL3) return false;
+    if (exclude !== "L4" && fL4 && r.L4 !== fL4) return false;
+    if (nzOnly && r.REQ_SUM <= 0) return false;
+    return true;
+  });
+}
+
+function refreshFilters() {
+  var umSel = document.getElementById("fltUm");
+  var l3Sel = document.getElementById("fltL3");
+  var l4Sel = document.getElementById("fltL4");
+  var umVals = Array.from(new Set(rowsExcluding("UM").map(function(r){return r.UM;}).filter(Boolean))).sort();
+  var l3Vals = Array.from(new Set(rowsExcluding("L3").map(function(r){return r.L3;}).filter(Boolean))).sort();
+  var l4Vals = Array.from(new Set(rowsExcluding("L4").map(function(r){return r.L4;}).filter(Boolean))).sort();
+  Array.from(umSel.options).forEach(function(opt){
+    if (opt.value === "") return;
+    opt.disabled = umVals.indexOf(opt.value) < 0;
+  });
+  if (umSel.value && umVals.indexOf(umSel.value) < 0) umSel.value = "";
+  populateSelect(l3Sel, l3Vals);
+  populateSelect(l4Sel, l4Vals);
+}
+
+function clearFilters() {
+  document.getElementById("fltUm").value = "";
+  document.getElementById("fltL3").value = "";
+  document.getElementById("fltL4").value = "";
+  document.getElementById("fltEqpt").value = "";
+  document.getElementById("fltHod").value = "";
+  document.getElementById("fltSearch").value = "";
+  document.getElementById("fltNonzero").checked = true;
+  document.getElementById("fltBalanceNonzero").checked = true;
+  refreshFilters();
+  renderTable();
+}
+window.clearFilters = clearFilters;
+
+function onAnyFilterChange() { refreshFilters(); renderTable(); }
+
+/* initial load */
+loadData(false);
+</script>
+</body>
+</html>
+
