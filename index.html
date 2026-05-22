@@ -235,11 +235,16 @@ let EQPT_MASTER = [];
 let HOD_MASTER = [];
 let META = {};
 let REMOTE_INPUTS_LOADING = false;
+let DATA_LOAD_IN_PROGRESS = false;
 
 // Optional shared manual-input endpoint.
 // Keep blank for browser-only localStorage. Paste the separate Planning Inputs
 // Apps Script Web App URL here to share EQPT/HOD/Done/Production Done across PCs.
-const INPUT_API_URL = "https://script.google.com/macros/s/AKfycbz706s_tHUDPBIA74LwZ0NIAurtuc1YmzGaTIXYhzZrHkh9hUCu-51I34wUGHGyVM3X/exec";
+const INPUT_API_URL = "";
+
+// Auto-pull fresh Google Sheet data. Apps Script requests use cache-busting,
+// so edits in the sheet show here without manually pressing Refresh.
+const AUTO_REFRESH_SECONDS = 30;
 
 // ---- Per-line EQPT selection (drill-down dropdown) ----
 const LINE_EQPT_KEY = "erp_line_eqpt_v1";
@@ -709,14 +714,18 @@ function buildLinesStatic(rows, netKey, dateKey) {
   });
 }
 
-async function loadData(force) {
+async function loadData(force, silent) {
+  if (DATA_LOAD_IN_PROGRESS) return;
+  DATA_LOAD_IN_PROGRESS = true;
   const btn = document.getElementById("refreshBtn");
   const errEl = document.getElementById("error");
   const loadingEl = document.getElementById("loading");
   const contentEl = document.getElementById("content");
-  errEl.style.display = "none";
-  btn.disabled = true;
-  btn.textContent = "Refreshing...";
+  if (!silent) {
+    errEl.style.display = "none";
+    btn.disabled = true;
+    btn.textContent = "Refreshing...";
+  }
 
   try {
     const live = await fetchLiveData();
@@ -733,17 +742,24 @@ async function loadData(force) {
     await loadRemoteInputs();
     META = { exported_at: live.exported_at, fetched_at: new Date().toISOString(), row_count: rows.length };
     document.getElementById("sub").textContent =
-      ROWS.length + " distinct SFG BOMs / " + LINES.length + " underlying lines / " + EQPT_MASTER.length + " EQPTs / " + HOD_MASTER.length + " HODs / live as of " + (META.fetched_at || "").slice(0,19).replace("T", " ");
+      ROWS.length + " distinct SFG BOMs / " + LINES.length + " underlying lines / " + EQPT_MASTER.length + " EQPTs / " + HOD_MASTER.length + " HODs / live as of " + (META.fetched_at || "").slice(0,19).replace("T", " ") + " / auto refresh " + AUTO_REFRESH_SECONDS + "s";
     loadingEl.style.display = "none";
     contentEl.style.display = "";
     renderAll();
   } catch(e) {
-    errEl.style.display = "block";
-    errEl.textContent = "Failed to load live data: " + e.message + " - Check Apps Script deployment access and URL.";
+    if (silent) {
+      console.warn("Auto refresh failed", e);
+    } else {
+      errEl.style.display = "block";
+      errEl.textContent = "Failed to load live data: " + e.message + " - Check Apps Script deployment access and URL.";
+    }
     loadingEl.style.display = "none";
   } finally {
-    btn.disabled = false;
-    btn.textContent = "Refresh";
+    DATA_LOAD_IN_PROGRESS = false;
+    if (!silent) {
+      btn.disabled = false;
+      btn.textContent = "Refresh";
+    }
   }
 }
 
@@ -1530,8 +1546,16 @@ window.clearFilters = clearFilters;
 
 function onAnyFilterChange() { refreshFilters(); renderTable(); }
 
+function startAutoRefresh() {
+  if (AUTO_REFRESH_SECONDS <= 0) return;
+  setInterval(function(){
+    loadData(false, true);
+  }, AUTO_REFRESH_SECONDS * 1000);
+}
+
 /* initial load */
 loadData(false);
+startAutoRefresh();
 </script>
 </body>
 </html>
