@@ -234,6 +234,12 @@ let LINES = [];
 let EQPT_MASTER = [];
 let HOD_MASTER = [];
 let META = {};
+let REMOTE_INPUTS_LOADING = false;
+
+// Optional shared manual-input endpoint.
+// Keep blank for browser-only localStorage. Paste the separate Planning Inputs
+// Apps Script Web App URL here to share EQPT/HOD/Done/Production Done across PCs.
+const INPUT_API_URL = "https://script.google.com/macros/s/AKfycbz706s_tHUDPBIA74LwZ0NIAurtuc1YmzGaTIXYhzZrHkh9hUCu-51I34wUGHGyVM3X/exec";
 
 // ---- Per-line EQPT selection (drill-down dropdown) ----
 const LINE_EQPT_KEY = "erp_line_eqpt_v1";
@@ -244,6 +250,7 @@ function setLineEqpt(lk, v) {
   if (!v) delete LINE_EQPT[lk];
   else LINE_EQPT[lk] = v;
   saveLineEqpt();
+  saveRemoteLineInput(lk);
 }
 
 // ---- Per-line HOD selection (drill-down dropdown) ----
@@ -255,6 +262,7 @@ function setLineHod(lk, v) {
   if (!v) delete LINE_HOD[lk];
   else LINE_HOD[lk] = v;
   saveLineHod();
+  saveRemoteLineInput(lk);
 }
 
 // ---- Rollup: which EQPTs / HODs are assigned across each BOM's lines? ----
@@ -397,6 +405,7 @@ function setLineDone(l, done) {
   if (done) LINE_DONE[k] = 1;
   else delete LINE_DONE[k];
   saveLineDone();
+  saveRemoteLineInput(k);
 }
 
 // ---- Per-line manual Production Done qty store ----
@@ -408,6 +417,7 @@ function setLinePDManual(lk, v) {
   if (v == null || v === "" || isNaN(v) || v === 0) delete LINE_PD[lk];
   else LINE_PD[lk] = v;
   saveLinePD();
+  saveRemoteLineInput(lk);
 }
 // Effective per-line Production Done = SFG_NET_ORD_QTY when ticked, else manual entry.
 function getLineProdDone(l) {
@@ -476,6 +486,79 @@ function isPastISODate(s) {
 }
 
 const APP_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzJn0_gDs_nvFeg5X7nlM99dUZ4tnhI3Z1ionkM9RGfU_TS4lIWYThEGjt6EpTnMtHbgQ/exec";
+
+function hasInputApi() {
+  return typeof INPUT_API_URL === "string" && INPUT_API_URL.trim() !== "";
+}
+
+function applyRemoteInputRecord(rec) {
+  if (!rec || !rec.line_id) return;
+  var lk = String(rec.line_id);
+  if (rec.done === true || rec.done === "TRUE" || rec.done === "true" || rec.done === 1 || rec.done === "1") LINE_DONE[lk] = 1;
+  else delete LINE_DONE[lk];
+  var pd = num(rec.prod_done);
+  if (pd > 0) LINE_PD[lk] = pd;
+  else delete LINE_PD[lk];
+  var eqpt = rec.eqpt == null ? "" : String(rec.eqpt).trim();
+  if (eqpt) LINE_EQPT[lk] = eqpt;
+  else delete LINE_EQPT[lk];
+  var hod = rec.hod == null ? "" : String(rec.hod).trim();
+  if (hod) LINE_HOD[lk] = hod;
+  else delete LINE_HOD[lk];
+}
+
+function loadRemoteInputs() {
+  if (!hasInputApi()) return Promise.resolve();
+  REMOTE_INPUTS_LOADING = true;
+  return new Promise(function(resolve) {
+    var cb = "__planningInputsCb_" + Date.now() + "_" + Math.floor(Math.random() * 100000);
+    var script = document.createElement("script");
+    var done = false;
+    function finish() {
+      if (done) return;
+      done = true;
+      REMOTE_INPUTS_LOADING = false;
+      try { delete window[cb]; } catch(e) { window[cb] = undefined; }
+      if (script.parentNode) script.parentNode.removeChild(script);
+      resolve();
+    }
+    window[cb] = function(payload) {
+      try {
+        var records = payload && Array.isArray(payload.records) ? payload.records : [];
+        records.forEach(applyRemoteInputRecord);
+        saveLineDone();
+        saveLinePD();
+        saveLineEqpt();
+        saveLineHod();
+      } catch(e) {
+        console.warn("Planning inputs parse failed", e);
+      }
+      finish();
+    };
+    script.onerror = finish;
+    script.src = INPUT_API_URL + (INPUT_API_URL.indexOf("?") >= 0 ? "&" : "?") + "action=list&callback=" + encodeURIComponent(cb) + "&_=" + Date.now();
+    document.head.appendChild(script);
+    setTimeout(finish, 12000);
+  });
+}
+
+function saveRemoteLineInput(lk) {
+  if (!hasInputApi() || REMOTE_INPUTS_LOADING || !lk) return;
+  var body = new URLSearchParams();
+  body.set("action", "upsert");
+  body.set("line_id", lk);
+  body.set("done", LINE_DONE[lk] ? "1" : "0");
+  body.set("prod_done", LINE_PD[lk] == null ? "" : String(LINE_PD[lk]));
+  body.set("eqpt", LINE_EQPT[lk] || "");
+  body.set("hod", LINE_HOD[lk] || "");
+  body.set("updated_at", new Date().toISOString());
+  fetch(INPUT_API_URL, {
+    method: "POST",
+    mode: "no-cors",
+    headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+    body: body
+  }).catch(function(e){ console.warn("Planning input save failed", e); });
+}
 
 async function fetchLiveData(tab) {
   const url = new URL(APP_SCRIPT_URL);
@@ -647,6 +730,7 @@ async function loadData(force) {
     LINES = buildLinesStatic(rows, netKey, dateKey);
     EQPT_MASTER = masters[0];
     HOD_MASTER = masters[1];
+    await loadRemoteInputs();
     META = { exported_at: live.exported_at, fetched_at: new Date().toISOString(), row_count: rows.length };
     document.getElementById("sub").textContent =
       ROWS.length + " distinct SFG BOMs / " + LINES.length + " underlying lines / " + EQPT_MASTER.length + " EQPTs / " + HOD_MASTER.length + " HODs / live as of " + (META.fetched_at || "").slice(0,19).replace("T", " ");
@@ -1305,6 +1389,7 @@ function wireDoneTicksGlobal() {
         delete LINE_DONE[lk];
       }
       saveLineDone();
+      saveRemoteLineInput(lk);
       // Re-render drill body â€” ticked lines disappear (unless "Show Done" is on);
       // un-ticked lines re-appear normally.
       if (typeof window.__drillRenderBody === "function") window.__drillRenderBody();
