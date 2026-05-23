@@ -529,17 +529,24 @@ function loadRemoteInputs() {
     var cb = "__planningInputsCb_" + Date.now() + "_" + Math.floor(Math.random() * 100000);
     var script = document.createElement("script");
     var done = false;
-    function finish() {
+    function finish(records) {
       if (done) return;
       done = true;
       REMOTE_INPUTS_LOADING = false;
       try { delete window[cb]; } catch(e) { window[cb] = undefined; }
       if (script.parentNode) script.parentNode.removeChild(script);
+      // After applying server records, push any local-only entries up to the
+      // server. This is critical for legacy data: if the user assigned EQPT /
+      // HOD / Done / Production Done before INPUT_API_URL was wired up, those
+      // entries live only in this PC's localStorage. Without this sync, other
+      // PCs would never see them.
+      try { pushLocalOnlyToRemote(records || []); } catch(e) { console.warn("Local-only sync failed", e); }
       resolve();
     }
     window[cb] = function(payload) {
+      var records = [];
       try {
-        var records = payload && Array.isArray(payload.records) ? payload.records : [];
+        records = payload && Array.isArray(payload.records) ? payload.records : [];
         records.forEach(applyRemoteInputRecord);
         saveLineDone();
         saveLinePD();
@@ -548,13 +555,37 @@ function loadRemoteInputs() {
       } catch(e) {
         console.warn("Planning inputs parse failed", e);
       }
-      finish();
+      finish(records);
     };
-    script.onerror = finish;
+    script.onerror = function(){ finish([]); };
     script.src = INPUT_API_URL + (INPUT_API_URL.indexOf("?") >= 0 ? "&" : "?") + "action=list&callback=" + encodeURIComponent(cb) + "&_=" + Date.now();
     document.head.appendChild(script);
-    setTimeout(finish, 12000);
+    setTimeout(function(){ finish([]); }, 12000);
   });
+}
+
+// Push any localStorage entry whose line_id is NOT present in the server's
+// returned records. This catches legacy data created before the sync API URL
+// was configured â€” so on the very next refresh, every PC sees the same state.
+// We intentionally do NOT push entries that DO exist on the server, even if
+// their local values differ â€” for those, the server is the source of truth
+// (already applied above).
+function pushLocalOnlyToRemote(serverRecords) {
+  if (!hasInputApi()) return;
+  var serverKeys = new Set((serverRecords || []).map(function(r){ return String(r && r.line_id || ""); }));
+  var localKeys = new Set();
+  Object.keys(LINE_DONE).forEach(function(k){ localKeys.add(k); });
+  Object.keys(LINE_PD).forEach(function(k){ localKeys.add(k); });
+  Object.keys(LINE_EQPT).forEach(function(k){ localKeys.add(k); });
+  Object.keys(LINE_HOD).forEach(function(k){ localKeys.add(k); });
+  var pushed = 0;
+  localKeys.forEach(function(lk){
+    if (!lk || serverKeys.has(lk)) return;
+    // Stagger POSTs slightly so we don't fire 50 requests in the same ms.
+    setTimeout(function(){ saveRemoteLineInput(lk); }, pushed * 80);
+    pushed++;
+  });
+  if (pushed > 0) console.info("[Planning sync] Pushed " + pushed + " local-only line(s) to server");
 }
 
 function saveRemoteLineInput(lk) {
