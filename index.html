@@ -496,9 +496,19 @@ function hasInputApi() {
   return typeof INPUT_API_URL === "string" && INPUT_API_URL.trim() !== "";
 }
 
+// Track lines the user just edited locally so a near-simultaneous remote GET
+// (which might still echo stale data from before our POST landed in the sheet)
+// doesn't clobber the fresh value. Window kept short so other PCs' updates
+// still flow in within ~15 sec.
+const LOCAL_RECENT = {};
+const LOCAL_RECENT_MS = 15000;
+
 function applyRemoteInputRecord(rec) {
   if (!rec || !rec.line_id) return;
   var lk = String(rec.line_id);
+  // Skip overwrite if user edited this line within the last few seconds â€”
+  // our POST may not have been absorbed yet and the GET could be stale.
+  if (LOCAL_RECENT[lk] && (Date.now() - LOCAL_RECENT[lk]) < LOCAL_RECENT_MS) return;
   if (rec.done === true || rec.done === "TRUE" || rec.done === "true" || rec.done === 1 || rec.done === "1") LINE_DONE[lk] = 1;
   else delete LINE_DONE[lk];
   var pd = num(rec.prod_done);
@@ -548,7 +558,12 @@ function loadRemoteInputs() {
 }
 
 function saveRemoteLineInput(lk) {
-  if (!hasInputApi() || REMOTE_INPUTS_LOADING || !lk) return;
+  // Always POST every manual edit â€” we no longer gate on REMOTE_INPUTS_LOADING
+  // so that user input typed during an auto-refresh window is never dropped.
+  if (!hasInputApi() || !lk) return;
+  // Mark line as just-edited locally so the next remote GET (which may still
+  // echo the pre-POST value) does not overwrite our fresh input.
+  LOCAL_RECENT[lk] = Date.now();
   var body = new URLSearchParams();
   body.set("action", "upsert");
   body.set("line_id", lk);
