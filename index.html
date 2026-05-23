@@ -780,11 +780,18 @@ async function loadData(force, silent) {
     const rows = rawRows.filter(function(r){ return r && r.PORD_NO; });
     const netKey = findNetKey(rows);
     const dateKey = findTargetDateKey(rows);
-    const masters = await Promise.all([fetchEqptMasterStatic(), fetchHodMasterStatic()]);
+    // EQPT_MASTER / HOD_MASTER are cached after first load. Re-fetching them
+    // on every 30-sec auto-refresh would (a) waste Apps Script quota and
+    // (b) wipe the filter dropdowns whenever the fetch transiently fails,
+    // which in turn resets the user's active EQPT/HOD filter. We only
+    // re-fetch on initial load and on manual Refresh button clicks (force).
+    if (force || !EQPT_MASTER.length || !HOD_MASTER.length) {
+      const masters = await Promise.all([fetchEqptMasterStatic(), fetchHodMasterStatic()]);
+      if (masters[0] && masters[0].length) EQPT_MASTER = masters[0];
+      if (masters[1] && masters[1].length) HOD_MASTER = masters[1];
+    }
     ROWS = buildPivotStatic(rows, netKey);
     LINES = buildLinesStatic(rows, netKey, dateKey);
-    EQPT_MASTER = masters[0];
-    HOD_MASTER = masters[1];
     await loadRemoteInputs();
     META = { exported_at: live.exported_at, fetched_at: new Date().toISOString(), row_count: rows.length };
     document.getElementById("sub").textContent =
@@ -810,6 +817,21 @@ async function loadData(force, silent) {
 }
 
 function renderAll() {
+  // Snapshot all filter selections BEFORE any DOM mutation. Auto-refresh
+  // rebuilds the EQPT / HOD / L3 / L4 dropdown option lists, and if we don't
+  // explicitly restore the previous selection afterwards, the user's active
+  // filter would be silently reset to "All" (this is exactly the "30 sec ke
+  // baad filter release ho jaata hain" bug).
+  var saved = {
+    um:   document.getElementById("fltUm").value,
+    l3:   document.getElementById("fltL3").value,
+    l4:   document.getElementById("fltL4").value,
+    eqpt: document.getElementById("fltEqpt").value,
+    hod:  document.getElementById("fltHod").value,
+    search: document.getElementById("fltSearch").value,
+    nonzero: document.getElementById("fltNonzero").checked,
+    balanceNonzero: document.getElementById("fltBalanceNonzero").checked
+  };
   renderKpis();
   refreshFilters();
   // EQPT / HOD filter dropdowns are populated straight from the masters
@@ -817,6 +839,23 @@ function renderAll() {
   populateSelect(document.getElementById("fltHod"), HOD_MASTER);
   addBlankOption(document.getElementById("fltEqpt"));
   addBlankOption(document.getElementById("fltHod"));
+  // Restore saved filter selections. We only set a value if the option still
+  // exists (e.g. an EQPT removed from EQPT_MASTER would silently fall back
+  // to "All" rather than show a stale invisible selection).
+  function restoreSel(id, val) {
+    var el = document.getElementById(id);
+    if (!el || val == null) return;
+    var ok = Array.from(el.options).some(function(o){ return o.value === val; });
+    if (ok) el.value = val;
+  }
+  restoreSel("fltUm",   saved.um);
+  restoreSel("fltL3",   saved.l3);
+  restoreSel("fltL4",   saved.l4);
+  restoreSel("fltEqpt", saved.eqpt);
+  restoreSel("fltHod",  saved.hod);
+  document.getElementById("fltSearch").value = saved.search || "";
+  document.getElementById("fltNonzero").checked = !!saved.nonzero;
+  document.getElementById("fltBalanceNonzero").checked = !!saved.balanceNonzero;
   document.getElementById("fltL3").onchange = onAnyFilterChange;
   document.getElementById("fltL4").onchange = onAnyFilterChange;
   document.getElementById("fltUm").onchange = onAnyFilterChange;
