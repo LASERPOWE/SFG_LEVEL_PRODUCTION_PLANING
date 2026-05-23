@@ -188,6 +188,9 @@
         <label>HOD
           <select id="fltHod"><option value="">All</option></select>
         </label>
+        <label>Approve Status
+          <select id="fltApprove"><option value="">All</option></select>
+        </label>
         <label>Search
           <input id="fltSearch" type="text" placeholder="BOM, code, name..." />
         </label>
@@ -275,12 +278,18 @@ function setLineHod(lk, v) {
 // least one of its lines (with SFG_REQ > 0) has the selected EQPT / HOD.
 var EQPT_BY_BOM = new Map();
 var HOD_BY_BOM = new Map();
+// APPROVE_STATUS is a per-line attribute coming from the ERP sheet. We keep a
+// roll-up per BOM (set of distinct statuses across its open lines) so the
+// parent-table filter can quickly answer "does this BOM have any line with
+// the selected status?".
+var APPROVE_BY_BOM = new Map();
 // Index of all SFG_REQ>0 lines grouped by BOM key â€” lets us recompute parent
 // aggregates per-filter without re-scanning all LINES per row.
 var LINES_BY_BOM = new Map();
 function buildLineAssignmentMaps() {
   EQPT_BY_BOM = new Map();
   HOD_BY_BOM = new Map();
+  APPROVE_BY_BOM = new Map();
   LINES_BY_BOM = new Map();
   if (!Array.isArray(LINES)) return;
   LINES.forEach(function(l){
@@ -299,6 +308,14 @@ function buildLineAssignmentMaps() {
       if (!HOD_BY_BOM.has(k)) HOD_BY_BOM.set(k, new Set());
       HOD_BY_BOM.get(k).add(h);
     }
+    var ap = l.APPROVE_STATUS;
+    if (ap != null) {
+      var apStr = String(ap).trim();
+      if (apStr) {
+        if (!APPROVE_BY_BOM.has(k)) APPROVE_BY_BOM.set(k, new Set());
+        APPROVE_BY_BOM.get(k).add(apStr);
+      }
+    }
   });
 }
 
@@ -307,11 +324,11 @@ function buildLineAssignmentMaps() {
 // reflect only the child lines matching those filters; otherwise they fall back
 // to the server-computed totals.
 var AGG_CACHE = new Map();
-function rowAggregates(r, fEqpt, fHod) {
-  var ck = prodKey(r) + "||" + (fEqpt || "") + "||" + (fHod || "");
+function rowAggregates(r, fEqpt, fHod, fApprove) {
+  var ck = prodKey(r) + "||" + (fEqpt || "") + "||" + (fHod || "") + "||" + (fApprove || "");
   if (AGG_CACHE.has(ck)) return AGG_CACHE.get(ck);
   var out;
-  if (!fEqpt && !fHod) {
+  if (!fEqpt && !fHod && !fApprove) {
     out = {
       lines: r.LINES, mc_count: r.MC_COUNT,
       net_sum: r.NET_SUM || 0, req_sum: r.REQ_SUM,
@@ -325,6 +342,10 @@ function rowAggregates(r, fEqpt, fHod) {
       else if (fEqpt && getLineEqpt(lk) !== fEqpt) return false;
       if (fHod === BLANK_FILTER) { if (LINE_HOD[lk]) return false; }
       else if (fHod && getLineHod(lk) !== fHod) return false;
+      // APPROVE_STATUS filter (line-level value from the ERP sheet).
+      var apv = l.APPROVE_STATUS == null ? "" : String(l.APPROVE_STATUS).trim();
+      if (fApprove === BLANK_FILTER) { if (apv) return false; }
+      else if (fApprove && apv !== fApprove) return false;
       return true;
     });
     var net = 0, req = 0, pd = 0, td = "";
@@ -750,7 +771,7 @@ function buildPivotStatic(rows, netKey) {
 }
 
 function buildLinesStatic(rows, netKey, dateKey) {
-  var keep = ["PORD_NO", "PORD_DATE", "MC_NO", "ACC_NAME", "SFG_CODE", "SFG_NAME", "SFG_BOM", "SFG_UM", "FG_ITEM_NAME", "FG_LEVEL_4_NAME", "FG_NET_ORDERQTY", "FG_PRODUCTION_QTY", "FG_BALANCE_TO_PRODUCTION", "SFG_REQUIRED_AG_BAL TO PRD FG", "CONTRACT_VRNO"];
+  var keep = ["PORD_NO", "PORD_DATE", "MC_NO", "ACC_NAME", "SFG_CODE", "SFG_NAME", "SFG_BOM", "SFG_UM", "FG_ITEM_NAME", "FG_LEVEL_4_NAME", "FG_NET_ORDERQTY", "FG_PRODUCTION_QTY", "FG_BALANCE_TO_PRODUCTION", "SFG_REQUIRED_AG_BAL TO PRD FG", "CONTRACT_VRNO", "APPROVE_STATUS"];
   return rows.map(function(r){
     var row = {};
     keep.forEach(function(k){ row[k] = r[k]; });
@@ -828,6 +849,7 @@ function renderAll() {
     l4:   document.getElementById("fltL4").value,
     eqpt: document.getElementById("fltEqpt").value,
     hod:  document.getElementById("fltHod").value,
+    approve: document.getElementById("fltApprove").value,
     search: document.getElementById("fltSearch").value,
     nonzero: document.getElementById("fltNonzero").checked,
     balanceNonzero: document.getElementById("fltBalanceNonzero").checked
@@ -839,6 +861,19 @@ function renderAll() {
   populateSelect(document.getElementById("fltHod"), HOD_MASTER);
   addBlankOption(document.getElementById("fltEqpt"));
   addBlankOption(document.getElementById("fltHod"));
+  // Approve Status dropdown is populated from distinct values on the live
+  // lines (not a separate master sheet). "(blank)" option lets the user
+  // surface BOMs whose lines have no approval value yet.
+  var approveSet = new Set();
+  (LINES || []).forEach(function(l){
+    if (num(l["SFG_REQUIRED_AG_BAL TO PRD FG"]) <= 0) return;
+    var ap = l.APPROVE_STATUS;
+    if (ap == null) return;
+    var s = String(ap).trim();
+    if (s) approveSet.add(s);
+  });
+  populateSelect(document.getElementById("fltApprove"), Array.from(approveSet).sort());
+  addBlankOption(document.getElementById("fltApprove"));
   // Restore saved filter selections. We only set a value if the option still
   // exists (e.g. an EQPT removed from EQPT_MASTER would silently fall back
   // to "All" rather than show a stale invisible selection).
@@ -853,6 +888,7 @@ function renderAll() {
   restoreSel("fltL4",   saved.l4);
   restoreSel("fltEqpt", saved.eqpt);
   restoreSel("fltHod",  saved.hod);
+  restoreSel("fltApprove", saved.approve);
   document.getElementById("fltSearch").value = saved.search || "";
   document.getElementById("fltNonzero").checked = !!saved.nonzero;
   document.getElementById("fltBalanceNonzero").checked = !!saved.balanceNonzero;
@@ -861,6 +897,7 @@ function renderAll() {
   document.getElementById("fltUm").onchange = onAnyFilterChange;
   document.getElementById("fltEqpt").onchange = onAnyFilterChange;
   document.getElementById("fltHod").onchange = onAnyFilterChange;
+  document.getElementById("fltApprove").onchange = onAnyFilterChange;
   document.getElementById("fltNonzero").onchange = onAnyFilterChange;
   document.getElementById("fltBalanceNonzero").onchange = onAnyFilterChange;
   document.getElementById("fltSearch").oninput = renderTable;
@@ -1041,6 +1078,7 @@ function renderTable() {
   var fL4 = document.getElementById("fltL4").value;
   var fEqpt = document.getElementById("fltEqpt").value;
   var fHod = document.getElementById("fltHod").value;
+  var fApprove = document.getElementById("fltApprove").value;
   var q = document.getElementById("fltSearch").value.toLowerCase().trim();
   var nzOnly = document.getElementById("fltNonzero").checked;
   var balanceNzOnly = document.getElementById("fltBalanceNonzero").checked;
@@ -1064,14 +1102,29 @@ function renderTable() {
       var hs = HOD_BY_BOM.get(prodKey(r));
       if (!hs || !hs.has(fHod)) return false;
     }
-    // If both EQPT and HOD filters are active, require at least one line that
-    // matches BOTH together (not just the BOM having SOME line for each).
-    if (fEqpt && fHod) {
-      var agg = rowAggregates(r, fEqpt, fHod);
+    // APPROVE_STATUS filter â€” cheap roll-up check first; combined-filter case
+    // is handled below via rowAggregates so "match at least one line satisfying
+    // ALL line-level filters" semantics holds.
+    if (fApprove === BLANK_FILTER) {
+      var blines3 = LINES_BY_BOM.get(prodKey(r)) || [];
+      if (!blines3.some(function(l){
+        var apv = l.APPROVE_STATUS == null ? "" : String(l.APPROVE_STATUS).trim();
+        return !apv;
+      })) return false;
+    } else if (fApprove) {
+      var aps = APPROVE_BY_BOM.get(prodKey(r));
+      if (!aps || !aps.has(fApprove)) return false;
+    }
+    // If two or more line-level filters are active simultaneously, require at
+    // least one line that satisfies ALL of them together (not just the BOM
+    // having SOME line per individual filter).
+    var activeLineFilters = (fEqpt ? 1 : 0) + (fHod ? 1 : 0) + (fApprove ? 1 : 0);
+    if (activeLineFilters >= 2) {
+      var agg = rowAggregates(r, fEqpt, fHod, fApprove);
       if (agg.lines === 0) return false;
     }
     if (balanceNzOnly) {
-      var balAgg = rowAggregates(r, fEqpt, fHod);
+      var balAgg = rowAggregates(r, fEqpt, fHod, fApprove);
       if (Math.abs(balAgg.balance) < 0.0005) return false;
     }
     if (q) {
@@ -1083,8 +1136,8 @@ function renderTable() {
 
   filtered = filtered.slice().sort(function(a,b){
     var av, bv;
-    var aA = rowAggregates(a, fEqpt, fHod);
-    var bA = rowAggregates(b, fEqpt, fHod);
+    var aA = rowAggregates(a, fEqpt, fHod, fApprove);
+    var bA = rowAggregates(b, fEqpt, fHod, fApprove);
     if (SORT.key === "PROD_DONE") { av = aA.prod_done; bv = bA.prod_done; }
     else if (SORT.key === "BALANCE") { av = aA.balance; bv = bA.balance; }
     else if (SORT.key === "TARGET_DATE") { av = aA.target_date; bv = bA.target_date; }
@@ -1115,7 +1168,7 @@ function renderTable() {
   }
 
   body.innerHTML = filtered.map(function(r){
-    var agg = rowAggregates(r, fEqpt, fHod);
+    var agg = rowAggregates(r, fEqpt, fHod, fApprove);
     var zero = agg.req_sum <= 0;
     var done = agg.prod_done;
     var bal = agg.balance;
@@ -1166,18 +1219,23 @@ function renderTable() {
     var mcSet = new Set();
     var maxDate = "";
     filtered.forEach(function(r){
-      var a = rowAggregates(r, fEqpt, fHod);
+      var a = rowAggregates(r, fEqpt, fHod, fApprove);
       totalLines += a.lines;
       if (r.UM === "KM") { totalKmReq += a.req_sum; totalKmNet += a.net_sum; totalKmDone += a.prod_done; }
       else if (r.UM === "KG") { totalKgReq += a.req_sum; totalKgNet += a.net_sum; totalKgDone += a.prod_done; }
       if (a.target_date && (!maxDate || a.target_date > maxDate)) maxDate = a.target_date;
     });
-    // Distinct MC count across all filtered BOMs (respecting EQPT/HOD filters)
-    if (fEqpt || fHod) {
+    // Distinct MC count across all filtered BOMs (respecting EQPT/HOD/Approve filters)
+    if (fEqpt || fHod || fApprove) {
       filtered.forEach(function(r){
         (LINES_BY_BOM.get(prodKey(r)) || []).forEach(function(l){
-          if (fEqpt && getLineEqpt(lineKey(l)) !== fEqpt) return;
-          if (fHod && getLineHod(lineKey(l)) !== fHod) return;
+          if (fEqpt === BLANK_FILTER) { if (LINE_EQPT[lineKey(l)]) return; }
+          else if (fEqpt && getLineEqpt(lineKey(l)) !== fEqpt) return;
+          if (fHod === BLANK_FILTER) { if (LINE_HOD[lineKey(l)]) return; }
+          else if (fHod && getLineHod(lineKey(l)) !== fHod) return;
+          var apv = l.APPROVE_STATUS == null ? "" : String(l.APPROVE_STATUS).trim();
+          if (fApprove === BLANK_FILTER) { if (apv) return; }
+          else if (fApprove && apv !== fApprove) return;
           if (l.MC_NO) mcSet.add(String(l.MC_NO).trim());
         });
       });
@@ -1212,6 +1270,7 @@ function openDrillDown(bom, code, name) {
   function computeMatching() {
     var fE = document.getElementById("fltEqpt").value;
     var fH = document.getElementById("fltHod").value;
+    var fA = document.getElementById("fltApprove").value;
     return LINES.filter(function(l){
       if ((l.SFG_BOM || "") !== (bom || "") || (l.SFG_CODE || "") !== (code || "")) return false;
       if (num(l["SFG_REQUIRED_AG_BAL TO PRD FG"]) <= 0) return false;
@@ -1220,6 +1279,9 @@ function openDrillDown(bom, code, name) {
       else if (fE && getLineEqpt(lk) !== fE) return false;
       if (fH === BLANK_FILTER) { if (LINE_HOD[lk]) return false; }
       else if (fH && getLineHod(lk) !== fH) return false;
+      var apv = l.APPROVE_STATUS == null ? "" : String(l.APPROVE_STATUS).trim();
+      if (fA === BLANK_FILTER) { if (apv) return false; }
+      else if (fA && apv !== fA) return false;
       return true;
     });
   }
@@ -1234,11 +1296,14 @@ function openDrillDown(bom, code, name) {
   document.getElementById("drillTitle").textContent = name || code || bom;
   var _fE = document.getElementById("fltEqpt").value;
   var _fH = document.getElementById("fltHod").value;
+  var _fA = document.getElementById("fltApprove").value;
   var filterBits = [];
   if (_fE === BLANK_FILTER) filterBits.push("EQPT = (blank)");
   else if (_fE) filterBits.push("EQPT = " + _fE);
   if (_fH === BLANK_FILTER) filterBits.push("HOD = (blank)");
   else if (_fH) filterBits.push("HOD = " + _fH);
+  if (_fA === BLANK_FILTER) filterBits.push("Approve = (blank)");
+  else if (_fA) filterBits.push("Approve = " + _fA);
   var filterDesc = filterBits.length
     ? ' &nbsp; / &nbsp; <span style="color:#a85;font-weight:600;">Filtered: ' + esc(filterBits.join(", ")) + '</span>'
     : '';
@@ -1396,6 +1461,7 @@ function renderPordTable(lines, um) {
     { key: "_done", label: "Done" },
     { key: "PORD_NO", label: "PORD No" },
     { key: "PORD_DATE", label: "Date" },
+    { key: "APPROVE_STATUS", label: "Approve" },
     { key: "FG_ITEM_NAME", label: "FG Item" },
     { key: "FG_LEVEL_4_NAME", label: "FG L4" },
     { key: "FG_NET_ORDERQTY", label: "FG Net (" + um + ")", num: true },
@@ -1625,6 +1691,7 @@ function clearFilters() {
   document.getElementById("fltL4").value = "";
   document.getElementById("fltEqpt").value = "";
   document.getElementById("fltHod").value = "";
+  document.getElementById("fltApprove").value = "";
   document.getElementById("fltSearch").value = "";
   document.getElementById("fltNonzero").checked = true;
   document.getElementById("fltBalanceNonzero").checked = true;
