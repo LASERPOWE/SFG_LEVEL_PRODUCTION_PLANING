@@ -59,6 +59,88 @@
   .bal-zero { color: #1f7a3a !important; }
   .clear-btn { padding: 4px 10px; font-size: 11px; border: 1px solid #d6d8db; border-radius: 6px; background: #fff; color: #555; cursor: pointer; }
   .clear-btn:hover { background: #fff3f3; border-color: #f3b8b8; color: #8a2020; }
+  /* "Clear Filters" gets a distinct amber emphasis so users notice the reset
+     option when the table is heavily filtered. */
+  .clear-filter-btn { padding: 5px 14px; font-size: 11px; font-weight: 600; border: 1.5px solid #e09b3d; border-radius: 6px; background: #fff7e6; color: #8a5a00; cursor: pointer; letter-spacing: 0.02em; text-transform: uppercase; box-shadow: 0 1px 3px rgba(224,155,61,0.18); transition: background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease, transform 0.08s ease; }
+  .clear-filter-btn:hover { background: #ffe7b8; border-color: #b87a1d; color: #6b4400; box-shadow: 0 2px 8px rgba(184,122,29,0.28); transform: translateY(-1px); }
+  .clear-filter-btn:active { transform: translateY(0); }
+  /* Auth header bar (top-right of h1) + login modal + user control panel. */
+  .auth-bar { display: inline-flex; align-items: center; gap: 8px; margin-left: 14px; vertical-align: middle; font-size: 12px; }
+  .auth-badge { padding: 4px 10px; border-radius: 999px; background: #eef4ff; color: #2a52a8; font-weight: 600; font-size: 11px; border: 1px solid #c6d4ee; }
+  .auth-badge.role-admin { background: #fff4e0; color: #8a5a00; border-color: #e8c986; }
+  .auth-badge.role-super_admin { background: #ffe5e5; color: #8a2020; border-color: #f3b8b8; }
+  .auth-badge.role-anonymous { background: #f0f0f0; color: #666; border-color: #d6d8db; }
+  .auth-btn { padding: 5px 12px; font-size: 11px; border: 1px solid #4a7dd6; border-radius: 6px; background: #fff; color: #4a7dd6; cursor: pointer; font-weight: 500; transition: background 0.1s ease; }
+  .auth-btn:hover { background: #eef4ff; }
+  .auth-btn-primary { background: #4a7dd6; color: #fff; }
+  .auth-btn-primary:hover { background: #3a6ac0; }
+  .auth-btn-danger { border-color: #c95d5d; color: #c95d5d; }
+  .auth-btn-danger:hover { background: #fff3f3; }
+  .login-form { display: flex; flex-direction: column; gap: 10px; max-width: 320px; }
+  .login-form label { font-size: 11px; color: #555; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+  .login-form input { padding: 8px 10px; font-size: 13px; border: 1px solid #d6d8db; border-radius: 6px; }
+  .login-form input:focus { outline: none; border-color: #4a7dd6; box-shadow: 0 0 0 2px rgba(74,125,214,0.15); }
+  .login-error { background: #fff3f3; border: 1px solid #f3b8b8; color: #8a2020; padding: 8px 10px; border-radius: 6px; font-size: 12px; }
+  /* User table inside the Control Panel modal. */
+  .user-panel-toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; padding: 8px 10px; background: #f7f8fa; border: 1px solid #e6e8eb; border-radius: 6px; font-size: 12px; }
+  .user-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .user-table th { background: #f3f4f6; padding: 7px 8px; border-bottom: 1px solid #d6d8db; text-align: left; font-weight: 600; }
+  .user-table td { padding: 7px 8px; border-bottom: 1px solid #eef0f2; vertical-align: middle; }
+  .user-table input[type=text], .user-table input[type=password], .user-table select { padding: 4px 6px; font-size: 12px; border: 1px solid #d6d8db; border-radius: 4px; background: #fff; }
+  .user-table .role-pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+  .user-table .role-pill.user { background: #eef4ff; color: #2a52a8; }
+  .user-table .role-pill.admin { background: #fff4e0; color: #8a5a00; }
+  .user-table .role-pill.super_admin { background: #ffe5e5; color: #8a2020; }
+  .user-row-actions { display: flex; gap: 4px; flex-wrap: wrap; }
+  .user-row-actions button { padding: 3px 8px; font-size: 11px; border: 1px solid #d6d8db; border-radius: 4px; background: #fff; cursor: pointer; }
+  .user-row-actions button:hover { background: #eef4ff; border-color: #4a7dd6; }
+  .user-row-actions .del-btn { border-color: #f3b8b8; color: #8a2020; }
+  .user-row-actions .del-btn:hover { background: #fff3f3; }
+  /* Permission gating â€" when the session role lacks rights, lock the
+     corresponding UI controls so they remain visible but inert. */
+  body.role-anonymous .line-done-chk,
+  body.role-anonymous .line-pd-input,
+  body.role-anonymous .line-eqpt-select,
+  body.role-anonymous .line-hod-select { pointer-events: none; opacity: 0.55; background: #f0f0f0 !important; }
+  body.role-user .line-hod-select { pointer-events: none; opacity: 0.55; background: #f0f0f0 !important; }
+  body:not(.role-super_admin) .super-only { display: none !important; }
+  /* =============================================================
+     FULL-SCREEN LOGIN GATE â€" shown until the user has a valid session.
+     Until login succeeds, the rest of the dashboard stays hidden behind
+     this overlay. Theme: blue-to-green industrial gradient with subtle
+     radial glow, brand logo, and a centered card.
+     ============================================================= */
+  body.gate-active { overflow: hidden; }
+  /* Gate is HIDDEN by default so logged-in users never see it flash.
+     The inline script at the top of <body> adds body.gate-active when
+     no valid session exists, and only then does the gate become visible. */
+  .login-gate { position: fixed; inset: 0; z-index: 9999; padding: 24px; display: none; align-items: center; justify-content: center; background: linear-gradient(135deg, #0f2a5e 0%, #1e3a8a 25%, #4a7dd6 60%, #5ab17a 100%); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  body.gate-active .login-gate { display: flex; }
+  .login-gate.hidden { display: none !important; }
+  .login-gate::before { content: ""; position: absolute; inset: 0; background-image: radial-gradient(circle at 20% 30%, rgba(255,255,255,0.10) 0%, transparent 55%), radial-gradient(circle at 80% 70%, rgba(255,255,255,0.07) 0%, transparent 60%), radial-gradient(circle at 50% 100%, rgba(90,177,122,0.20) 0%, transparent 60%); pointer-events: none; }
+  .login-gate::after { content: ""; position: absolute; bottom: 0; left: 0; right: 0; height: 50%; background: linear-gradient(to top, rgba(0,0,0,0.18), transparent); pointer-events: none; }
+  .login-gate-card { position: relative; background: #fff; border-radius: 18px; box-shadow: 0 30px 80px rgba(0,0,0,0.35), 0 6px 20px rgba(0,0,0,0.18); padding: 40px 36px 28px; width: 100%; max-width: 380px; text-align: center; animation: gateFadeIn 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.2); }
+  @keyframes gateFadeIn { from { opacity: 0; transform: translateY(28px) scale(0.94); } to { opacity: 1; transform: translateY(0) scale(1); } }
+  .login-gate-logo { width: 72px; height: 72px; border-radius: 18px; background: linear-gradient(135deg, #4a7dd6, #5ab17a); margin: 0 auto 16px; display: flex; align-items: center; justify-content: center; font-size: 32px; color: #fff; font-weight: 700; box-shadow: 0 10px 26px rgba(74,125,214,0.38); letter-spacing: -0.02em; }
+  .login-gate-title { font-size: 22px; font-weight: 700; color: #1a1a1a; margin: 0 0 4px; letter-spacing: -0.01em; }
+  .login-gate-sub { font-size: 13px; color: #6b6b6b; margin: 0 0 26px; }
+  .login-gate-form { display: flex; flex-direction: column; gap: 14px; text-align: left; }
+  .login-gate-form label { font-size: 10px; font-weight: 700; color: #555; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: -10px; }
+  .login-gate-form input { padding: 12px 14px; font-size: 14px; border: 1.5px solid #d6d8db; border-radius: 10px; background: #fff; transition: border-color 0.15s, box-shadow 0.15s; font-family: inherit; }
+  .login-gate-form input:focus { outline: none; border-color: #4a7dd6; box-shadow: 0 0 0 3px rgba(74,125,214,0.20); }
+  .login-gate-submit { margin-top: 4px; padding: 13px; font-size: 13px; font-weight: 700; border: none; border-radius: 10px; background: linear-gradient(135deg, #4a7dd6, #5ab17a); color: #fff; cursor: pointer; letter-spacing: 0.08em; text-transform: uppercase; transition: transform 0.1s ease, box-shadow 0.15s ease, opacity 0.15s ease; font-family: inherit; }
+  .login-gate-submit:hover { transform: translateY(-1px); box-shadow: 0 8px 22px rgba(74,125,214,0.4); }
+  .login-gate-submit:active { transform: translateY(0); }
+  .login-gate-submit:disabled { opacity: 0.7; cursor: wait; transform: none; box-shadow: none; }
+  .login-gate-error { background: #fff3f3; border: 1px solid #f3b8b8; color: #8a2020; padding: 9px 12px; border-radius: 8px; font-size: 12px; line-height: 1.4; }
+  .login-gate-footer { margin-top: 24px; font-size: 11px; color: #a0a0a0; letter-spacing: 0.03em; }
+  /* Hide the entire dashboard body when the gate is up so anonymous users
+     never see a flash of data behind the login form. */
+  body.gate-active > h1,
+  body.gate-active > .sub,
+  body.gate-active > #error,
+  body.gate-active > #loading,
+  body.gate-active > #content { visibility: hidden !important; }
   .modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 50; align-items: flex-start; justify-content: center; padding: 30px 16px; overflow-y: auto; }
   .modal-backdrop.open { display: flex; }
   .modal { background: #fff; border-radius: 10px; width: 100%; max-width: 96vw; box-shadow: 0 20px 60px rgba(0,0,0,0.25); display: flex; flex-direction: column; max-height: 92vh; }
@@ -107,7 +189,10 @@
   .hod-cell { background: #eef5ff; }
   .line-eqpt-select, .line-hod-select { width: 130px; padding: 3px 5px; font-size: 11px; border: 1px solid #d6d8db; border-radius: 4px; background: #fff; cursor: pointer; font-family: inherit; }
   .line-eqpt-select:focus, .line-hod-select:focus { outline: none; border-color: #4a7dd6; box-shadow: 0 0 0 2px rgba(74,125,214,0.15); }
-  .equipment-block-card { margin-bottom: 18px; }
+  /* Equipment Blocking Status takes the LEFT 50% of the dashboard width.
+     On narrow viewports it falls back to full width so it stays readable. */
+  .equipment-block-card { margin-bottom: 18px; width: 50%; max-width: 50%; }
+  @media (max-width: 900px) { .equipment-block-card { width: 100%; max-width: 100%; } }
   .equipment-block-wrap { overflow-x: auto; border: 1px solid #e6e8eb; border-radius: 6px; }
   .equipment-block-table { width: 100%; border-collapse: collapse; font-size: 12px; }
   .equipment-block-table th { background: #f3f4f6; padding: 8px 10px; border-bottom: 1px solid #d6d8db; text-align: left; font-weight: 600; white-space: nowrap; }
@@ -120,7 +205,7 @@
   .drill-clear-btn { padding: 4px 10px; font-size: 11px; border: 1px solid #d6d8db; border-radius: 6px; background: #fff; color: #555; cursor: pointer; margin-left: 8px; }
   .drill-clear-btn:hover { background: #fff3f3; border-color: #f3b8b8; color: #8a2020; }
   /* Drill-down click affordances on the top KPI cards and the equipment
-     blocking table â€” clicking applies a matching filter on the pivot below. */
+     blocking table â€" clicking applies a matching filter on the pivot below. */
   .kpi.kpi-clickable { cursor: pointer; transition: transform 0.08s ease, box-shadow 0.12s ease, border-color 0.12s ease; }
   .kpi.kpi-clickable:hover { border-color: #4a7dd6; box-shadow: 0 2px 8px rgba(74,125,214,0.18); transform: translateY(-1px); }
   .kpi.kpi-clickable:active { transform: translateY(0); }
@@ -130,9 +215,46 @@
   .filter-cleared-toast.show { opacity: 1; }
 </style>
 </head>
-<body>
+<body class="gate-active">
+  <script>
+    // Pre-check session BEFORE any UI renders. We DEFAULT to gate-active in
+    // the <body class> so the login page is the failsafe state â€" even if this
+    // script errors out, the user still sees the gate. We only REMOVE the
+    // class when a valid (non-expired) session exists in localStorage.
+    (function(){
+      try {
+        var s = JSON.parse(localStorage.getItem("erp_session_v1") || "null");
+        if (s && s.expires_at && Date.now() <= s.expires_at) {
+          document.body.classList.remove("gate-active");
+        }
+      } catch(e) { /* keep gate-active = login required */ }
+    })();
+  </script>
+  <!-- Full-screen login gate. Hidden when a valid session exists. -->
+  <div id="loginGate" class="login-gate">
+    <div class="login-gate-card">
+      <div class="login-gate-logo">LP</div>
+      <h2 class="login-gate-title">Laser Power</h2>
+      <div class="login-gate-sub">SFG Production Planning Dashboard</div>
+      <form class="login-gate-form" id="gateForm" onsubmit="event.preventDefault(); submitGateLogin();">
+        <label for="gateUser">Username</label>
+        <input id="gateUser" type="text" required autocomplete="username" placeholder="your username" autofocus />
+        <label for="gatePass">Password</label>
+        <input id="gatePass" type="password" required autocomplete="current-password" placeholder="your password" />
+        <div id="gateError" class="login-gate-error" style="display:none;"></div>
+        <button type="submit" class="login-gate-submit" id="gateSubmit">Sign In</button>
+      </form>
+      <div class="login-gate-footer">Internal access only &middot; contact Super Admin for credentials</div>
+    </div>
+  </div>
   <h1>SFG BOM Requirements <span style="font-weight: 400; font-size: 14px; color: #666;">- Static GitHub Pages</span>
     <button class="refresh-btn" id="refreshBtn" onclick="loadData(true)">Refresh</button>
+    <span class="auth-bar" id="authBar">
+      <span class="auth-badge role-anonymous" id="authBadge">Not logged in</span>
+      <button class="auth-btn auth-btn-primary" id="loginBtn" onclick="openLoginModal()">Login</button>
+      <button class="auth-btn super-only" id="userPanelBtn" onclick="openUserPanel()" style="display:none;">User Panel</button>
+      <button class="auth-btn auth-btn-danger" id="logoutBtn" onclick="doLogout()" style="display:none;">Logout</button>
+    </span>
   </h1>
   <div class="sub" id="sub">Loading...</div>
 
@@ -150,15 +272,13 @@
           <thead>
             <tr>
               <th>EQPT</th>
-              <th style="text-align:right;">Open Lines</th>
-              <th style="text-align:right;">MC Count</th>
               <th style="text-align:right;">Balance Qty</th>
               <th>Blocked Till</th>
               <th style="text-align:right;">Days</th>
             </tr>
           </thead>
           <tbody id="equipmentBlockBody">
-            <tr><td colspan="6" class="empty">Assign EQPT in drill-down to see blocking status.</td></tr>
+            <tr><td colspan="4" class="empty">Assign EQPT in drill-down to see blocking status.</td></tr>
           </tbody>
         </table>
       </div>
@@ -205,8 +325,8 @@
         </label>
         <label class="check"><input type="checkbox" id="fltNonzero" checked /> Non-zero only</label>
         <label class="check"><input type="checkbox" id="fltBalanceNonzero" checked /> Balance non-zero only</label>
-        <button class="clear-btn" type="button" onclick="clearFilters()">Clear Filters</button>
-        <button class="clear-btn" onclick="clearAllProdDone()">Clear Production Done</button>
+        <button class="clear-filter-btn" type="button" onclick="clearFilters()">Clear Filters</button>
+        <button class="clear-btn super-only" onclick="clearAllProdDone()">Clear Production Done</button>
         <span id="rowCount" style="margin-left:auto;font-size:11px;color:#666;"></span>
       </div>
       <div class="table-wrap">
@@ -219,6 +339,83 @@
     </div>
   </div>
 
+  <!-- Login modal -->
+  <div class="modal-backdrop" id="loginModal">
+    <div class="modal" style="max-width: 380px;">
+      <div class="modal-head">
+        <div><h2>Login</h2><div class="meta">Sign in to edit planning inputs.</div></div>
+        <button class="modal-close" onclick="closeLoginModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form class="login-form" id="loginForm" onsubmit="event.preventDefault(); submitLogin();">
+          <label for="loginUser">Username</label>
+          <input id="loginUser" type="text" autocomplete="username" required />
+          <label for="loginPass">Password</label>
+          <input id="loginPass" type="password" autocomplete="current-password" required />
+          <div id="loginError" class="login-error" style="display:none;"></div>
+          <button type="submit" class="auth-btn auth-btn-primary" id="loginSubmit" style="margin-top:6px;">Login</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  <!-- User Control Panel (Super Admin only) -->
+  <div class="modal-backdrop" id="userPanelModal">
+    <div class="modal" style="max-width: 760px;">
+      <div class="modal-head">
+        <div>
+          <h2>User Control Panel</h2>
+          <div class="meta">Add, edit, and remove users. Super Admin only.</div>
+        </div>
+        <button class="modal-close" onclick="closeUserPanel()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="user-panel-toolbar">
+          <strong>Add user:</strong>
+          <input id="newUserName" type="text" placeholder="username" style="padding:4px 8px;font-size:12px;border:1px solid #d6d8db;border-radius:4px;width:130px;" />
+          <input id="newUserPass" type="password" placeholder="password" style="padding:4px 8px;font-size:12px;border:1px solid #d6d8db;border-radius:4px;width:130px;" />
+          <select id="newUserRole" style="padding:4px 8px;font-size:12px;border:1px solid #d6d8db;border-radius:4px;">
+            <option value="user">User</option>
+            <option value="admin">Admin</option>
+            <option value="super_admin">Super Admin</option>
+          </select>
+          <button class="auth-btn auth-btn-primary" onclick="submitAddUser()">Add</button>
+          <span id="userPanelStatus" style="margin-left:auto;font-size:11px;color:#666;"></span>
+        </div>
+        <div id="userPanelBody">
+          <div class="empty">Loading users...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- Filter editor sub-modal (Super Admin only). Lets the Super Admin pick
+       columns from the main sheet and grant the User multi-select access. -->
+  <div class="modal-backdrop" id="filterEditorModal" style="z-index:60;">
+    <div class="modal" style="max-width:560px;">
+      <div class="modal-head">
+        <div>
+          <h2>View Access Filter</h2>
+          <div class="meta" id="filterEditorTitle">Configure data access</div>
+        </div>
+        <button class="modal-close" onclick="closeFilterEditor()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="font-size:11px;color:#2a52a8;background:#eef4ff;border:1px solid #c6d4ee;padding:8px 10px;border-radius:6px;margin-bottom:12px;">
+          <strong>How it works:</strong> Pick one or more columns from the sheet and select which values the User is allowed to see. A row is shown only if it matches EVERY column (AND across columns, OR within each column). Empty = no data visible.
+        </div>
+        <div id="filterEditorBody"></div>
+        <div style="display:flex;gap:8px;margin-top:10px;align-items:center;">
+          <select id="newConditionColumn" style="padding:6px 8px;font-size:12px;border:1px solid #d6d8db;border-radius:4px;flex:1;">
+            <option value="">-- pick a column --</option>
+          </select>
+          <button class="auth-btn auth-btn-primary" onclick="addFilterCondition()">+ Add Column</button>
+        </div>
+        <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end;">
+          <button class="clear-btn" onclick="closeFilterEditor()">Cancel</button>
+          <button class="auth-btn auth-btn-primary" onclick="saveFilterEditor()">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
   <div class="modal-backdrop" id="drillModal">
     <div class="modal">
       <div class="modal-head">
@@ -243,6 +440,11 @@
 <script>
 let ROWS = [];
 let LINES = [];
+// Unfiltered copy of LINES (ignores per-user view_filter). Used by the
+// Equipment Blocking Status table so every user sees the same shop-floor
+// blocking picture regardless of which slice of data they personally have
+// access to.
+let LINES_ALL = [];
 let EQPT_MASTER = [];
 let HOD_MASTER = [];
 let META = {};
@@ -252,7 +454,7 @@ let DATA_LOAD_IN_PROGRESS = false;
 // Optional shared manual-input endpoint.
 // Keep blank for browser-only localStorage. Paste the separate Planning Inputs
 // Apps Script Web App URL here to share EQPT/HOD/Done/Production Done across PCs.
-const INPUT_API_URL = "https://script.google.com/macros/s/AKfycbz706s_tHUDPBIA74LwZ0NIAurtuc1YmzGaTIXYhzZrHkh9hUCu-51I34wUGHGyVM3X/exec";
+const INPUT_API_URL = "https://script.google.com/macros/s/AKfycbydnvDxrwJ4B1_BchD-jKvuk52wx4hDLXvc1GmHNY1d8tfPuPc-ObgmjhL6I_hexgd4/exec";
 
 // Auto-pull fresh Google Sheet data. Apps Script requests use cache-busting,
 // so edits in the sheet show here without manually pressing Refresh.
@@ -292,7 +494,7 @@ var HOD_BY_BOM = new Map();
 // parent-table filter can quickly answer "does this BOM have any line with
 // the selected status?".
 var APPROVE_BY_BOM = new Map();
-// Index of all SFG_REQ>0 lines grouped by BOM key â€” lets us recompute parent
+// Index of all SFG_REQ>0 lines grouped by BOM key â€" lets us recompute parent
 // aggregates per-filter without re-scanning all LINES per row.
 var LINES_BY_BOM = new Map();
 function buildLineAssignmentMaps() {
@@ -536,7 +738,7 @@ const LOCAL_RECENT_MS = 15000;
 function applyRemoteInputRecord(rec) {
   if (!rec || !rec.line_id) return;
   var lk = String(rec.line_id);
-  // Skip overwrite if user edited this line within the last few seconds â€”
+  // Skip overwrite if user edited this line within the last few seconds â€"
   // our POST may not have been absorbed yet and the GET could be stale.
   if (LOCAL_RECENT[lk] && (Date.now() - LOCAL_RECENT[lk]) < LOCAL_RECENT_MS) return;
   if (rec.done === true || rec.done === "TRUE" || rec.done === "true" || rec.done === 1 || rec.done === "1") LINE_DONE[lk] = 1;
@@ -596,9 +798,9 @@ function loadRemoteInputs() {
 
 // Push any localStorage entry whose line_id is NOT present in the server's
 // returned records. This catches legacy data created before the sync API URL
-// was configured â€” so on the very next refresh, every PC sees the same state.
+// was configured â€" so on the very next refresh, every PC sees the same state.
 // We intentionally do NOT push entries that DO exist on the server, even if
-// their local values differ â€” for those, the server is the source of truth
+// their local values differ â€" for those, the server is the source of truth
 // (already applied above).
 function pushLocalOnlyToRemote(serverRecords) {
   if (!hasInputApi()) return;
@@ -619,7 +821,7 @@ function pushLocalOnlyToRemote(serverRecords) {
 }
 
 function saveRemoteLineInput(lk) {
-  // Always POST every manual edit â€” we no longer gate on REMOTE_INPUTS_LOADING
+  // Always POST every manual edit â€" we no longer gate on REMOTE_INPUTS_LOADING
   // so that user input typed during an auto-refresh window is never dropped.
   if (!hasInputApi() || !lk) return;
   // Mark line as just-edited locally so the next remote GET (which may still
@@ -633,6 +835,12 @@ function saveRemoteLineInput(lk) {
   body.set("eqpt", LINE_EQPT[lk] || "");
   body.set("hod", LINE_HOD[lk] || "");
   body.set("updated_at", new Date().toISOString());
+  // Tag the edit with the logged-in username so the sheet shows who changed
+  // what (anonymous edits show up as blank).
+  try {
+    var _s = typeof loadSession === "function" ? loadSession() : null;
+    body.set("updated_by", _s && _s.username ? _s.username : "");
+  } catch(_e) {}
   fetch(INPUT_API_URL, {
     method: "POST",
     mode: "no-cors",
@@ -807,7 +1015,45 @@ async function loadData(force, silent) {
     const live = await fetchLiveData();
     if (live && live.error) throw new Error(live.error);
     const rawRows = live && Array.isArray(live.rows) ? live.rows : [];
-    const rows = rawRows.filter(function(r){ return r && r.PORD_NO; });
+    let rows = rawRows.filter(function(r){ return r && r.PORD_NO; });
+    // Snapshot of ALL rows (no view-filter applied) - used to build LINES_ALL
+    // for the Equipment Blocking Status table which is intentionally global.
+    const unfilteredRows = rows.slice();
+    // CRITICAL: sync planning inputs BEFORE the view-filter check, because
+    // the HOD / EQPT filter columns read from LINE_HOD / LINE_EQPT (which
+    // come from PLANNING_INPUTS, not the raw ERP sheet). Without this
+    // ordering, a fresh login on a different PC has empty localStorage and
+    // every HOD/EQPT row check returns "" -> filter matches nothing -> 0
+    // BOMs visible even though the assignments exist on the server.
+    await loadRemoteInputs();
+    // Multi-column view-filter enforcement for "user" role: the Super Admin
+    // grants per-column allowed values (e.g. APPROVE_STATUS = [APPROVED] AND
+    // HOD = [ATINDRYA CHACRABORTY]). A row passes if EVERY column in the
+    // filter has at least one matching value. Empty filter = no data view.
+    // Admin / Super Admin see every row unchanged.
+    if (typeof currentRole === "function" && currentRole() === "user") {
+      var conds = currentViewFilter();
+      var condKeys = Object.keys(conds);
+      if (condKeys.length === 0) {
+        rows = [];
+      } else {
+        rows = rows.filter(function(r){
+          for (var i = 0; i < condKeys.length; i++) {
+            var col = condKeys[i];
+            var allowed = conds[col];
+            var actual;
+            if (col === "HOD" || col === "EQPT") {
+              var lk = (r.PORD_NO || "") + "||" + (r.MC_NO || "") + "||" + (r.SFG_BOM || "") + "||" + (r.SFG_CODE || "");
+              actual = col === "HOD" ? (LINE_HOD[lk] || "") : (LINE_EQPT[lk] || "");
+            } else {
+              actual = String(r[col] == null ? "" : r[col]).trim();
+            }
+            if (allowed.indexOf(actual) < 0) return false;
+          }
+          return true;
+        });
+      }
+    }
     const netKey = findNetKey(rows);
     const dateKey = findTargetDateKey(rows);
     // EQPT_MASTER / HOD_MASTER are cached after first load. Re-fetching them
@@ -822,7 +1068,12 @@ async function loadData(force, silent) {
     }
     ROWS = buildPivotStatic(rows, netKey);
     LINES = buildLinesStatic(rows, netKey, dateKey);
-    await loadRemoteInputs();
+    // LINES_ALL ignores the view-filter so the Equipment Blocking Status
+    // table can show EQPT assignments from EVERY user, not just the current
+    // viewer's allowed slice.
+    LINES_ALL = buildLinesStatic(unfilteredRows, netKey, dateKey);
+    // loadRemoteInputs() already ran earlier in this function (right after
+    // fetchLiveData) so the planning-input state is in sync.
     META = { exported_at: live.exported_at, fetched_at: new Date().toISOString(), row_count: rows.length };
     document.getElementById("sub").textContent =
       ROWS.length + " distinct SFG BOMs / " + LINES.length + " underlying lines / " + EQPT_MASTER.length + " EQPTs / " + HOD_MASTER.length + " HODs / live as of " + (META.fetched_at || "").slice(0,19).replace("T", " ") + " / auto refresh " + AUTO_REFRESH_SECONDS + "s";
@@ -865,9 +1116,21 @@ function renderAll() {
   };
   renderKpis();
   refreshFilters();
-  // EQPT / HOD filter dropdowns are populated straight from the masters
-  populateSelect(document.getElementById("fltEqpt"), EQPT_MASTER);
-  populateSelect(document.getElementById("fltHod"), HOD_MASTER);
+  // EQPT / HOD filter dropdowns are now populated from the values ACTUALLY
+  // present in the currently-loaded LINES (post view-filter), not from the
+  // full master lists. A User scoped to HOD = ATINDRYA only sees ATINDRYA in
+  // the dropdown; a Super Admin (unrestricted) still sees every assigned
+  // HOD / EQPT because their LINES contain all of them.
+  var hodSet = new Set(), eqptSet = new Set();
+  (LINES || []).forEach(function(l){
+    var lk = lineKey(l);
+    var h = LINE_HOD[lk]; if (h) hodSet.add(String(h).trim());
+    var e = LINE_EQPT[lk]; if (e) eqptSet.add(String(e).trim());
+  });
+  var hodVals = Array.from(hodSet).sort();
+  var eqptVals = Array.from(eqptSet).sort();
+  populateSelect(document.getElementById("fltEqpt"), eqptVals);
+  populateSelect(document.getElementById("fltHod"), hodVals);
   addBlankOption(document.getElementById("fltEqpt"));
   addBlankOption(document.getElementById("fltHod"));
   // Approve Status dropdown is populated from distinct values on the live
@@ -976,8 +1239,11 @@ function renderEquipmentBlockTable() {
   var body = document.getElementById("equipmentBlockBody");
   if (!body) return;
   var map = new Map();
-  if (Array.isArray(LINES)) {
-    LINES.forEach(function(l){
+  // Intentionally use LINES_ALL (the un-view-filtered set) so the blocking
+  // status is a GLOBAL shop-floor view that doesn't change per role / user.
+  var src = (typeof LINES_ALL !== "undefined" && LINES_ALL && LINES_ALL.length) ? LINES_ALL : LINES;
+  if (Array.isArray(src)) {
+    src.forEach(function(l){
       if (num(l["SFG_REQUIRED_AG_BAL TO PRD FG"]) <= 0) return;
       if (isLineDone(l)) return;
       var lk = lineKey(l);
@@ -1002,7 +1268,7 @@ function renderEquipmentBlockTable() {
     return b.balance - a.balance;
   });
   if (!rows.length) {
-    body.innerHTML = '<tr><td colspan="6" class="empty">Assign EQPT in drill-down to see blocking status.</td></tr>';
+    body.innerHTML = '<tr><td colspan="4" class="empty">Assign EQPT in drill-down to see blocking status.</td></tr>';
     return;
   }
   body.innerHTML = rows.map(function(r){
@@ -1011,14 +1277,12 @@ function renderEquipmentBlockTable() {
     var dateCls = isPastISODate(r.maxDate) ? "blocked-date bal-neg" : "blocked-date";
     return '<tr class="eqpt-row" data-eqpt="' + esc(r.eqpt) + '" title="Click to filter pivot by EQPT = ' + esc(r.eqpt) + '">' +
       '<td><strong>' + esc(r.eqpt) + '</strong></td>' +
-      '<td class="num">' + fmt(r.lines, 0) + '</td>' +
-      '<td class="num">' + fmt(r.mcs.size, 0) + '</td>' +
       '<td class="num">' + fmt(r.balance, 3) + '</td>' +
       '<td class="' + dateCls + '">' + (r.maxDate ? esc(fmtDateDMY(r.maxDate)) : '-') + '</td>' +
       '<td class="num' + (days != null && days < 0 ? ' bal-neg' : '') + '">' + esc(String(daysText)) + '</td>' +
     '</tr>';
   }).join("");
-  // Wire row clicks â€” each row drills the pivot table down to lines on that EQPT.
+  // Wire row clicks â€" each row drills the pivot table down to lines on that EQPT.
   body.querySelectorAll("tr.eqpt-row").forEach(function(tr){
     tr.onclick = function(){
       var e = tr.getAttribute("data-eqpt");
@@ -1176,7 +1440,7 @@ function renderTable() {
       var hs = HOD_BY_BOM.get(prodKey(r));
       if (!hs || !hs.has(fHod)) return false;
     }
-    // APPROVE_STATUS filter â€” cheap roll-up check first; combined-filter case
+    // APPROVE_STATUS filter â€" cheap roll-up check first; combined-filter case
     // is handled below via rowAggregates so "match at least one line satisfying
     // ALL line-level filters" semantics holds.
     if (fApprove === BLANK_FILTER) {
@@ -1272,75 +1536,62 @@ function renderTable() {
         var pastCls = isPastISODate(td) ? ' bal-neg' : '';
         return '<td class="' + pastCls + '" style="white-space:nowrap;">' + esc(fmtDateDMY(td)) + '</td>';
       }
-      if (c.num) {
-        return '<td class="num">' + (v == null ? "-" : fmt(v, 0)) + '</td>';
-      }
+      if (c.num) return '<td class="num">' + (v == null ? "-" : fmt(v, 0)) + '</td>';
       return '<td>' + esc(v) + '</td>';
     }).join("") + '</tr>';
   }).join("");
-
-  body.querySelectorAll("tr").forEach(function(tr, i){
+  body.querySelectorAll("tr").forEach(function(tr){
     if (tr.classList.contains("zero")) return;
-    tr.onclick = function(e){
-      openDrillDown(tr.dataset.bom, tr.dataset.code, tr.dataset.name);
-    };
+    tr.onclick = function(){ openDrillDown(tr.dataset.bom, tr.dataset.code, tr.dataset.name); };
   });
-
-  function updateFooter() {
-    // Sum each filtered BOM's aggregate values (which already respect EQPT/HOD filters).
-    var totalKmReq = 0, totalKgReq = 0, totalKmNet = 0, totalKgNet = 0;
-    var totalKmDone = 0, totalKgDone = 0, totalLines = 0;
-    var mcSet = new Set();
-    var maxDate = "";
+  // Footer totals respect EQPT / HOD / Approve filters via rowAggregates.
+  var totalKmReq = 0, totalKgReq = 0, totalKmNet = 0, totalKgNet = 0;
+  var totalKmDone = 0, totalKgDone = 0, totalLines = 0;
+  var mcSet = new Set();
+  var maxDate = "";
+  filtered.forEach(function(r){
+    var a = rowAggregates(r, fEqpt, fHod, fApprove);
+    totalLines += a.lines;
+    if (r.UM === "KM") { totalKmReq += a.req_sum; totalKmNet += a.net_sum; totalKmDone += a.prod_done; }
+    else if (r.UM === "KG") { totalKgReq += a.req_sum; totalKgNet += a.net_sum; totalKgDone += a.prod_done; }
+    if (a.target_date && (!maxDate || a.target_date > maxDate)) maxDate = a.target_date;
+  });
+  if (fEqpt || fHod || fApprove) {
     filtered.forEach(function(r){
-      var a = rowAggregates(r, fEqpt, fHod, fApprove);
-      totalLines += a.lines;
-      if (r.UM === "KM") { totalKmReq += a.req_sum; totalKmNet += a.net_sum; totalKmDone += a.prod_done; }
-      else if (r.UM === "KG") { totalKgReq += a.req_sum; totalKgNet += a.net_sum; totalKgDone += a.prod_done; }
-      if (a.target_date && (!maxDate || a.target_date > maxDate)) maxDate = a.target_date;
-    });
-    // Distinct MC count across all filtered BOMs (respecting EQPT/HOD/Approve filters)
-    if (fEqpt || fHod || fApprove) {
-      filtered.forEach(function(r){
-        (LINES_BY_BOM.get(prodKey(r)) || []).forEach(function(l){
-          if (fEqpt === BLANK_FILTER) { if (LINE_EQPT[lineKey(l)]) return; }
-          else if (fEqpt && getLineEqpt(lineKey(l)) !== fEqpt) return;
-          if (fHod === BLANK_FILTER) { if (LINE_HOD[lineKey(l)]) return; }
-          else if (fHod && getLineHod(lineKey(l)) !== fHod) return;
-          var apv = l.APPROVE_STATUS == null ? "" : String(l.APPROVE_STATUS).trim();
-          if (fApprove === BLANK_FILTER) { if (apv) return; }
-          else if (fApprove && apv !== fApprove) return;
-          if (l.MC_NO) mcSet.add(String(l.MC_NO).trim());
-        });
-      });
-    } else {
-      var filteredKeys = new Set(filtered.map(function(r){ return prodKey(r); }));
-      LINES.forEach(function(l){
-        if (!filteredKeys.has((l.SFG_BOM || "") + "||" + (l.SFG_CODE || ""))) return;
+      (LINES_BY_BOM.get(prodKey(r)) || []).forEach(function(l){
+        if (fEqpt === BLANK_FILTER) { if (LINE_EQPT[lineKey(l)]) return; }
+        else if (fEqpt && getLineEqpt(lineKey(l)) !== fEqpt) return;
+        if (fHod === BLANK_FILTER) { if (LINE_HOD[lineKey(l)]) return; }
+        else if (fHod && getLineHod(lineKey(l)) !== fHod) return;
+        var apv = l.APPROVE_STATUS == null ? "" : String(l.APPROVE_STATUS).trim();
+        if (fApprove === BLANK_FILTER) { if (apv) return; }
+        else if (fApprove && apv !== fApprove) return;
         if (l.MC_NO) mcSet.add(String(l.MC_NO).trim());
       });
-    }
-    var totalMc = mcSet.size;
-    var totalKmBal = totalKmNet - totalKmDone;
-    var totalKgBal = totalKgNet - totalKgDone;
-    document.getElementById("pivot-foot").innerHTML =
-      '<tr>' +
-        '<td colspan="6" style="text-align:right;">Totals (filtered):</td>' +
-        '<td class="num">' + fmt(totalLines, 0) + '</td>' +
-        '<td class="num">' + fmt(totalMc, 0) + '</td>' +
-        '<td class="num">KM: ' + fmt(totalKmNet, 3) + '<br>KG: ' + fmt(totalKgNet, 3) + '</td>' +
-        '<td class="num">KM: ' + fmt(totalKmReq, 3) + '<br>KG: ' + fmt(totalKgReq, 3) + '</td>' +
-        '<td class="num">KM: ' + fmt(totalKmDone, 3) + '<br>KG: ' + fmt(totalKgDone, 3) + '</td>' +
-        '<td class="num"><span class="' + (totalKmBal < 0 ? "bal-neg" : "") + '">KM: ' + fmt(totalKmBal, 3) + '</span><br><span class="' + (totalKgBal < 0 ? "bal-neg" : "") + '">KG: ' + fmt(totalKgBal, 3) + '</span></td>' +
-        '<td style="white-space:nowrap;">' + (maxDate ? "Latest: <strong>" + esc(fmtDateDMY(maxDate)) + "</strong>" : "-") + '</td>' +
-      '</tr>';
+    });
+  } else {
+    var filteredKeys = new Set(filtered.map(function(r){ return prodKey(r); }));
+    LINES.forEach(function(l){
+      if (!filteredKeys.has((l.SFG_BOM || "") + "||" + (l.SFG_CODE || ""))) return;
+      if (l.MC_NO) mcSet.add(String(l.MC_NO).trim());
+    });
   }
-  updateFooter();
+  var totalMc = mcSet.size;
+  var totalKmBal = totalKmNet - totalKmDone;
+  var totalKgBal = totalKgNet - totalKgDone;
+  document.getElementById("pivot-foot").innerHTML =
+    '<tr>' +
+      '<td colspan="6" style="text-align:right;">Totals (filtered):</td>' +
+      '<td class="num">' + fmt(totalLines, 0) + '</td>' +
+      '<td class="num">' + fmt(totalMc, 0) + '</td>' +
+      '<td class="num">KM: ' + fmt(totalKmNet, 3) + '<br>KG: ' + fmt(totalKgNet, 3) + '</td>' +
+      '<td class="num">KM: ' + fmt(totalKmReq, 3) + '<br>KG: ' + fmt(totalKgReq, 3) + '</td>' +
+      '<td class="num">KM: ' + fmt(totalKmDone, 3) + '<br>KG: ' + fmt(totalKgDone, 3) + '</td>' +
+      '<td class="num"><span class="' + (totalKmBal < 0 ? "bal-neg" : "") + '">KM: ' + fmt(totalKmBal, 3) + '</span><br><span class="' + (totalKgBal < 0 ? "bal-neg" : "") + '">KG: ' + fmt(totalKgBal, 3) + '</span></td>' +
+      '<td style="white-space:nowrap;">' + (maxDate ? "Latest: <strong>" + esc(fmtDateDMY(maxDate)) + "</strong>" : "-") + '</td>' +
+    '</tr>';
 }
-
 function openDrillDown(bom, code, name) {
-  // Parent EQPT/HOD filter is propagated into the drill-down. We re-read it
-  // inside every render so edits inside the drill stay consistent.
   function computeMatching() {
     var fE = document.getElementById("fltEqpt").value;
     var fH = document.getElementById("fltHod").value;
@@ -1359,14 +1610,10 @@ function openDrillDown(bom, code, name) {
       return true;
     });
   }
-  // UM (KM/KG) is the same for any line of the BOM â€” pick from any line
-  // (unaffected by filter) so it stays correct when the filter excludes
-  // everything visible.
   var firstAny = LINES.find(function(l){
     return (l.SFG_BOM || "") === (bom || "") && (l.SFG_CODE || "") === (code || "");
   });
   var um = firstAny ? (firstAny.SFG_UM || "") : "";
-
   document.getElementById("drillTitle").textContent = name || code || bom;
   var _fE = document.getElementById("fltEqpt").value;
   var _fH = document.getElementById("fltHod").value;
@@ -1382,7 +1629,6 @@ function openDrillDown(bom, code, name) {
     ? ' &nbsp; / &nbsp; <span style="color:#a85;font-weight:600;">Filtered: ' + esc(filterBits.join(", ")) + '</span>'
     : '';
   document.getElementById("drillMeta").innerHTML = '<strong>BOM:</strong> ' + esc(bom || "(no BOM)") + ' &nbsp; / &nbsp; <strong>SFG Code:</strong> ' + esc(code) + filterDesc;
-
   function renderDrillStats() {
     var matching = computeMatching();
     var totalLines = matching.length;
@@ -1403,51 +1649,16 @@ function openDrillDown(bom, code, name) {
       { l: "SFG Required", v: fmt(sumReq, 3) + " " + (um || "") },
       { l: "Production Done", v: fmt(sumProdDone, 3) + " " + (um || "") }
     ].map(function(s){ return '<div class="drill-stat"><div class="l">' + esc(s.l) + '</div><div class="v">' + esc(String(s.v)) + '</div></div>'; }).join("");
-    refreshDrillRollups();
-  }
-  function refreshDrillRollups() {
-    document.querySelectorAll("#drillContent .party-group").forEach(function(grp){
-      var rows = grp.querySelectorAll("tbody tr[data-lk]");
-      var pdSum = 0;
-      rows.forEach(function(tr){
-        var lk = tr.getAttribute("data-lk") || "";
-        var sfgNet = parseFloat(tr.getAttribute("data-sfgnet") || "0") || 0;
-        pdSum += LINE_DONE[lk] ? sfgNet : num(LINE_PD[lk]);
-      });
-      var pdSlot = grp.querySelector(".party-pd-slot");
-      if (pdSlot) pdSlot.textContent = fmt(pdSum, 3) + " " + (um || "");
-    });
-    document.querySelectorAll("#drillContent .mc-block").forEach(function(blk){
-      var rows = blk.querySelectorAll("tbody tr[data-lk]");
-      var pdSum = 0;
-      rows.forEach(function(tr){
-        var lk = tr.getAttribute("data-lk") || "";
-        var sfgNet = parseFloat(tr.getAttribute("data-sfgnet") || "0") || 0;
-        pdSum += LINE_DONE[lk] ? sfgNet : num(LINE_PD[lk]);
-      });
-      var pdSlot = blk.querySelector(".mc-pd-slot");
-      if (pdSlot) pdSlot.textContent = fmt(pdSum, 3) + " " + (um || "");
-    });
   }
   renderDrillStats();
   window.__currentDrillRecompute = renderDrillStats;
-
-  // ---- Body rendering (re-runs when ticks change or showDone toggles) ----
   function renderDrillBody() {
     var matching = computeMatching();
     var showDone = document.getElementById("drillShowDone").checked;
     var visible = showDone ? matching : matching.filter(function(l){ return !isLineDone(l); });
-
-    // Update "X ticked line(s) hidden" hint next to the toggle
     var hiddenEl = document.getElementById("drillHiddenInfo");
     var hiddenCount = matching.length - visible.length;
-    if (hiddenEl) {
-      hiddenEl.textContent = hiddenCount > 0
-        ? "(" + hiddenCount + " ticked line" + (hiddenCount === 1 ? "" : "s") + " hidden)"
-        : "";
-    }
-
-    // Group visible lines by Party -> MC
+    if (hiddenEl) hiddenEl.textContent = hiddenCount > 0 ? "(" + hiddenCount + " ticked line" + (hiddenCount === 1 ? "" : "s") + " hidden)" : "";
     var byParty = new Map();
     visible.forEach(function(l){
       var party = l.ACC_NAME || "(no party)";
@@ -1457,7 +1668,6 @@ function openDrillDown(bom, code, name) {
       if (!byMc.has(mc)) byMc.set(mc, []);
       byMc.get(mc).push(l);
     });
-
     var partyArr = Array.from(byParty.entries()).map(function(entry){
       var pName = entry[0], mcMap = entry[1];
       var allLines = [];
@@ -1466,22 +1676,13 @@ function openDrillDown(bom, code, name) {
         party: pName, mcMap: mcMap,
         totalReq: allLines.reduce(function(a,l){return a + num(l["SFG_REQUIRED_AG_BAL TO PRD FG"]);}, 0),
         totalSfgNet: allLines.reduce(function(a,l){return a + num(l.SFG_NET_ORD_QTY);}, 0),
-        totalBal: allLines.reduce(function(a,l){return a + num(l.FG_BALANCE_TO_PRODUCTION);}, 0),
         lineCount: allLines.length
       };
     }).sort(function(a,b){return b.totalReq - a.totalReq;});
-
     var html = "";
     if (!visible.length) {
-      var fEnow = document.getElementById("fltEqpt").value;
-      var fHnow = document.getElementById("fltHod").value;
-      if (matching.length) {
-        html = '<div class="empty">All ' + matching.length + ' line' + (matching.length === 1 ? "" : "s") + ' for this BOM are ticked Done. Tick "Show Done (ticked) lines" above to view / un-tick them.</div>';
-      } else if (fEnow || fHnow) {
-        html = '<div class="empty">No lines match the active EQPT / HOD filter for this BOM. Clear the parent filter to see all lines.</div>';
-      } else {
-        html = '<div class="empty">No underlying production order lines for this BOM.</div>';
-      }
+      if (matching.length) html = '<div class="empty">All ' + matching.length + ' line(s) for this BOM are ticked Done. Tick "Show Done (ticked) lines" above to view / un-tick them.</div>';
+      else html = '<div class="empty">No matching lines for this BOM under the current filters.</div>';
     } else {
       partyArr.forEach(function(p){
         var mcArr = Array.from(p.mcMap.entries()).sort(function(a,b){
@@ -1489,24 +1690,13 @@ function openDrillDown(bom, code, name) {
           var br = b[1].reduce(function(s,l){return s + num(l["SFG_REQUIRED_AG_BAL TO PRD FG"]);}, 0);
           return br - ar;
         });
-        var partyPDInit = (function(){
-          var s = 0;
-          p.mcMap.forEach(function(arr){ arr.forEach(function(l){ s += getLineProdDone(l); }); });
-          return s;
-        })();
-        html += '<div class="party-group open">' +
-          '<div class="party-head"><span>' + esc(p.party) + '</span>' +
-          '<span class="right">' + mcArr.length + ' MC / ' + p.lineCount + ' lines / SFG Net ' + fmt(p.totalSfgNet, 3) + ' ' + esc(um) + ' / SFG Req <strong>' + fmt(p.totalReq, 3) + ' ' + esc(um) + '</strong> / Prod Done <span class="party-pd-slot">' + fmt(partyPDInit, 3) + ' ' + esc(um) + '</span></span></div>' +
-          '<div class="party-body">';
+        var partyPDInit = (function(){ var s = 0; p.mcMap.forEach(function(arr){ arr.forEach(function(l){ s += getLineProdDone(l); }); }); return s; })();
+        html += '<div class="party-group open"><div class="party-head"><span>' + esc(p.party) + '</span><span class="right">' + mcArr.length + ' MC / ' + p.lineCount + ' lines / SFG Req <strong>' + fmt(p.totalReq, 3) + ' ' + esc(um) + '</strong> / Prod Done ' + fmt(partyPDInit, 3) + ' ' + esc(um) + '</span></div><div class="party-body">';
         mcArr.forEach(function(pair){
           var mc = pair[0], mcLines = pair[1];
           var mcReq = mcLines.reduce(function(a,l){return a + num(l["SFG_REQUIRED_AG_BAL TO PRD FG"]);}, 0);
-          var mcSfgNet = mcLines.reduce(function(a,l){return a + num(l.SFG_NET_ORD_QTY);}, 0);
           var mcPDInit = mcLines.reduce(function(a,l){return a + getLineProdDone(l);}, 0);
-          html += '<div class="mc-block">' +
-            '<div class="mc-head">MC ' + esc(mc) + ' &nbsp; <span style="font-weight:400;color:#666;">- ' + mcLines.length + ' line(s) / SFG Net ' + fmt(mcSfgNet, 3) + ' ' + esc(um) + ' / SFG Req ' + fmt(mcReq, 3) + ' ' + esc(um) + ' / Prod Done <span class="mc-pd-slot">' + fmt(mcPDInit, 3) + ' ' + esc(um) + '</span></span></div>' +
-            renderPordTable(mcLines, um) +
-          '</div>';
+          html += '<div class="mc-block"><div class="mc-head">MC ' + esc(mc) + ' &nbsp; <span style="font-weight:400;color:#666;">- ' + mcLines.length + ' line(s) / SFG Req ' + fmt(mcReq, 3) + ' ' + esc(um) + ' / Prod Done ' + fmt(mcPDInit, 3) + ' ' + esc(um) + '</span></div>' + renderPordTable(mcLines, um) + '</div>';
         });
         html += '</div></div>';
       });
@@ -1518,18 +1708,11 @@ function openDrillDown(bom, code, name) {
     wireDoneTicksGlobal();
   }
   window.__drillRenderBody = renderDrillBody;
-
-  // Reset and wire the "Show Done lines" toggle
   var showDoneInp = document.getElementById("drillShowDone");
-  if (showDoneInp) {
-    showDoneInp.checked = false;  // default: hide ticked lines
-    showDoneInp.onchange = function(){ renderDrillBody(); };
-  }
-
+  if (showDoneInp) { showDoneInp.checked = false; showDoneInp.onchange = function(){ renderDrillBody(); }; }
   renderDrillBody();
   document.getElementById("drillModal").classList.add("open");
 }
-
 function renderPordTable(lines, um) {
   var cols = [
     { key: "_done", label: "Done" },
@@ -1544,14 +1727,14 @@ function renderPordTable(lines, um) {
     { key: "_pct", label: "Compl %" },
     { key: "SFG_NET_ORD_QTY", label: "SFG Net", num: true },
     { key: "SFG_REQUIRED_AG_BAL TO PRD FG", label: "SFG Req", num: true },
-    { key: "_line_pd", label: "Production Done Qty", num: true, editable: true },
+    { key: "_line_pd", label: "Production Done Qty", num: true },
     { key: "_line_date", label: "Target Date of Prod Closer" },
     { key: "_eqpt", label: "EQPT" },
     { key: "_hod", label: "HOD" },
     { key: "_status", label: "Status" }
   ];
   var sorted = lines.slice().sort(function(a,b){return (a.PORD_NO || "").localeCompare(b.PORD_NO || "");});
-  var rowsHtml = sorted.map(function(l, idx){
+  var rowsHtml = sorted.map(function(l){
     var open = num(l.FG_BALANCE_TO_PRODUCTION) > 0.001;
     var net = num(l.FG_NET_ORDERQTY);
     var prod = num(l.FG_PRODUCTION_QTY);
@@ -1561,16 +1744,13 @@ function renderPordTable(lines, um) {
     var sfgNet = num(l.SFG_NET_ORD_QTY);
     var manualPD = getLinePDManual(lineKey(l));
     return '<tr class="' + (done ? "line-done" : "") + '" data-lk="' + lk + '" data-sfgnet="' + sfgNet + '">' + cols.map(function(c){
-      if (c.key === "_done") {
-        return '<td class="line-done-cell"><input type="checkbox" class="line-done-chk"' + (done ? ' checked' : '') + ' title="Tick when production complete (auto-fills SFG Net Qty as Production Done)" /></td>';
-      }
+      if (c.key === "_done") return '<td class="line-done-cell"><input type="checkbox" class="line-done-chk"' + (done ? ' checked' : '') + ' /></td>';
       if (c.key === "_status") return '<td>' + (open ? '<span class="pill pill-open">Open</span>' : '<span class="pill pill-closed">Done</span>') + '</td>';
       if (c.key === "_pct") {
         if (net <= 0) return '<td>-</td>';
         return '<td><div class="progress"><span style="width:' + pct + '%"></span></div><div style="font-size:10px;color:#666;text-align:right;">' + pct.toFixed(0) + '%</div></td>';
       }
       if (c.key === "_line_pd") {
-        // If ticked: show SFG Net (locked). Else: manual editable.
         var dispVal = done ? sfgNet : (manualPD > 0 ? manualPD : "");
         var readonly = done ? ' readonly' : '';
         var extraCls = done ? ' line-pd-locked' : '';
@@ -1584,20 +1764,13 @@ function renderPordTable(lines, um) {
       }
       if (c.key === "_eqpt") {
         var selE = getLineEqpt(lineKey(l));
-        var optsE = '<option value="">-- select --</option>' + EQPT_MASTER.map(function(e){
-          return '<option value="' + esc(e) + '"' + (selE === e ? ' selected' : '') + '>' + esc(e) + '</option>';
-        }).join("");
-        // When the line is ticked Done, lock the EQPT dropdown so the value
-        // is preserved but cannot be changed. Un-tick Done to edit again.
+        var optsE = '<option value="">-- select --</option>' + EQPT_MASTER.map(function(e){ return '<option value="' + esc(e) + '"' + (selE === e ? ' selected' : '') + '>' + esc(e) + '</option>'; }).join("");
         var disE = done ? ' disabled title="Un-tick Done to change EQPT"' : '';
         return '<td class="eqpt-cell"><select class="line-eqpt-select"' + disE + '>' + optsE + '</select></td>';
       }
       if (c.key === "_hod") {
         var selH = getLineHod(lineKey(l));
-        var optsH = '<option value="">-- select --</option>' + HOD_MASTER.map(function(h){
-          return '<option value="' + esc(h) + '"' + (selH === h ? ' selected' : '') + '>' + esc(h) + '</option>';
-        }).join("");
-        // When the line is ticked Done, lock the HOD dropdown the same way.
+        var optsH = '<option value="">-- select --</option>' + HOD_MASTER.map(function(h){ return '<option value="' + esc(h) + '"' + (selH === h ? ' selected' : '') + '>' + esc(h) + '</option>'; }).join("");
         var disH = done ? ' disabled title="Un-tick Done to change HOD"' : '';
         return '<td class="hod-cell"><select class="line-hod-select"' + disH + '>' + optsH + '</select></td>';
       }
@@ -1607,71 +1780,43 @@ function renderPordTable(lines, um) {
       return '<td>' + esc(v) + '</td>';
     }).join("") + '</tr>';
   }).join("");
-  return '<div class="pord-wrap"><table class="pord-table">' +
-    '<thead><tr>' + cols.map(function(c){return '<th' + (c.num ? ' style="text-align:right;"' : '') + '>' + esc(c.label) + '</th>';}).join("") + '</tr></thead>' +
-    '<tbody>' + rowsHtml + '</tbody></table></div>';
+  return '<div class="pord-wrap"><table class="pord-table"><thead><tr>' + cols.map(function(c){return '<th' + (c.num ? ' style="text-align:right;"' : '') + '>' + esc(c.label) + '</th>';}).join("") + '</tr></thead><tbody>' + rowsHtml + '</tbody></table></div>';
 }
-
 function wireDoneTicksGlobal() {
-  // Wire ALL .line-done-chk checkboxes + Production Done Qty inputs in the
-  // drill modal in a single pass, using the data-lk attribute on the row.
   var content = document.getElementById("drillContent");
   if (!content) return;
-
-  // 1) Tick (Done) checkboxes
   content.querySelectorAll(".line-done-chk").forEach(function(chk){
     chk.onclick = function(e){ e.stopPropagation(); };
     chk.onchange = function(){
-      var tr = chk.closest("tr");
-      if (!tr) return;
+      var tr = chk.closest("tr"); if (!tr) return;
       var lk = tr.getAttribute("data-lk") || "";
-      if (chk.checked) {
-        LINE_DONE[lk] = 1;
-        // EQPT and HOD are preserved (not cleared) when ticking Done. The UI
-        // simply disables those dropdowns so the assignment cannot be changed
-        // while the line is marked Done. Un-tick Done to edit them again.
-      } else {
-        delete LINE_DONE[lk];
-      }
+      if (chk.checked) LINE_DONE[lk] = 1;
+      else delete LINE_DONE[lk];
       saveLineDone();
       saveRemoteLineInput(lk);
-      // Re-render drill body â€” ticked lines disappear (unless "Show Done" is on);
-      // un-ticked lines re-appear normally.
       if (typeof window.__drillRenderBody === "function") window.__drillRenderBody();
       if (typeof window.__currentDrillRecompute === "function") window.__currentDrillRecompute();
-      // Live-update the parent pivot row's Production Done / Balance.
       if (typeof renderTable === "function") renderTable();
     };
   });
-
-  // 2) Per-line Production Done Qty inputs (manual entry when not ticked)
   content.querySelectorAll(".line-pd-input").forEach(function(inp){
     inp.onclick = function(e){ e.stopPropagation(); };
     inp.onkeydown = function(e){ e.stopPropagation(); };
     var update = function(){
-      if (inp.readOnly) return;  // ticked rows are auto-filled, ignore user edits
-      var tr = inp.closest("tr");
-      if (!tr) return;
+      if (inp.readOnly) return;
+      var tr = inp.closest("tr"); if (!tr) return;
       var lk = tr.getAttribute("data-lk") || "";
       var v = inp.value.trim();
       setLinePDManual(lk, v === "" ? null : parseFloat(v));
       if (typeof window.__currentDrillRecompute === "function") window.__currentDrillRecompute();
       if (typeof renderTable === "function") renderTable();
     };
-    inp.oninput = update;
-    inp.onchange = update;
+    inp.oninput = update; inp.onchange = update;
   });
-
-  // (Target Date is now read-only from the sheet column â€” no wiring needed.)
-
-  // 3) Per-line EQPT dropdowns
   content.querySelectorAll(".line-eqpt-select").forEach(function(sel){
     sel.onclick = function(e){ e.stopPropagation(); };
-    sel.onmousedown = function(e){ e.stopPropagation(); };
-    sel.onkeydown = function(e){ e.stopPropagation(); };
     sel.onchange = function(){
-      var tr = sel.closest("tr");
-      if (!tr) return;
+      var tr = sel.closest("tr"); if (!tr) return;
       var lk = tr.getAttribute("data-lk") || "";
       setLineEqpt(lk, sel.value);
       if (typeof window.__currentDrillRecompute === "function") window.__currentDrillRecompute();
@@ -1679,15 +1824,10 @@ function wireDoneTicksGlobal() {
       if (typeof renderTable === "function") renderTable();
     };
   });
-
-  // 4) Per-line HOD dropdowns
   content.querySelectorAll(".line-hod-select").forEach(function(sel){
     sel.onclick = function(e){ e.stopPropagation(); };
-    sel.onmousedown = function(e){ e.stopPropagation(); };
-    sel.onkeydown = function(e){ e.stopPropagation(); };
     sel.onchange = function(){
-      var tr = sel.closest("tr");
-      if (!tr) return;
+      var tr = sel.closest("tr"); if (!tr) return;
       var lk = tr.getAttribute("data-lk") || "";
       setLineHod(lk, sel.value);
       if (typeof window.__currentDrillRecompute === "function") window.__currentDrillRecompute();
@@ -1696,39 +1836,33 @@ function wireDoneTicksGlobal() {
     };
   });
 }
-
 document.getElementById("drillClose").onclick = function(){ document.getElementById("drillModal").classList.remove("open"); };
-document.getElementById("drillModal").onclick = function(e){
-  if (e.target.id === "drillModal") document.getElementById("drillModal").classList.remove("open");
-};
+document.getElementById("drillModal").onclick = function(e){ if (e.target.id === "drillModal") document.getElementById("drillModal").classList.remove("open"); };
 document.addEventListener("keydown", function(e){
-  if (e.key === "Escape") document.getElementById("drillModal").classList.remove("open");
+  if (e.key === "Escape") {
+    document.getElementById("drillModal").classList.remove("open");
+    var lm = document.getElementById("loginModal"); if (lm) lm.classList.remove("open");
+    var um = document.getElementById("userPanelModal"); if (um) um.classList.remove("open");
+  }
 });
-
 function populateSelect(sel, vals) {
   var prev = sel.value;
   sel.innerHTML = '<option value="">All</option>' + vals.map(function(v){return '<option value="' + esc(v) + '">' + esc(v) + '</option>';}).join("");
   if (prev && vals.indexOf(prev) >= 0) sel.value = prev;
   else sel.value = "";
 }
-
-// Sentinel used in EQPT/HOD filter dropdowns to mean "lines with no assignment".
 var BLANK_FILTER = "__BLANK__";
 function addBlankOption(sel) {
-  // Insert "(blank â€” not assigned)" right after the "All" entry, preserving
-  // any prior selection.
   if (!sel) return;
   var prev = sel.value;
-  // Remove an existing blank option, if any (to avoid duplicates across reruns).
   Array.from(sel.options).forEach(function(o){ if (o.value === BLANK_FILTER) sel.removeChild(o); });
   var opt = document.createElement("option");
   opt.value = BLANK_FILTER;
-  opt.textContent = "(blank â€” not assigned)";
+  opt.textContent = "(blank - not assigned)";
   if (sel.options.length >= 2) sel.insertBefore(opt, sel.options[1]);
   else sel.appendChild(opt);
   sel.value = prev;
 }
-
 function rowsExcluding(exclude) {
   var fUm = document.getElementById("fltUm").value;
   var fL3 = document.getElementById("fltL3").value;
@@ -1742,7 +1876,6 @@ function rowsExcluding(exclude) {
     return true;
   });
 }
-
 function refreshFilters() {
   var umSel = document.getElementById("fltUm");
   var l3Sel = document.getElementById("fltL3");
@@ -1758,19 +1891,26 @@ function refreshFilters() {
   populateSelect(l3Sel, l3Vals);
   populateSelect(l4Sel, l4Vals);
 }
-
-// Apply a set of filter overrides programmatically (used by the KPI cards,
-// charts, and equipment blocking table when the user clicks them). Pass an
-// object keyed by filter element id, e.g. { fltUm: "KM", fltL4: "COMPACT CONDUCTOR" }.
-// Filters not specified in the object are left untouched. After applying, the
-// filter dropdown options are recomputed and the pivot table is re-rendered,
-// then the pivot card is scrolled into view so the user sees the result.
+function clearFilters() {
+  document.getElementById("fltUm").value = "";
+  document.getElementById("fltL3").value = "";
+  document.getElementById("fltL4").value = "";
+  document.getElementById("fltEqpt").value = "";
+  document.getElementById("fltHod").value = "";
+  var fa = document.getElementById("fltApprove"); if (fa) fa.value = "";
+  document.getElementById("fltSearch").value = "";
+  document.getElementById("fltNonzero").checked = true;
+  document.getElementById("fltBalanceNonzero").checked = true;
+  refreshFilters();
+  renderTable();
+}
+window.clearFilters = clearFilters;
+function onAnyFilterChange() { refreshFilters(); renderTable(); }
 function applyFilters(overrides, opts) {
   opts = opts || {};
-  if (!overrides || typeof overrides !== "object") return;
+  if (!overrides) return;
   Object.keys(overrides).forEach(function(id){
-    var el = document.getElementById(id);
-    if (!el) return;
+    var el = document.getElementById(id); if (!el) return;
     var v = overrides[id];
     if (el.type === "checkbox") el.checked = !!v;
     else el.value = (v == null ? "" : String(v));
@@ -1779,58 +1919,574 @@ function applyFilters(overrides, opts) {
   renderTable();
   if (opts.toast) showFilterToast(opts.toast);
   if (opts.scroll !== false) {
-    var pivotCard = document.querySelector(".table-wrap");
-    if (pivotCard) {
-      try { pivotCard.scrollIntoView({ behavior: "smooth", block: "start" }); }
-      catch(_) { pivotCard.scrollIntoView(); }
-    }
+    var p = document.querySelector(".table-wrap");
+    if (p) { try { p.scrollIntoView({ behavior: "smooth", block: "start" }); } catch(_){ p.scrollIntoView(); } }
   }
 }
 window.applyFilters = applyFilters;
-
-// Tiny non-blocking toast so the user knows which filter just got applied.
 function showFilterToast(msg) {
   var el = document.getElementById("filterToast");
-  if (!el) {
-    el = document.createElement("div");
-    el.id = "filterToast";
-    el.className = "filter-cleared-toast";
-    document.body.appendChild(el);
-  }
+  if (!el) { el = document.createElement("div"); el.id = "filterToast"; el.className = "filter-cleared-toast"; document.body.appendChild(el); }
   el.textContent = msg;
   el.classList.add("show");
   clearTimeout(el.__hideTimer);
   el.__hideTimer = setTimeout(function(){ el.classList.remove("show"); }, 1800);
 }
-
-function clearFilters() {
-  document.getElementById("fltUm").value = "";
-  document.getElementById("fltL3").value = "";
-  document.getElementById("fltL4").value = "";
-  document.getElementById("fltEqpt").value = "";
-  document.getElementById("fltHod").value = "";
-  document.getElementById("fltApprove").value = "";
-  document.getElementById("fltSearch").value = "";
-  document.getElementById("fltNonzero").checked = true;
-  document.getElementById("fltBalanceNonzero").checked = true;
-  refreshFilters();
-  renderTable();
-}
-window.clearFilters = clearFilters;
-
-function onAnyFilterChange() { refreshFilters(); renderTable(); }
-
 function startAutoRefresh() {
   if (AUTO_REFRESH_SECONDS <= 0) return;
   setInterval(function(){
+    if (typeof currentRole === "function" && currentRole() === "anonymous") return;
     loadData(false, true);
   }, AUTO_REFRESH_SECONDS * 1000);
 }
+// ============================================================
+// AUTH / ROLES / SESSION
+// ============================================================
+const SESSION_KEY = "erp_session_v1";
+const SESSION_TTL_MS = 12 * 60 * 60 * 1000;
+function loadSession() {
+  try {
+    var s = JSON.parse(localStorage.getItem(SESSION_KEY) || "null");
+    if (!s || !s.expires_at) return null;
+    if (Date.now() > s.expires_at) { localStorage.removeItem(SESSION_KEY); return null; }
+    return s;
+  } catch(e) { return null; }
+}
+function saveSession(username, role, view_filter) {
+  var s = { username: username, role: role, view_filter: view_filter || "", expires_at: Date.now() + SESSION_TTL_MS };
+  try { localStorage.setItem(SESSION_KEY, JSON.stringify(s)); } catch(e) {}
+  return s;
+}
+function clearSession() { try { localStorage.removeItem(SESSION_KEY); } catch(e) {} }
+function currentRole() { var s = loadSession(); return s ? s.role : "anonymous"; }
+function currentUsername() { var s = loadSession(); return s ? s.username : ""; }
+function isAdmin() { return currentRole() === "admin" || currentRole() === "super_admin"; }
+function isSuperAdmin() { return currentRole() === "super_admin"; }
+// view_filter is now stored as a JSON object mapping column-name -> allowed
+// values array, e.g. {"APPROVE_STATUS":["APPROVED","PENDING"],"SFG_LEVEL_3_NAME":["CONDUCTOR"]}.
+// Empty {} or blank string means NO data access for users (Super Admin must
+// explicitly grant). For backward compatibility, a plain "val1,val2" string
+// is interpreted as {"APPROVE_STATUS":[...]}.
+function currentViewFilter() {
+  var s = loadSession();
+  var raw = s && s.view_filter ? String(s.view_filter).trim() : "";
+  return parseViewFilter(raw);
+}
+function parseViewFilter(raw) {
+  if (!raw) return {};
+  if (raw.charAt(0) === "{") {
+    try {
+      var obj = JSON.parse(raw);
+      var out = {};
+      Object.keys(obj).forEach(function(k){
+        var vals = obj[k];
+        if (!Array.isArray(vals)) vals = [vals];
+        vals = vals.map(function(v){ return v == null ? "" : String(v).trim(); }).filter(Boolean);
+        if (vals.length > 0) out[k] = vals;
+      });
+      return out;
+    } catch(e) { return {}; }
+  }
+  // Legacy comma-separated APPROVE_STATUS list
+  var vals = raw.split(",").map(function(x){ return x.trim(); }).filter(Boolean);
+  return vals.length ? { "APPROVE_STATUS": vals } : {};
+}
+// Count active filter columns for display purposes.
+function viewFilterSummary(raw) {
+  var f = parseViewFilter(raw);
+  var keys = Object.keys(f);
+  if (!keys.length) return "(none - no data)";
+  return keys.length + " column" + (keys.length === 1 ? "" : "s") + ": " + keys.join(", ");
+}
+async function sha256Hex(text) {
+  var str = String(text || "");
+  if (typeof crypto !== "undefined" && crypto.subtle && crypto.subtle.digest) {
+    try {
+      var buf = new TextEncoder().encode(str);
+      var digest = await crypto.subtle.digest("SHA-256", buf);
+      return Array.from(new Uint8Array(digest)).map(function(b){ return b.toString(16).padStart(2, "0"); }).join("");
+    } catch(_e) { /* fall through */ }
+  }
+  return sha256Sync_(str);
+}
+function sha256Sync_(str) {
+  function utf8(s) {
+    var b = [];
+    for (var i = 0; i < s.length; i++) {
+      var c = s.charCodeAt(i);
+      if (c < 0x80) b.push(c);
+      else if (c < 0x800) { b.push(0xc0 | (c >> 6), 0x80 | (c & 0x3f)); }
+      else if (c < 0xd800 || c >= 0xe000) { b.push(0xe0 | (c >> 12), 0x80 | ((c >> 6) & 0x3f), 0x80 | (c & 0x3f)); }
+      else {
+        i++;
+        var cp = 0x10000 + (((c & 0x3ff) << 10) | (s.charCodeAt(i) & 0x3ff));
+        b.push(0xf0 | (cp >> 18), 0x80 | ((cp >> 12) & 0x3f), 0x80 | ((cp >> 6) & 0x3f), 0x80 | (cp & 0x3f));
+      }
+    }
+    return b;
+  }
+  var K = [0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+  var H = [0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+  function rr(n,b){ return (n >>> b) | (n << (32 - b)); }
+  var bytes = utf8(str);
+  var bitLen = bytes.length * 8;
+  bytes.push(0x80);
+  while (bytes.length % 64 !== 56) bytes.push(0);
+  bytes.push(0,0,0,0, (bitLen >>> 24) & 0xff, (bitLen >>> 16) & 0xff, (bitLen >>> 8) & 0xff, bitLen & 0xff);
+  for (var i = 0; i < bytes.length; i += 64) {
+    var w = new Array(64);
+    for (var t = 0; t < 16; t++) w[t] = ((bytes[i+t*4]&0xff)<<24)|((bytes[i+t*4+1]&0xff)<<16)|((bytes[i+t*4+2]&0xff)<<8)|(bytes[i+t*4+3]&0xff);
+    for (t = 16; t < 64; t++) {
+      var s0 = rr(w[t-15],7) ^ rr(w[t-15],18) ^ (w[t-15] >>> 3);
+      var s1 = rr(w[t-2],17) ^ rr(w[t-2],19) ^ (w[t-2] >>> 10);
+      w[t] = (w[t-16] + s0 + w[t-7] + s1) | 0;
+    }
+    var a=H[0],b=H[1],c=H[2],d=H[3],e=H[4],f=H[5],g=H[6],h=H[7];
+    for (t = 0; t < 64; t++) {
+      var S1 = rr(e,6) ^ rr(e,11) ^ rr(e,25);
+      var ch = (e & f) ^ (~e & g);
+      var t1 = (h + S1 + ch + K[t] + w[t]) | 0;
+      var S0 = rr(a,2) ^ rr(a,13) ^ rr(a,22);
+      var mj = (a & b) ^ (a & c) ^ (b & c);
+      var t2 = (S0 + mj) | 0;
+      h=g; g=f; f=e; e=(d + t1)|0; d=c; c=b; b=a; a=(t1 + t2)|0;
+    }
+    H[0]=(H[0]+a)|0; H[1]=(H[1]+b)|0; H[2]=(H[2]+c)|0; H[3]=(H[3]+d)|0;
+    H[4]=(H[4]+e)|0; H[5]=(H[5]+f)|0; H[6]=(H[6]+g)|0; H[7]=(H[7]+h)|0;
+  }
+  return H.map(function(v){ return ("00000000" + (v >>> 0).toString(16)).slice(-8); }).join("");
+}
+function applyRoleUI() {
+  var role = currentRole();
+  var user = currentUsername();
+  document.body.className = document.body.className.replace(/\brole-\S+/g, "").trim();
+  document.body.classList.add("role-" + role);
+  var badge = document.getElementById("authBadge");
+  var loginBtn = document.getElementById("loginBtn");
+  var logoutBtn = document.getElementById("logoutBtn");
+  var panelBtn = document.getElementById("userPanelBtn");
+  if (badge) {
+    badge.className = "auth-badge role-" + role;
+    if (role === "anonymous") badge.textContent = "Not logged in";
+    else badge.textContent = user + " (" + role.replace("_", " ") + ")";
+  }
+  if (loginBtn) loginBtn.style.display = role === "anonymous" ? "" : "none";
+  if (logoutBtn) logoutBtn.style.display = role === "anonymous" ? "none" : "";
+  if (panelBtn) panelBtn.style.display = role === "super_admin" ? "" : "none";
+  var gate = document.getElementById("loginGate");
+  if (gate) {
+    if (role === "anonymous") {
+      gate.classList.remove("hidden");
+      document.body.classList.add("gate-active");
+      setTimeout(function(){ var f = document.getElementById("gateUser"); if (f) f.focus(); }, 80);
+    } else {
+      gate.classList.add("hidden");
+      document.body.classList.remove("gate-active");
+    }
+  }
+}
+function authCall(username, password_hash) {
+  return new Promise(function(resolve){
+    var cb = "__authCb_" + Date.now() + "_" + Math.floor(Math.random() * 100000);
+    var script = document.createElement("script");
+    var done = false;
+    function finish(p) {
+      if (done) return; done = true;
+      try { delete window[cb]; } catch(e) { window[cb] = undefined; }
+      if (script.parentNode) script.parentNode.removeChild(script);
+      resolve(p || null);
+    }
+    window[cb] = function(payload) { finish(payload); };
+    script.onerror = function(){ finish(null); };
+    script.src = INPUT_API_URL + (INPUT_API_URL.indexOf("?") >= 0 ? "&" : "?") +
+      "action=auth&username=" + encodeURIComponent(username) +
+      "&password_hash=" + encodeURIComponent(password_hash) +
+      "&callback=" + encodeURIComponent(cb) +
+      "&_=" + Date.now();
+    document.head.appendChild(script);
+    setTimeout(function(){ finish(null); }, 12000);
+  });
+}
+async function submitGateLogin() {
+  var u = document.getElementById("gateUser").value.trim();
+  var p = document.getElementById("gatePass").value;
+  var errEl = document.getElementById("gateError");
+  var btn = document.getElementById("gateSubmit");
+  errEl.style.display = "none";
+  if (!u || !p) { errEl.textContent = "Username and password are required."; errEl.style.display = ""; return; }
+  if (!hasInputApi()) { errEl.textContent = "Login API not configured."; errEl.style.display = ""; return; }
+  btn.disabled = true; btn.textContent = "Signing in...";
+  try {
+    var hash = await sha256Hex(p);
+    var resp = await authCall(u, hash);
+    if (!resp || resp.status !== "ok") throw new Error(resp && resp.message ? resp.message : "Login failed");
+    saveSession(resp.username || u, resp.role || "user", resp.view_filter || "");
+    applyRoleUI();
+    showFilterToast("Welcome, " + (resp.username || u) + " (" + (resp.role || "user").replace("_", " ") + ")");
+    loadData(false);
+  } catch(e) {
+    errEl.textContent = String(e && e.message || e);
+    errEl.style.display = "";
+  } finally {
+    btn.disabled = false; btn.textContent = "Sign In";
+  }
+}
+window.submitGateLogin = submitGateLogin;
+function openLoginModal() {
+  var le = document.getElementById("loginError"); if (le) le.style.display = "none";
+  var lu = document.getElementById("loginUser"); if (lu) lu.value = "";
+  var lp = document.getElementById("loginPass"); if (lp) lp.value = "";
+  document.getElementById("loginModal").classList.add("open");
+  setTimeout(function(){ var f = document.getElementById("loginUser"); if (f) f.focus(); }, 50);
+}
+function closeLoginModal() { document.getElementById("loginModal").classList.remove("open"); }
+window.openLoginModal = openLoginModal;
+window.closeLoginModal = closeLoginModal;
+async function submitLogin() {
+  var u = document.getElementById("loginUser").value.trim();
+  var p = document.getElementById("loginPass").value;
+  var errEl = document.getElementById("loginError");
+  var btn = document.getElementById("loginSubmit");
+  errEl.style.display = "none";
+  if (!u || !p) { errEl.textContent = "Username and password are required."; errEl.style.display = ""; return; }
+  if (!hasInputApi()) { errEl.textContent = "Login API not configured."; errEl.style.display = ""; return; }
+  btn.disabled = true; btn.textContent = "Signing in...";
+  try {
+    var hash = await sha256Hex(p);
+    var resp = await authCall(u, hash);
+    if (!resp || resp.status !== "ok") throw new Error(resp && resp.message ? resp.message : "Login failed");
+    saveSession(resp.username || u, resp.role || "user", resp.view_filter || "");
+    applyRoleUI();
+    closeLoginModal();
+    showFilterToast("Welcome, " + (resp.username || u));
+    loadData(false);
+  } catch(e) {
+    errEl.textContent = String(e && e.message || e);
+    errEl.style.display = "";
+  } finally {
+    btn.disabled = false; btn.textContent = "Login";
+  }
+}
+window.submitLogin = submitLogin;
+function doLogout() {
+  if (!confirm("Logout?")) return;
+  clearSession();
+  applyRoleUI();
+  showFilterToast("Logged out");
+  if (typeof renderTable === "function") renderTable();
+}
+window.doLogout = doLogout;
+// ============================================================
+// USER CONTROL PANEL
+// ============================================================
+function openUserPanel() {
+  if (!isSuperAdmin()) { alert("Super Admin only."); return; }
+  document.getElementById("userPanelModal").classList.add("open");
+  refreshUserPanel();
+}
+function closeUserPanel() { document.getElementById("userPanelModal").classList.remove("open"); }
+window.openUserPanel = openUserPanel;
+window.closeUserPanel = closeUserPanel;
+function listUsersCall() {
+  return new Promise(function(resolve){
+    var cb = "__usersCb_" + Date.now() + "_" + Math.floor(Math.random() * 100000);
+    var script = document.createElement("script");
+    var done = false;
+    function finish(p) {
+      if (done) return; done = true;
+      try { delete window[cb]; } catch(e) { window[cb] = undefined; }
+      if (script.parentNode) script.parentNode.removeChild(script);
+      resolve(p || null);
+    }
+    window[cb] = function(payload) { finish(payload); };
+    script.onerror = function(){ finish(null); };
+    script.src = INPUT_API_URL + (INPUT_API_URL.indexOf("?") >= 0 ? "&" : "?") + "action=list_users&callback=" + encodeURIComponent(cb) + "&_=" + Date.now();
+    document.head.appendChild(script);
+    setTimeout(function(){ finish(null); }, 12000);
+  });
+}
+function postUserAction(params) {
+  if (!hasInputApi()) return Promise.reject(new Error("API not configured"));
+  var body = new URLSearchParams();
+  Object.keys(params).forEach(function(k){ body.set(k, params[k] == null ? "" : String(params[k])); });
+  return fetch(INPUT_API_URL, {
+    method: "POST",
+    mode: "no-cors",
+    headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+    body: body
+  });
+}
+function formatTs(s) {
+  if (!s) return "";
+  var d = new Date(s);
+  if (isNaN(d.getTime())) return String(s);
+  return d.toISOString().slice(0,16).replace("T", " ");
+}
+async function refreshUserPanel() {
+  var body = document.getElementById("userPanelBody");
+  body.innerHTML = '<div class="empty">Loading users...</div>';
+  var resp = await listUsersCall();
+  if (!resp || resp.status !== "ok") { body.innerHTML = '<div class="error">Failed to load users.</div>'; return; }
+  var users = resp.users || [];
+  if (!users.length) { body.innerHTML = '<div class="empty">No users yet. Add the first one above.</div>'; return; }
+  var availableStatuses = new Set();
+  (LINES || []).forEach(function(l){
+    var ap = l && l.APPROVE_STATUS == null ? "" : String(l.APPROVE_STATUS).trim();
+    if (ap) availableStatuses.add(ap);
+  });
+  var statusHint = availableStatuses.size ? Array.from(availableStatuses).sort().join(", ") : "(no APPROVE_STATUS values found in current data)";
+  body.innerHTML =
+    '<table class="user-table"><thead><tr><th>Username</th><th>Password</th><th>Role</th><th>View Filter<br><span style="font-weight:400;color:#888;font-size:10px;">APPROVE_STATUS, comma-sep</span></th><th>Created</th><th>Last Login</th><th>Actions</th></tr></thead><tbody>' +
+    users.map(function(u){
+      var role = String(u.role || "user").toLowerCase();
+      var plain = u.password_plain == null ? "" : String(u.password_plain);
+      var vf = u.view_filter == null ? "" : String(u.view_filter);
+      return '<tr data-username="' + esc(u.username) + '">' +
+        '<td><strong>' + esc(u.username) + '</strong></td>' +
+        '<td><input type="text" class="row-plain-pw" value="' + esc(plain) + '" placeholder="(set new)" style="padding:3px 6px;font-size:12px;border:1px solid #d6d8db;border-radius:4px;width:130px;font-family:ui-monospace,Menlo,Consolas,monospace;" /></td>' +
+        '<td><select class="row-role"><option value="user"' + (role === "user" ? " selected" : "") + '>User</option><option value="admin"' + (role === "admin" ? " selected" : "") + '>Admin</option><option value="super_admin"' + (role === "super_admin" ? " selected" : "") + '>Super Admin</option></select></td>' +
+        '<td>' +
+          '<input type="hidden" class="row-view-filter" value="' + esc(vf) + '" />' +
+          '<button class="auth-btn" onclick="openFilterEditor(this)" style="padding:4px 10px;font-size:11px;">' + esc(viewFilterSummary(vf)) + ' &nbsp;&#9881;</button>' +
+        '</td>' +
+        '<td style="font-size:11px;color:#666;">' + esc(formatTs(u.created_at)) + '</td>' +
+        '<td style="font-size:11px;color:#666;">' + esc(formatTs(u.last_login) || "-") + '</td>' +
+        '<td><div class="user-row-actions"><button onclick="saveUserRow(this)">Save</button><button class="del-btn" onclick="deleteUserRow(this)">Delete</button></div></td>' +
+      '</tr>';
+    }).join("") +
+    '</tbody></table>' +
+    '<div style="margin-top:10px;font-size:11px;color:#2a52a8;background:#eef4ff;border:1px solid #c6d4ee;padding:7px 10px;border-radius:6px;"><strong>View Filter:</strong> applies ONLY to role=user. Comma-separated APPROVE_STATUS values. Available now: <em>' + esc(statusHint) + '</em>. Admins / Super Admins see all data regardless.</div>' +
+    '<div style="margin-top:6px;font-size:11px;color:#8a5a00;background:#fff7e6;border:1px solid #e8c986;padding:6px 10px;border-radius:6px;">Note: passwords are stored in plain text in the sheet for easy reset. Anyone with sheet access can see them.</div>';
+}
+async function submitAddUser() {
+  var u = document.getElementById("newUserName").value.trim();
+  var p = document.getElementById("newUserPass").value;
+  var r = document.getElementById("newUserRole").value;
+  var status = document.getElementById("userPanelStatus");
+  if (!u || !p) { status.textContent = "Username and password required"; return; }
+  status.textContent = "Adding " + u + "...";
+  var hash = await sha256Hex(p);
+  await postUserAction({ action: "upsert_user", username: u, password_plain: p, password_hash: hash, role: r, view_filter: "" });
+  document.getElementById("newUserName").value = "";
+  document.getElementById("newUserPass").value = "";
+  document.getElementById("newUserRole").value = "user";
+  setTimeout(function(){ status.textContent = ""; refreshUserPanel(); }, 800);
+}
+window.submitAddUser = submitAddUser;
+async function saveUserRow(btn) {
+  var tr = btn.closest("tr"); if (!tr) return;
+  var username = tr.getAttribute("data-username");
+  var role = tr.querySelector(".row-role").value;
+  var plainInput = tr.querySelector(".row-plain-pw");
+  var newPlain = plainInput ? String(plainInput.value || "") : "";
+  var viewFilterInput = tr.querySelector(".row-view-filter");
+  var newViewFilter = viewFilterInput ? String(viewFilterInput.value || "").trim() : "";
+  var status = document.getElementById("userPanelStatus");
+  status.textContent = "Saving " + username + "...";
+  var params = { action: "upsert_user", username: username, role: role, view_filter: newViewFilter };
+  if (newPlain) { params.password_plain = newPlain; params.password_hash = await sha256Hex(newPlain); }
+  await postUserAction(params);
+  if (username && currentUsername() && username.toLowerCase() === currentUsername().toLowerCase()) {
+    saveSession(currentUsername(), role, newViewFilter);
+    applyRoleUI();
+    if (typeof loadData === "function") loadData(false);
+  }
+  setTimeout(function(){ status.textContent = "Saved " + username; refreshUserPanel(); }, 800);
+}
+window.saveUserRow = saveUserRow;
+async function deleteUserRow(btn) {
+  var tr = btn.closest("tr"); if (!tr) return;
+  var username = tr.getAttribute("data-username");
+  if (username === currentUsername()) { alert("You can't delete yourself."); return; }
+  if (!confirm("Delete user '" + username + "'? This cannot be undone.")) return;
+  var status = document.getElementById("userPanelStatus");
+  status.textContent = "Deleting " + username + "...";
+  await postUserAction({ action: "delete_user", username: username });
+  setTimeout(function(){ status.textContent = "Deleted " + username; refreshUserPanel(); }, 800);
+}
+window.deleteUserRow = deleteUserRow;
 
-/* initial load */
-loadData(false);
+// ============================================================
+// VIEW-FILTER EDITOR (multi-column, multi-value)
+// ============================================================
+// Curated list of columns the Super Admin can use to scope a User's view.
+// These map to raw ERP sheet columns we filter on before building ROWS/LINES.
+var FILTERABLE_COLUMNS = [
+  "APPROVE_STATUS",
+  "SFG_LEVEL_3_NAME",
+  "SFG_LEVEL_4_NAME",
+  "SFG_UM",
+  "ACC_NAME",
+  "MC_NO",
+  "SFG_BOM",
+  "SFG_CODE",
+  "FG_LEVEL_4_NAME",
+  // HOD and EQPT are NOT ERP sheet columns - they are per-line assignments
+  // stored in LINE_HOD / LINE_EQPT (PLANNING_INPUTS sheet via Apps Script).
+  // We handle them specially in loadData's view-filter and in
+  // uniqueColumnValues so the editor still shows pickable values.
+  "HOD",
+  "EQPT"
+];
+// Working copy of the filter being edited inside the modal.
+var FILTER_EDITOR_STATE = { username: null, conditions: {}, hiddenInput: null };
+function uniqueColumnValues(col) {
+  // HOD and EQPT are special - their pickable values come from the master
+  // sheets (HOD MASTER / EQPT_MASTER tabs), not from the ERP main rows.
+  if (col === "HOD") return (HOD_MASTER || []).slice().sort();
+  if (col === "EQPT") return (EQPT_MASTER || []).slice().sort();
+  // Collect distinct non-blank values for a given column from the currently
+  // loaded LINES (works for line-level columns). For pivot-only columns
+  // (e.g. SFG_LEVEL_3_NAME) we also peek into ROWS which carry them on L3/L4.
+  var set = new Set();
+  (LINES || []).forEach(function(l){
+    var v = l && l[col];
+    if (v == null) return;
+    var s = String(v).trim();
+    if (s) set.add(s);
+  });
+  // Map pivot-row aliases (L3 -> SFG_LEVEL_3_NAME, L4 -> SFG_LEVEL_4_NAME, UM)
+  // so the dropdown still works even if LINES doesn't include them.
+  if (set.size === 0) {
+    (ROWS || []).forEach(function(r){
+      var v = null;
+      if (col === "SFG_LEVEL_3_NAME") v = r.L3;
+      else if (col === "SFG_LEVEL_4_NAME") v = r.L4;
+      else if (col === "SFG_UM") v = r.UM;
+      else v = r[col];
+      if (v == null) return;
+      var s = String(v).trim();
+      if (s) set.add(s);
+    });
+  }
+  return Array.from(set).sort();
+}
+function openFilterEditor(btn) {
+  var tr = btn.closest("tr");
+  if (!tr) return;
+  var username = tr.getAttribute("data-username") || "";
+  var hidden = tr.querySelector(".row-view-filter");
+  var raw = hidden ? hidden.value : "";
+  FILTER_EDITOR_STATE = {
+    username: username,
+    conditions: parseViewFilter(raw),
+    hiddenInput: hidden
+  };
+  document.getElementById("filterEditorTitle").textContent = "Configure data access for: " + username;
+  // Populate the "add column" dropdown with columns not already in use.
+  var sel = document.getElementById("newConditionColumn");
+  sel.innerHTML = '<option value="">-- pick a column --</option>' +
+    FILTERABLE_COLUMNS.filter(function(c){ return !FILTER_EDITOR_STATE.conditions[c]; })
+      .map(function(c){ return '<option value="' + esc(c) + '">' + esc(c) + '</option>'; }).join("");
+  renderFilterEditorBody();
+  document.getElementById("filterEditorModal").classList.add("open");
+}
+window.openFilterEditor = openFilterEditor;
+function closeFilterEditor() {
+  document.getElementById("filterEditorModal").classList.remove("open");
+  FILTER_EDITOR_STATE = { username: null, conditions: {}, hiddenInput: null };
+}
+window.closeFilterEditor = closeFilterEditor;
+function renderFilterEditorBody() {
+  var body = document.getElementById("filterEditorBody");
+  var conds = FILTER_EDITOR_STATE.conditions;
+  var keys = Object.keys(conds);
+  if (!keys.length) {
+    body.innerHTML = '<div style="text-align:center;color:#999;font-style:italic;padding:14px;border:1px dashed #d6d8db;border-radius:6px;">No filter columns yet. Add one below to grant view access.</div>';
+    return;
+  }
+  body.innerHTML = keys.map(function(col){
+    var allValues = uniqueColumnValues(col);
+    var selected = conds[col] || [];
+    var sortedAll = Array.from(new Set(allValues.concat(selected))).sort();
+    var checkboxes = sortedAll.map(function(v){
+      var isOn = selected.indexOf(v) >= 0;
+      return '<label style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;background:' + (isOn ? "#eef4ff" : "#f7f8fa") + ';border:1px solid ' + (isOn ? "#4a7dd6" : "#e6e8eb") + ';border-radius:14px;font-size:11px;cursor:pointer;margin:2px;">' +
+        '<input type="checkbox" data-col="' + esc(col) + '" data-val="' + esc(v) + '"' + (isOn ? " checked" : "") + ' onchange="toggleFilterValue(this)" style="margin:0;" />' +
+        esc(v) +
+      '</label>';
+    }).join("");
+    if (!sortedAll.length) checkboxes = '<span style="color:#999;font-style:italic;font-size:11px;">No values found in current data for this column.</span>';
+    return '<div style="border:1px solid #e6e8eb;border-radius:8px;padding:10px;margin-bottom:8px;">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">' +
+        '<strong style="font-size:12px;">' + esc(col) + '</strong>' +
+        '<button class="clear-btn" onclick="removeFilterColumn(\'' + esc(col) + '\')" style="font-size:10px;padding:2px 8px;">Remove column</button>' +
+      '</div>' +
+      '<div style="display:flex;flex-wrap:wrap;gap:0;">' + checkboxes + '</div>' +
+    '</div>';
+  }).join("");
+}
+function addFilterCondition() {
+  var sel = document.getElementById("newConditionColumn");
+  var col = sel.value;
+  if (!col) return;
+  if (!FILTER_EDITOR_STATE.conditions[col]) FILTER_EDITOR_STATE.conditions[col] = [];
+  // Remove this column from the "add" dropdown.
+  Array.from(sel.options).forEach(function(o){ if (o.value === col) sel.removeChild(o); });
+  sel.value = "";
+  renderFilterEditorBody();
+}
+window.addFilterCondition = addFilterCondition;
+function removeFilterColumn(col) {
+  delete FILTER_EDITOR_STATE.conditions[col];
+  // Restore this column to the "add" dropdown.
+  var sel = document.getElementById("newConditionColumn");
+  var opt = document.createElement("option");
+  opt.value = col; opt.textContent = col;
+  sel.appendChild(opt);
+  renderFilterEditorBody();
+}
+window.removeFilterColumn = removeFilterColumn;
+function toggleFilterValue(chk) {
+  var col = chk.getAttribute("data-col");
+  var val = chk.getAttribute("data-val");
+  if (!col) return;
+  var arr = FILTER_EDITOR_STATE.conditions[col] || [];
+  if (chk.checked) {
+    if (arr.indexOf(val) < 0) arr.push(val);
+  } else {
+    arr = arr.filter(function(x){ return x !== val; });
+  }
+  FILTER_EDITOR_STATE.conditions[col] = arr;
+  // Recolor the pill in-place without full re-render for snappier UX.
+  var label = chk.parentElement;
+  if (chk.checked) {
+    label.style.background = "#eef4ff";
+    label.style.borderColor = "#4a7dd6";
+  } else {
+    label.style.background = "#f7f8fa";
+    label.style.borderColor = "#e6e8eb";
+  }
+}
+window.toggleFilterValue = toggleFilterValue;
+function saveFilterEditor() {
+  if (!FILTER_EDITOR_STATE.hiddenInput) { closeFilterEditor(); return; }
+  // Strip out any columns with no selected values â€" they would block all
+  // rows. We treat "empty values" as "remove this filter column".
+  var clean = {};
+  Object.keys(FILTER_EDITOR_STATE.conditions).forEach(function(k){
+    var vals = (FILTER_EDITOR_STATE.conditions[k] || []).map(function(v){ return String(v).trim(); }).filter(Boolean);
+    if (vals.length) clean[k] = vals;
+  });
+  var json = Object.keys(clean).length ? JSON.stringify(clean) : "";
+  FILTER_EDITOR_STATE.hiddenInput.value = json;
+  // Update the button label to reflect the new condition count.
+  var btn = FILTER_EDITOR_STATE.hiddenInput.parentElement.querySelector("button");
+  if (btn) btn.innerHTML = esc(viewFilterSummary(json)) + " &nbsp;&#9881;";
+  closeFilterEditor();
+}
+window.saveFilterEditor = saveFilterEditor;
+// Backdrop click closes the filter editor too.
+var _fe = document.getElementById("filterEditorModal");
+if (_fe) _fe.onclick = function(e){ if (e.target.id === "filterEditorModal") closeFilterEditor(); };
+
+// Backdrop click closes modals
+var _lm = document.getElementById("loginModal"); if (_lm) _lm.onclick = function(e){ if (e.target.id === "loginModal") closeLoginModal(); };
+var _um = document.getElementById("userPanelModal"); if (_um) _um.onclick = function(e){ if (e.target.id === "userPanelModal") closeUserPanel(); };
+// Initial UI sync + conditional data load + auto-refresh
+applyRoleUI();
+if (currentRole() !== "anonymous") loadData(false);
 startAutoRefresh();
 </script>
 </body>
 </html>
-
