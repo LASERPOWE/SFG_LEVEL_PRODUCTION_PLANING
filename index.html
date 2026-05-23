@@ -1408,14 +1408,19 @@ function renderPordTable(lines, um) {
         var optsE = '<option value="">-- select --</option>' + EQPT_MASTER.map(function(e){
           return '<option value="' + esc(e) + '"' + (selE === e ? ' selected' : '') + '>' + esc(e) + '</option>';
         }).join("");
-        return '<td class="eqpt-cell"><select class="line-eqpt-select">' + optsE + '</select></td>';
+        // When the line is ticked Done, lock the EQPT dropdown so the value
+        // is preserved but cannot be changed. Un-tick Done to edit again.
+        var disE = done ? ' disabled title="Un-tick Done to change EQPT"' : '';
+        return '<td class="eqpt-cell"><select class="line-eqpt-select"' + disE + '>' + optsE + '</select></td>';
       }
       if (c.key === "_hod") {
         var selH = getLineHod(lineKey(l));
         var optsH = '<option value="">-- select --</option>' + HOD_MASTER.map(function(h){
           return '<option value="' + esc(h) + '"' + (selH === h ? ' selected' : '') + '>' + esc(h) + '</option>';
         }).join("");
-        return '<td class="hod-cell"><select class="line-hod-select">' + optsH + '</select></td>';
+        // When the line is ticked Done, lock the HOD dropdown the same way.
+        var disH = done ? ' disabled title="Un-tick Done to change HOD"' : '';
+        return '<td class="hod-cell"><select class="line-hod-select"' + disH + '>' + optsH + '</select></td>';
       }
       var v = l[c.key];
       if (c.num) return '<td class="num">' + (v == null || v === "" ? "-" : fmt(num(v), 3)) + '</td>';
@@ -1443,10 +1448,9 @@ function wireDoneTicksGlobal() {
       var lk = tr.getAttribute("data-lk") || "";
       if (chk.checked) {
         LINE_DONE[lk] = 1;
-        // Production closed on this line â€” clear EQPT and HOD so they no longer
-        // count in parent filters / aggregates.
-        if (lk in LINE_EQPT) { delete LINE_EQPT[lk]; saveLineEqpt(); }
-        if (lk in LINE_HOD)  { delete LINE_HOD[lk];  saveLineHod();  }
+        // EQPT and HOD are preserved (not cleared) when ticking Done. The UI
+        // simply disables those dropdowns so the assignment cannot be changed
+        // while the line is marked Done. Un-tick Done to edit them again.
       } else {
         delete LINE_DONE[lk];
       }
