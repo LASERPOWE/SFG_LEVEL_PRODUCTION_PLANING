@@ -119,6 +119,15 @@
   .drill-toolbar input[type=checkbox] { width: 14px; height: 14px; cursor: pointer; }
   .drill-clear-btn { padding: 4px 10px; font-size: 11px; border: 1px solid #d6d8db; border-radius: 6px; background: #fff; color: #555; cursor: pointer; margin-left: 8px; }
   .drill-clear-btn:hover { background: #fff3f3; border-color: #f3b8b8; color: #8a2020; }
+  /* Drill-down click affordances on the top KPI cards and the equipment
+     blocking table â€” clicking applies a matching filter on the pivot below. */
+  .kpi.kpi-clickable { cursor: pointer; transition: transform 0.08s ease, box-shadow 0.12s ease, border-color 0.12s ease; }
+  .kpi.kpi-clickable:hover { border-color: #4a7dd6; box-shadow: 0 2px 8px rgba(74,125,214,0.18); transform: translateY(-1px); }
+  .kpi.kpi-clickable:active { transform: translateY(0); }
+  .equipment-block-table tr.eqpt-row { cursor: pointer; }
+  .equipment-block-table tr.eqpt-row:hover { background: #eef4ff; }
+  .filter-cleared-toast { position: fixed; top: 18px; left: 50%; transform: translateX(-50%); background: #4a7dd6; color: #fff; padding: 8px 14px; border-radius: 6px; font-size: 12px; box-shadow: 0 4px 14px rgba(0,0,0,0.18); z-index: 100; opacity: 0; transition: opacity 0.18s ease; pointer-events: none; }
+  .filter-cleared-toast.show { opacity: 1; }
 </style>
 </head>
 <body>
@@ -915,16 +924,41 @@ function renderKpis() {
   var kgNz = kgRows.filter(function(r){return r.REQ_SUM > 0;}).length;
   var topKm = kmRows.slice().sort(function(a,b){return b.REQ_SUM - a.REQ_SUM;})[0];
   var topKg = kgRows.slice().sort(function(a,b){return b.REQ_SUM - a.REQ_SUM;})[0];
+  // Each KPI card can carry a "click" action that applies a filter on the
+  // pivot table below. Cards without an action stay plain (info-only).
   var kpis = [
-    { label: "Distinct BOMs", value: total, sub: nz + " with requirement > 0" },
-    { label: "Required (KM)", value: fmt(sumKm, 2) + " km", sub: kmNz + " BOMs / " + kmRows.length + " total in KM" },
-    { label: "Required (KG)", value: fmt(sumKg, 0) + " kg", sub: kgNz + " BOMs / " + kgRows.length + " total in KG" },
-    { label: "Top BOM (KM)", value: topKm ? fmt(topKm.REQ_SUM, 2) + " km" : "-", sub: topKm ? (topKm.SFG_NAME || "").slice(0, 40) : "" },
-    { label: "Top BOM (KG)", value: topKg ? fmt(topKg.REQ_SUM, 0) + " kg" : "-", sub: topKg ? (topKg.SFG_NAME || "").slice(0, 40) : "" }
+    {
+      label: "Distinct BOMs", value: total, sub: nz + " with requirement > 0",
+      click: function(){ clearFilters(); showFilterToast("Filters cleared"); }
+    },
+    {
+      label: "Required (KM)", value: fmt(sumKm, 2) + " km", sub: kmNz + " BOMs / " + kmRows.length + " total in KM",
+      click: function(){ applyFilters({ fltUm: "KM" }, { toast: "Filtered: Unit = KM" }); }
+    },
+    {
+      label: "Required (KG)", value: fmt(sumKg, 0) + " kg", sub: kgNz + " BOMs / " + kgRows.length + " total in KG",
+      click: function(){ applyFilters({ fltUm: "KG" }, { toast: "Filtered: Unit = KG" }); }
+    },
+    {
+      label: "Top BOM (KM)", value: topKm ? fmt(topKm.REQ_SUM, 2) + " km" : "-", sub: topKm ? (topKm.SFG_NAME || "").slice(0, 40) : "",
+      click: topKm ? function(){ applyFilters({ fltUm: "KM", fltSearch: topKm.SFG_CODE || topKm.SFG_NAME }, { toast: "Filtered to top KM BOM" }); } : null
+    },
+    {
+      label: "Top BOM (KG)", value: topKg ? fmt(topKg.REQ_SUM, 0) + " kg" : "-", sub: topKg ? (topKg.SFG_NAME || "").slice(0, 40) : "",
+      click: topKg ? function(){ applyFilters({ fltUm: "KG", fltSearch: topKg.SFG_CODE || topKg.SFG_NAME }, { toast: "Filtered to top KG BOM" }); } : null
+    }
   ];
-  document.getElementById("kpis").innerHTML = kpis.map(function(k){
-    return '<div class="kpi"><div class="label">' + esc(k.label) + '</div><div class="value">' + esc(String(k.value)) + '</div>' + (k.sub ? '<div class="sub2">' + esc(k.sub) + '</div>' : '') + '</div>';
+  var container = document.getElementById("kpis");
+  container.innerHTML = kpis.map(function(k, i){
+    var cls = "kpi" + (k.click ? " kpi-clickable" : "");
+    var ttl = k.click ? ' title="Click to apply this filter"' : '';
+    return '<div class="' + cls + '" data-idx="' + i + '"' + ttl + '><div class="label">' + esc(k.label) + '</div><div class="value">' + esc(String(k.value)) + '</div>' + (k.sub ? '<div class="sub2">' + esc(k.sub) + '</div>' : '') + '</div>';
   }).join("");
+  container.querySelectorAll(".kpi-clickable").forEach(function(el){
+    var idx = parseInt(el.getAttribute("data-idx"), 10);
+    var act = kpis[idx] && kpis[idx].click;
+    if (act) el.onclick = act;
+  });
 }
 
 function daysUntilISO(s) {
@@ -975,7 +1009,7 @@ function renderEquipmentBlockTable() {
     var days = daysUntilISO(r.maxDate);
     var daysText = days == null ? "-" : (days < 0 ? Math.abs(days) + " overdue" : days);
     var dateCls = isPastISODate(r.maxDate) ? "blocked-date bal-neg" : "blocked-date";
-    return '<tr>' +
+    return '<tr class="eqpt-row" data-eqpt="' + esc(r.eqpt) + '" title="Click to filter pivot by EQPT = ' + esc(r.eqpt) + '">' +
       '<td><strong>' + esc(r.eqpt) + '</strong></td>' +
       '<td class="num">' + fmt(r.lines, 0) + '</td>' +
       '<td class="num">' + fmt(r.mcs.size, 0) + '</td>' +
@@ -984,24 +1018,48 @@ function renderEquipmentBlockTable() {
       '<td class="num' + (days != null && days < 0 ? ' bal-neg' : '') + '">' + esc(String(daysText)) + '</td>' +
     '</tr>';
   }).join("");
+  // Wire row clicks â€” each row drills the pivot table down to lines on that EQPT.
+  body.querySelectorAll("tr.eqpt-row").forEach(function(tr){
+    tr.onclick = function(){
+      var e = tr.getAttribute("data-eqpt");
+      if (!e) return;
+      applyFilters({ fltEqpt: e }, { toast: "Filtered: EQPT = " + e });
+    };
+  });
 }
 
 function makeChart(id, type, labels, data, opts) {
   opts = opts || {};
   if (CHARTS[id]) CHARTS[id].destroy();
   var ctx = document.getElementById(id).getContext("2d");
+  var baseOpts = Object.assign({
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: type === "bar" ? Object.assign({
+      x: { ticks: { font: { size: 10 } }, grid: { color: "#eef0f2" }, beginAtZero: true },
+      y: { ticks: { font: { size: 10 }, autoSkip: false }, grid: { display: false } }
+    }, opts.scales || {}) : {}
+  }, opts.chartOpts || {});
+  // If the caller wants chart bars to be clickable, wire Chart.js' onClick to
+  // resolve the active element back to its (label, value, index) and hand off
+  // to the supplied callback. Cursor flips to pointer on hover for affordance.
+  if (typeof opts.onBarClick === "function") {
+    baseOpts.onClick = function(e, activeElements) {
+      if (!activeElements || !activeElements.length) return;
+      var idx = activeElements[0].index;
+      opts.onBarClick(labels[idx], data[idx], idx);
+    };
+    baseOpts.onHover = function(e, activeElements) {
+      if (e && e.native && e.native.target) {
+        e.native.target.style.cursor = activeElements && activeElements.length ? "pointer" : "default";
+      }
+    };
+  }
   CHARTS[id] = new Chart(ctx, {
     type: type,
     data: { labels: labels, datasets: [{ data: data, backgroundColor: opts.colors || labels.map(function(_,i){return COLORS[i % COLORS.length];}), borderWidth: 0 }] },
-    options: Object.assign({
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
-      scales: type === "bar" ? Object.assign({
-        x: { ticks: { font: { size: 10 } }, grid: { color: "#eef0f2" }, beginAtZero: true },
-        y: { ticks: { font: { size: 10 }, autoSkip: false }, grid: { display: false } }
-      }, opts.scales || {}) : {}
-    }, opts.chartOpts || {})
+    options: baseOpts
   });
 }
 
@@ -1014,11 +1072,20 @@ function renderTopKmChart() {
     map.set(l, (map.get(l) || 0) + balance);
   });
   var entries = Array.from(map.entries()).sort(function(a,b){return b[1]-a[1];}).slice(0, 10);
-  var labels = entries.map(function(e){
-    var name = e[0];
+  // Keep both the FULL L4 name (used to apply the filter on click) and the
+  // truncated label (used by the chart for display).
+  var fullLabels = entries.map(function(e){ return e[0]; });
+  var labels = fullLabels.map(function(name){
     return name.slice(0, 38) + (name.length > 38 ? "..." : "");
   });
-  makeChart("chart-top-km", "bar", labels, entries.map(function(e){return e[1];}), { chartOpts: { indexAxis: "y" } });
+  makeChart("chart-top-km", "bar", labels, entries.map(function(e){return e[1];}), {
+    chartOpts: { indexAxis: "y" },
+    onBarClick: function(_lbl, _val, idx) {
+      var fullL4 = fullLabels[idx];
+      if (!fullL4 || fullL4 === "-") return;
+      applyFilters({ fltUm: "KM", fltL4: fullL4 }, { toast: "Filtered: L4 = " + fullL4 });
+    }
+  });
 }
 
 function renderL3Chart() {
@@ -1030,7 +1097,14 @@ function renderL3Chart() {
     map.set(l, (map.get(l) || 0) + balance);
   });
   var entries = Array.from(map.entries()).sort(function(a,b){return b[1]-a[1];});
-  makeChart("chart-l3", "bar", entries.map(function(e){return e[0];}), entries.map(function(e){return e[1];}), { chartOpts: { indexAxis: "y" } });
+  var labels = entries.map(function(e){ return e[0]; });
+  makeChart("chart-l3", "bar", labels, entries.map(function(e){return e[1];}), {
+    chartOpts: { indexAxis: "y" },
+    onBarClick: function(label, _val, _idx) {
+      if (!label || label === "-") return;
+      applyFilters({ fltUm: "KM", fltL3: label }, { toast: "Filtered: L3 = " + label });
+    }
+  });
 }
 
 var COLS = [
@@ -1683,6 +1757,50 @@ function refreshFilters() {
   if (umSel.value && umVals.indexOf(umSel.value) < 0) umSel.value = "";
   populateSelect(l3Sel, l3Vals);
   populateSelect(l4Sel, l4Vals);
+}
+
+// Apply a set of filter overrides programmatically (used by the KPI cards,
+// charts, and equipment blocking table when the user clicks them). Pass an
+// object keyed by filter element id, e.g. { fltUm: "KM", fltL4: "COMPACT CONDUCTOR" }.
+// Filters not specified in the object are left untouched. After applying, the
+// filter dropdown options are recomputed and the pivot table is re-rendered,
+// then the pivot card is scrolled into view so the user sees the result.
+function applyFilters(overrides, opts) {
+  opts = opts || {};
+  if (!overrides || typeof overrides !== "object") return;
+  Object.keys(overrides).forEach(function(id){
+    var el = document.getElementById(id);
+    if (!el) return;
+    var v = overrides[id];
+    if (el.type === "checkbox") el.checked = !!v;
+    else el.value = (v == null ? "" : String(v));
+  });
+  refreshFilters();
+  renderTable();
+  if (opts.toast) showFilterToast(opts.toast);
+  if (opts.scroll !== false) {
+    var pivotCard = document.querySelector(".table-wrap");
+    if (pivotCard) {
+      try { pivotCard.scrollIntoView({ behavior: "smooth", block: "start" }); }
+      catch(_) { pivotCard.scrollIntoView(); }
+    }
+  }
+}
+window.applyFilters = applyFilters;
+
+// Tiny non-blocking toast so the user knows which filter just got applied.
+function showFilterToast(msg) {
+  var el = document.getElementById("filterToast");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "filterToast";
+    el.className = "filter-cleared-toast";
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.classList.add("show");
+  clearTimeout(el.__hideTimer);
+  el.__hideTimer = setTimeout(function(){ el.classList.remove("show"); }, 1800);
 }
 
 function clearFilters() {
