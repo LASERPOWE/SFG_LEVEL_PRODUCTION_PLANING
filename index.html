@@ -64,6 +64,14 @@
   .clear-filter-btn { padding: 5px 14px; font-size: 11px; font-weight: 600; border: 1.5px solid #e09b3d; border-radius: 6px; background: #fff7e6; color: #8a5a00; cursor: pointer; letter-spacing: 0.02em; text-transform: uppercase; box-shadow: 0 1px 3px rgba(224,155,61,0.18); transition: background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease, transform 0.08s ease; }
   .clear-filter-btn:hover { background: #ffe7b8; border-color: #b87a1d; color: #6b4400; box-shadow: 0 2px 8px rgba(184,122,29,0.28); transform: translateY(-1px); }
   .clear-filter-btn:active { transform: translateY(0); }
+  /* "User's Job Pending" is a toggle button - subtle teal styling when off,
+     a bold filled look when active. Mirrors the clear-filter-btn shape so
+     they sit consistently next to each other in the filter bar. */
+  .user-pending-btn { padding: 5px 14px; font-size: 11px; font-weight: 600; border: 1.5px solid #3aa7b3; border-radius: 6px; background: #e6f4f6; color: #1f5b63; cursor: pointer; letter-spacing: 0.02em; text-transform: uppercase; box-shadow: 0 1px 3px rgba(58,167,179,0.18); transition: background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease, transform 0.08s ease; }
+  .user-pending-btn:hover { background: #cce8ec; border-color: #2a7f87; color: #143f44; box-shadow: 0 2px 8px rgba(42,127,135,0.28); transform: translateY(-1px); }
+  .user-pending-btn:active { transform: translateY(0); }
+  .user-pending-btn.active { background: #3aa7b3; border-color: #1f7984; color: #fff; box-shadow: 0 2px 10px rgba(31,121,132,0.35); }
+  .user-pending-btn.active:hover { background: #2a7f87; color: #fff; }
   /* Auth header bar (top-right of h1) + login modal + user control panel. */
   .auth-bar { display: inline-flex; align-items: center; gap: 8px; margin-left: 14px; vertical-align: middle; font-size: 12px; }
   .auth-badge { padding: 4px 10px; border-radius: 999px; background: #eef4ff; color: #2a52a8; font-weight: 600; font-size: 11px; border: 1px solid #c6d4ee; }
@@ -218,6 +226,20 @@
   .kpi.kpi-clickable:active { transform: translateY(0); }
   .equipment-block-table tr.eqpt-row { cursor: pointer; }
   .equipment-block-table tr.eqpt-row:hover { background: #eef4ff; }
+  /* Reschedule trigger inside Equipment Blocking Status rows */
+  .reschedule-btn { background: #fff; border: 1px solid #d6d8db; border-radius: 4px; cursor: pointer; padding: 1px 6px; font-size: 11px; margin-left: 6px; vertical-align: middle; color: #555; }
+  .reschedule-btn:hover { background: #eef4ff; border-color: #4a7dd6; color: #4a7dd6; }
+  /* Reorder arrows inside the schedule modal */
+  .reorder-btn { background: #fff; border: 1px solid #d6d8db; border-radius: 4px; cursor: pointer; padding: 2px 8px; font-size: 11px; margin-left: 3px; color: #444; }
+  .reorder-btn:hover { background: #eef4ff; border-color: #4a7dd6; color: #4a7dd6; }
+  .reorder-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+  .schedule-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .schedule-table th { background: #f3f4f6; padding: 8px 10px; border-bottom: 1px solid #d6d8db; text-align: left; font-weight: 600; white-space: nowrap; }
+  .schedule-table td { padding: 7px 10px; border-bottom: 1px solid #eef0f2; vertical-align: top; }
+  .schedule-table td.new-date-changed { color: #1f7a3a; font-weight: 600; }
+  .schedule-table td.new-date-same { color: #888; }
+  .schedule-end-input { width: 130px; padding: 2px 4px; font-size: 11px; border: 1px solid #d9c2dd; border-radius: 4px; background: #fff; margin-left: 2px; }
+  .schedule-end-input:focus { outline: none; border-color: #4a7dd6; box-shadow: 0 0 0 2px rgba(74,125,214,0.15); }
   .filter-cleared-toast { position: fixed; top: 18px; left: 50%; transform: translateX(-50%); background: #4a7dd6; color: #fff; padding: 8px 14px; border-radius: 6px; font-size: 12px; box-shadow: 0 4px 14px rgba(0,0,0,0.18); z-index: 100; opacity: 0; transition: opacity 0.18s ease; pointer-events: none; }
   .filter-cleared-toast.show { opacity: 1; }
 </style>
@@ -347,6 +369,7 @@
         <label class="check"><input type="checkbox" id="fltNonzero" checked /> Non-zero only</label>
         <label class="check"><input type="checkbox" id="fltBalanceNonzero" checked /> Balance non-zero only</label>
         <button class="clear-filter-btn" type="button" onclick="clearFilters()">Clear Filters</button>
+        <button class="user-pending-btn" id="userPendingBtn" type="button" onclick="toggleUserPendingMode()" title="Show lines where HOD assigned + APPROVED but EQPT / Commit Start / Commit End is missing">User's Job Pending</button>
         <button class="clear-btn super-only" onclick="clearAllProdDone()">Clear Production Done</button>
         <span id="rowCount" style="margin-left:auto;font-size:11px;color:#666;"></span>
       </div>
@@ -450,9 +473,31 @@
         <div class="drill-toolbar">
           <label class="check"><input type="checkbox" id="drillShowDone" /> Show Done (ticked) lines</label>
           <span id="drillHiddenInfo" class="hint"></span>
+          <span id="drillRescheduleBtns" style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;align-items:center;"></span>
         </div>
         <div class="drill-stats" id="drillStats"></div>
         <div id="drillContent"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Equipment Reschedule modal -->
+  <div class="modal-backdrop" id="eqptScheduleModal" style="z-index:65;">
+    <div class="modal" style="max-width: 880px;">
+      <div class="modal-head">
+        <div>
+          <h2 id="eqptScheduleTitle">Reschedule Equipment</h2>
+          <div class="meta">Reorder bookings using the up/down arrows. Dates auto-shift back-to-back starting from the earliest original start date. Click Apply to save.</div>
+        </div>
+        <button class="modal-close" onclick="closeEqptScheduleModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="eqptScheduleBody"></div>
+        <div style="display:flex;gap:10px;margin-top:14px;justify-content:flex-end;align-items:center;">
+          <span id="eqptScheduleStatus" style="margin-right:auto;font-size:11px;color:#666;"></span>
+          <button class="auth-btn" type="button" onclick="closeEqptScheduleModal()">Cancel</button>
+          <button class="auth-btn auth-btn-primary" type="button" onclick="applyEqptSchedule()">Apply New Schedule</button>
+        </div>
       </div>
     </div>
   </div>
@@ -583,6 +628,256 @@ function canEditCommitment_() {
     return r !== "admin";
   } catch(e) { return true; }
 }
+// Reschedule (auto-shift / bulk re-order of an equipment's commit dates) is
+// an admin-level action. Plain "user" role can still edit individual commit
+// dates on their own lines via canEditCommitment_ above, but they cannot
+// bulk-reorder another user's bookings or change durations across the board.
+function canReschedule_() {
+  try {
+    var s = typeof loadSession === "function" ? loadSession() : null;
+    var r = s && s.role ? String(s.role).toLowerCase() : "";
+    return r === "admin" || r === "super_admin";
+  } catch(e) { return false; }
+}
+
+// ---- Equipment auto-reschedule modal ----
+// Lets the user re-order all bookings of a single equipment (rows sorted by
+// commit_start ascending), then auto-shifts every booking's [commit_start,
+// commit_end] sequentially from the earliest original start â€" each booking
+// keeps its original duration. The new dates are previewed live; clicking
+// Apply pushes the changes to local state + POSTs each line to the server.
+var EQPT_SCHEDULE_STATE = { eqpt: "", order: [] };
+// Today's date in YYYY-MM-DD (local timezone). Used as the lower bound on
+// every commitment-date input so users can't pick past dates.
+function todayISOString_() {
+  var d = new Date();
+  return d.getFullYear() + "-" +
+    String(d.getMonth() + 1).padStart(2, "0") + "-" +
+    String(d.getDate()).padStart(2, "0");
+}
+function addDaysISO_(iso, days) {
+  if (!iso) return iso;
+  var d = new Date(iso + "T00:00:00");
+  if (isNaN(d.getTime())) return iso;
+  d.setDate(d.getDate() + days);
+  return d.getFullYear() + "-" +
+    String(d.getMonth() + 1).padStart(2, "0") + "-" +
+    String(d.getDate()).padStart(2, "0");
+}
+function diffDaysISO_(startISO, endISO) {
+  if (!startISO || !endISO) return 0;
+  var s = new Date(startISO + "T00:00:00");
+  var e = new Date(endISO + "T00:00:00");
+  if (isNaN(s.getTime()) || isNaN(e.getTime())) return 0;
+  return Math.max(0, Math.round((e - s) / 86400000));
+}
+function openEqptScheduleModal(eqpt) {
+  if (!eqpt) return;
+  if (!canReschedule_()) {
+    alert("Only Admin / Super Admin can use the Reschedule feature.");
+    return;
+  }
+  // Collect bookings: lines with this EQPT, not Done, with BOTH commit dates set.
+  var src = (typeof LINES_ALL !== "undefined" && LINES_ALL && LINES_ALL.length) ? LINES_ALL : LINES;
+  var bookings = [];
+  (src || []).forEach(function(l){
+    if (!l) return;
+    var lk = lineKey(l);
+    if ((LINE_EQPT[lk] || "") !== eqpt) return;
+    if (isLineDone(l)) return;
+    var cs = LINE_CSTART[lk];
+    var ce = LINE_CEND[lk];
+    if (!cs || !ce) return;
+    bookings.push({ lk: lk, line: l, start: cs, end: ce });
+  });
+  if (!bookings.length) {
+    alert("No bookings with both Commit Start and Commit End set for " + eqpt + ".\n\nAdd at least 2 bookings with date ranges to reschedule.");
+    return;
+  }
+  bookings.sort(function(a, b){ return a.start < b.start ? -1 : a.start > b.start ? 1 : 0; });
+  // Convert raw bookings into mutable-state objects: each carries its original
+  // start/end (for the "Current" column) plus a `duration` field that the user
+  // can change by editing the New End date in the modal.
+  EQPT_SCHEDULE_STATE = {
+    eqpt: eqpt,
+    order: bookings.map(function(b){
+      return {
+        lk: b.lk,
+        line: b.line,
+        origStart: b.start,
+        origEnd: b.end,
+        duration: diffDaysISO_(b.start, b.end) + 1
+      };
+    })
+  };
+  document.getElementById("eqptScheduleTitle").textContent = "Reschedule: " + eqpt;
+  document.getElementById("eqptScheduleStatus").textContent = bookings.length + " booking" + (bookings.length === 1 ? "" : "s") + " sorted by current Commit Start";
+  renderEqptScheduleBody_();
+  document.getElementById("eqptScheduleModal").classList.add("open");
+}
+window.openEqptScheduleModal = openEqptScheduleModal;
+function closeEqptScheduleModal() {
+  document.getElementById("eqptScheduleModal").classList.remove("open");
+}
+window.closeEqptScheduleModal = closeEqptScheduleModal;
+function computeProposedSchedule_() {
+  var order = EQPT_SCHEDULE_STATE.order;
+  if (!order.length) return [];
+  // Earliest original start across all bookings, clamped to today so the
+  // proposal never points into the past â€" if the original earliest already
+  // slipped behind, the rescheduled block starts from today instead.
+  var earliest = order.reduce(function(min, b){
+    return (!min || b.origStart < min) ? b.origStart : min;
+  }, "");
+  var todayISO = todayISOString_();
+  if (!earliest || earliest < todayISO) earliest = todayISO;
+  var cursor = earliest;
+  return order.map(function(b){
+    var dur = b.duration; // mutable: user can edit New End to change this
+    var newStart = cursor;
+    var newEnd = addDaysISO_(cursor, dur - 1);
+    cursor = addDaysISO_(newEnd, 1); // next booking starts the day after
+    return {
+      lk: b.lk, line: b.line,
+      origStart: b.origStart, origEnd: b.origEnd,
+      newStart: newStart, newEnd: newEnd,
+      durationDays: dur
+    };
+  });
+}
+function renderEqptScheduleBody_() {
+  var body = document.getElementById("eqptScheduleBody");
+  if (!body) return;
+  var proposed = computeProposedSchedule_();
+  if (!proposed.length) {
+    body.innerHTML = '<div class="empty">No bookings.</div>';
+    return;
+  }
+  var todayISO = todayISOString_();
+  var rowsHtml = proposed.map(function(p, i){
+    var line = p.line || {};
+    var label = (line.PORD_NO || "(no PORD)") +
+                (line.MC_NO ? " / MC " + line.MC_NO : "") +
+                (line.SFG_NAME ? " - " + String(line.SFG_NAME).slice(0, 40) : "");
+    var sameAsOrig = (p.newStart === p.origStart && p.newEnd === p.origEnd);
+    var newCls = sameAsOrig ? "new-date-same" : "new-date-changed";
+    var upDisabled  = i === 0 ? ' disabled' : '';
+    var downDisabled = i === proposed.length - 1 ? ' disabled' : '';
+    // End date is the editable handle â€" changing it shrinks/extends this
+    // booking's duration, and downstream rows auto-shift on re-render.
+    return '<tr data-idx="' + i + '">' +
+      '<td><strong>' + (i + 1) + '</strong></td>' +
+      '<td>' + esc(label) + '</td>' +
+      '<td class="num">' + p.durationDays + ' day' + (p.durationDays === 1 ? '' : 's') + '</td>' +
+      '<td style="white-space:nowrap;color:#666;">' + esc(fmtDateDMY(p.origStart)) + ' &rarr; ' + esc(fmtDateDMY(p.origEnd)) + '</td>' +
+      '<td class="' + newCls + '" style="white-space:nowrap;">' +
+        '<span class="schedule-new-start">' + esc(fmtDateDMY(p.newStart)) + '</span> &rarr; ' +
+        '<input type="date" class="schedule-end-input" data-idx="' + i + '" value="' + esc(p.newEnd) +
+          '" min="' + esc(p.newStart) + '" title="Change to extend or shrink this booking; downstream rows auto-shift" />' +
+      '</td>' +
+      '<td style="text-align:right;white-space:nowrap;">' +
+        '<button class="reorder-btn" data-move="up"   data-idx="' + i + '"' + upDisabled + ' title="Move up">&#9650;</button>' +
+        '<button class="reorder-btn" data-move="down" data-idx="' + i + '"' + downDisabled + ' title="Move down">&#9660;</button>' +
+      '</td>' +
+    '</tr>';
+  }).join("");
+  body.innerHTML =
+    '<table class="schedule-table">' +
+      '<thead><tr>' +
+        '<th>SL</th>' +
+        '<th>Line</th>' +
+        '<th style="text-align:right;">Duration</th>' +
+        '<th>Current</th>' +
+        '<th>New (start &rarr; end editable)</th>' +
+        '<th style="text-align:right;">Reorder</th>' +
+      '</tr></thead>' +
+      '<tbody>' + rowsHtml + '</tbody>' +
+    '</table>';
+  body.querySelectorAll(".reorder-btn").forEach(function(btn){
+    btn.onclick = function(){
+      if (btn.disabled) return;
+      var i = parseInt(btn.getAttribute("data-idx"), 10);
+      var dir = btn.getAttribute("data-move") === "up" ? -1 : 1;
+      moveEqptScheduleRow_(i, dir);
+    };
+  });
+  // End-date inputs: changing one row's New End re-computes its duration and
+  // shifts every later row to maintain back-to-back scheduling.
+  body.querySelectorAll(".schedule-end-input").forEach(function(inp){
+    inp.onchange = function(){
+      var idx = parseInt(inp.getAttribute("data-idx"), 10);
+      var newEnd = inp.value || "";
+      if (!newEnd) { renderEqptScheduleBody_(); return; }
+      if (newEnd < todayISO) {
+        alert("Cannot pick a date earlier than today.");
+        renderEqptScheduleBody_();
+        return;
+      }
+      var proposedNow = computeProposedSchedule_();
+      var thisStart = proposedNow[idx].newStart;
+      if (newEnd < thisStart) {
+        alert("End date cannot be earlier than this booking's start (" + fmtDateDMY(thisStart) + ").");
+        renderEqptScheduleBody_();
+        return;
+      }
+      var newDur = diffDaysISO_(thisStart, newEnd) + 1;
+      EQPT_SCHEDULE_STATE.order[idx].duration = newDur;
+      renderEqptScheduleBody_();
+    };
+  });
+}
+function moveEqptScheduleRow_(idx, direction) {
+  var order = EQPT_SCHEDULE_STATE.order;
+  var newIdx = idx + direction;
+  if (newIdx < 0 || newIdx >= order.length) return;
+  var tmp = order[idx];
+  order[idx] = order[newIdx];
+  order[newIdx] = tmp;
+  renderEqptScheduleBody_();
+}
+function applyEqptSchedule() {
+  if (!canReschedule_()) { alert("Only Admin / Super Admin can apply schedule changes."); return; }
+  var proposed = computeProposedSchedule_();
+  if (!proposed.length) { closeEqptScheduleModal(); return; }
+  // Build the actual list of lines whose dates will change so we can show a
+  // confirmation with an accurate count.
+  var changed = proposed.filter(function(p){
+    return p.newStart !== p.origStart || p.newEnd !== p.origEnd;
+  });
+  if (!changed.length) {
+    closeEqptScheduleModal();
+    showFilterToast("No date changes - schedule already optimal");
+    return;
+  }
+  if (!confirm("Apply new schedule to " + changed.length + " booking" +
+               (changed.length === 1 ? "" : "s") + " of " + EQPT_SCHEDULE_STATE.eqpt + "?")) return;
+  var by = "";
+  try {
+    var s = typeof loadSession === "function" ? loadSession() : null;
+    by = s && s.username ? s.username : "";
+  } catch(e) {}
+  changed.forEach(function(p){
+    LINE_CSTART[p.lk] = p.newStart;
+    LINE_CEND[p.lk]   = p.newEnd;
+    if (by) LINE_CBY[p.lk] = by;
+  });
+  saveLineCommit();
+  // Stagger remote saves so we don't blast the Apps Script with N parallel
+  // POSTs in the same ms (Google's quota likes them spaced out).
+  changed.forEach(function(p, i){
+    setTimeout(function(){ saveRemoteLineInput(p.lk); }, i * 100);
+  });
+  closeEqptScheduleModal();
+  showFilterToast("Rescheduled " + changed.length + " booking" +
+                  (changed.length === 1 ? "" : "s") + " for " + EQPT_SCHEDULE_STATE.eqpt);
+  renderTable();
+}
+window.applyEqptSchedule = applyEqptSchedule;
+// Backdrop click closes the schedule modal (matches other modals' UX).
+document.addEventListener("DOMContentLoaded", function(){
+  var sm = document.getElementById("eqptScheduleModal");
+  if (sm) sm.onclick = function(e){ if (e.target.id === "eqptScheduleModal") closeEqptScheduleModal(); };
+});
 
 // ---- Rollup: which EQPTs / HODs are assigned across each BOM's lines? ----
 // Used by parent-table EQPT and HOD filters: a BOM passes the filter if at
@@ -1363,7 +1658,7 @@ function renderAll() {
   var _ce = document.getElementById("fltCEnd");   if (_ce) _ce.onchange = onAnyFilterChange;
   document.getElementById("fltNonzero").onchange = onAnyFilterChange;
   document.getElementById("fltBalanceNonzero").onchange = onAnyFilterChange;
-  document.getElementById("fltSearch").oninput = renderTable;
+  document.getElementById("fltSearch").oninput = function(){ renderTable({ skipSideTables: true }); };
   renderTable();
 }
 
@@ -1472,12 +1767,19 @@ function renderEquipmentBlockTable() {
     body.innerHTML = '<tr><td colspan="4" class="empty">Assign EQPT in drill-down to see blocking status.</td></tr>';
     return;
   }
+  // Reschedule is an admin/super_admin-only action. Plain "user" role can
+  // edit their own commit dates from the drill-down, but the bulk schedule
+  // shuffle is hidden for them.
+  var canSchedule = (typeof canReschedule_ === "function") ? canReschedule_() : false;
   body.innerHTML = rows.map(function(r){
     var days = daysUntilISO(r.maxDate);
     var daysText = days == null ? "-" : (days < 0 ? Math.abs(days) + " overdue" : days);
     var dateCls = isPastISODate(r.maxDate) ? "blocked-date bal-neg" : "blocked-date";
-    return '<tr class="eqpt-row" data-eqpt="' + esc(r.eqpt) + '" title="Click to filter pivot by EQPT = ' + esc(r.eqpt) + '">' +
-      '<td><strong>' + esc(r.eqpt) + '</strong></td>' +
+    var btnHtml = canSchedule
+      ? ' <button class="reschedule-btn" data-eqpt="' + esc(r.eqpt) + '" title="Auto-reschedule bookings for this equipment">Reschedule</button>'
+      : '';
+    return '<tr class="eqpt-row" data-eqpt="' + esc(r.eqpt) + '" title="Click name to filter pivot by EQPT = ' + esc(r.eqpt) + '">' +
+      '<td><strong>' + esc(r.eqpt) + '</strong>' + btnHtml + '</td>' +
       '<td class="num">' + fmt(r.balance, 3) + '</td>' +
       '<td class="' + dateCls + '">' + (r.maxDate ? esc(fmtDateDMY(r.maxDate)) : '-') + '</td>' +
       '<td class="num' + (days != null && days < 0 ? ' bal-neg' : '') + '">' + esc(String(daysText)) + '</td>' +
@@ -1489,6 +1791,15 @@ function renderEquipmentBlockTable() {
       var e = tr.getAttribute("data-eqpt");
       if (!e) return;
       applyFilters({ fltEqpt: e }, { toast: "Filtered: EQPT = " + e });
+    };
+  });
+  // Reschedule button opens the auto-schedule modal. stopPropagation so the
+  // row's filter-click doesn't also fire.
+  body.querySelectorAll(".reschedule-btn").forEach(function(btn){
+    btn.onclick = function(ev){
+      ev.stopPropagation();
+      var e = btn.getAttribute("data-eqpt");
+      if (e && typeof openEqptScheduleModal === "function") openEqptScheduleModal(e);
     };
   });
 }
@@ -1609,14 +1920,21 @@ var COLS = [
 
 var SORT = { key: "SFG_BOM", asc: true };
 
-function renderTable() {
+function renderTable(opts) {
+  opts = opts || {};
   // Recompute parent rollups from per-line state.
   LINE_PD_BY_BOM = buildLinePDMap();
   LINE_DATE_BY_BOM = buildLineDateMap();
   buildLineAssignmentMaps();
   AGG_CACHE = new Map();
-  renderEquipmentBlockTable();
-  renderHodBalanceTable();
+  // Equipment Blocking + HOD Balance tables don't depend on filter state â€"
+  // they're computed off raw LINES/LINES_ALL. Filter-only callers (dropdown
+  // change, Clear Filters, etc.) pass { skipSideTables: true } so we avoid
+  // the ~17-line iteration + DOM rewrite on every keystroke.
+  if (!opts.skipSideTables) {
+    renderEquipmentBlockTable();
+    renderHodBalanceTable();
+  }
   var head = document.getElementById("pivot-head");
   head.innerHTML = COLS.map(function(c){
     return '<th data-k="' + c.key + '" class="' + (SORT.key === c.key ? "sorted " + (SORT.asc ? "asc" : "") : "") + (c.primary ? " primary" : "") + '"' + (c.num ? ' style="text-align:right;"' : "") + '>' + esc(c.label) + '</th>';
@@ -1626,7 +1944,7 @@ function renderTable() {
       var k = th.dataset.k;
       if (SORT.key === k) SORT.asc = !SORT.asc;
       else { SORT.key = k; SORT.asc = (k === "SFG_BOM" || k === "SFG_CODE" || k === "SFG_NAME" || k === "L3" || k === "L4" || k === "UM"); }
-      renderTable();
+      renderTable({ skipSideTables: true });
     };
   });
 
@@ -1709,6 +2027,10 @@ function renderTable() {
       var blob = [r.SFG_BOM, r.SFG_CODE, r.SFG_NAME, r.L3, r.L4].join(" ").toLowerCase();
       if (blob.indexOf(q) < 0) return false;
     }
+    // "User's Job Pending" toggle: keep only BOMs with at least one line
+    // where HOD assigned + APPROVED + not Done, but EQPT / Commit Start /
+    // Commit End is missing.
+    if (USER_PENDING_MODE && !bomHasUserPending(r)) return false;
     return true;
   });
 
@@ -1860,6 +2182,7 @@ function openDrillDown(bom, code, name) {
       else if (fCS && (LINE_CSTART[lk] || "") !== fCS) return false;
       if (fCE === BLANK_FILTER) { if (LINE_CEND[lk]) return false; }
       else if (fCE && (LINE_CEND[lk] || "") !== fCE) return false;
+      if (USER_PENDING_MODE && !isLineUserPending(l)) return false;
       return true;
     });
   }
@@ -1886,6 +2209,7 @@ function openDrillDown(bom, code, name) {
   else if (_fCS) filterBits.push("Commit Start = " + fmtDateDMY(_fCS));
   if (_fCE === BLANK_FILTER) filterBits.push("Commit End = (blank)");
   else if (_fCE) filterBits.push("Commit End = " + fmtDateDMY(_fCE));
+  if (USER_PENDING_MODE) filterBits.push("User's Job Pending");
   var filterDesc = filterBits.length
     ? ' &nbsp; / &nbsp; <span style="color:#a85;font-weight:600;">Filtered: ' + esc(filterBits.join(", ")) + '</span>'
     : '';
@@ -1967,6 +2291,40 @@ function openDrillDown(bom, code, name) {
       h.onclick = function(){ h.parentElement.classList.toggle("open"); };
     });
     wireDoneTicksGlobal();
+    // Surface per-EQPT Reschedule buttons in the drill toolbar based on the
+    // distinct EQPTs of the currently-visible lines. Visible only to admin /
+    // super_admin (canReschedule_), since "user" role doesn't get bulk
+    // reschedule access.
+    var rsHolder = document.getElementById("drillRescheduleBtns");
+    if (rsHolder) {
+      var canSched = (typeof canReschedule_ === "function") ? canReschedule_() : false;
+      if (canSched) {
+        var eqptSet = new Set();
+        visible.forEach(function(l){
+          var lk = lineKey(l);
+          var e = LINE_EQPT[lk];
+          if (e) eqptSet.add(e);
+        });
+        var eqpts = Array.from(eqptSet).sort();
+        if (eqpts.length) {
+          rsHolder.innerHTML = '<span style="font-size:11px;color:#666;margin-right:4px;">Reschedule:</span>' +
+            eqpts.map(function(e){
+              return '<button class="reschedule-btn" data-eqpt="' + esc(e) + '" title="Auto-reschedule all bookings of ' + esc(e) + '">' + esc(e) + '</button>';
+            }).join("");
+          rsHolder.querySelectorAll(".reschedule-btn").forEach(function(btn){
+            btn.onclick = function(ev){
+              ev.stopPropagation();
+              var e = btn.getAttribute("data-eqpt");
+              if (e && typeof openEqptScheduleModal === "function") openEqptScheduleModal(e);
+            };
+          });
+        } else {
+          rsHolder.innerHTML = '';
+        }
+      } else {
+        rsHolder.innerHTML = '';
+      }
+    }
   }
   window.__drillRenderBody = renderDrillBody;
   var showDoneInp = document.getElementById("drillShowDone");
@@ -2018,7 +2376,11 @@ function renderPordTable(lines, um) {
         var dispVal = done ? sfgNet : (manualPD > 0 ? manualPD : "");
         var readonly = done ? ' readonly' : '';
         var extraCls = done ? ' line-pd-locked' : '';
-        return '<td class="num input-cell"><input type="number" step="any" min="0" class="line-pd-input prod-input' + extraCls + '" value="' + esc(dispVal) + '" placeholder="0"' + readonly + ' /></td>';
+        // Cap Production Done at SFG Net Qty â€" can't have produced more than
+        // ordered. JS handler in wireDoneTicksGlobal enforces this too with
+        // an alert + revert.
+        var maxAttr = sfgNet > 0 ? ' max="' + sfgNet + '"' : '';
+        return '<td class="num input-cell"><input type="number" step="any" min="0"' + maxAttr + ' class="line-pd-input prod-input' + extraCls + '" value="' + esc(dispVal) + '" placeholder="0"' + readonly + ' /></td>';
       }
       if (c.key === "_line_date") {
         var d = getLineDateFromRow(l);
@@ -2052,7 +2414,11 @@ function renderPordTable(lines, um) {
           disC = ' disabled';
           titleC = ' title="Admin role cannot edit commitment dates"';
         }
-        return '<td class="commit-cell"><input type="date" class="' + cls + '"' + disC + titleC +
+        // min=today blocks past-date selection in the calendar UI. JS change
+        // handler (handleCommitChange in wireDoneTicksGlobal) also enforces
+        // this for users who type a date manually.
+        var minAttr = ' min="' + esc(todayISOString_()) + '"';
+        return '<td class="commit-cell"><input type="date" class="' + cls + '"' + disC + titleC + minAttr +
                ' value="' + esc(val) + '" /></td>';
       }
       var v = l[c.key];
@@ -2083,16 +2449,31 @@ function wireDoneTicksGlobal() {
   content.querySelectorAll(".line-pd-input").forEach(function(inp){
     inp.onclick = function(e){ e.stopPropagation(); };
     inp.onkeydown = function(e){ e.stopPropagation(); };
-    var update = function(){
+    // Two-phase validation: oninput rejects values > SFG Net silently (so
+    // mid-typing doesn't spam alerts) and onchange fires the alert + reverts
+    // when the user finalises an over-cap value. Production Done can never
+    // exceed SFG Net Qty for the line.
+    var update = function(showAlert){
       if (inp.readOnly) return;
       var tr = inp.closest("tr"); if (!tr) return;
       var lk = tr.getAttribute("data-lk") || "";
+      var sfgNetVal = num(tr.getAttribute("data-sfgnet"));
       var v = inp.value.trim();
-      setLinePDManual(lk, v === "" ? null : parseFloat(v));
+      var nv = v === "" ? null : parseFloat(v);
+      if (nv != null && !isNaN(nv) && sfgNetVal > 0 && nv > sfgNetVal + 0.0005) {
+        if (showAlert) {
+          alert("Production Done Qty (" + fmt(nv, 3) + ") cannot be greater than SFG Net Qty (" + fmt(sfgNetVal, 3) + ").");
+          var prev = getLinePDManual(lk);
+          inp.value = prev > 0 ? String(prev) : "";
+        }
+        return; // do not save the over-cap value
+      }
+      setLinePDManual(lk, nv);
       if (typeof window.__currentDrillRecompute === "function") window.__currentDrillRecompute();
       if (typeof renderTable === "function") renderTable();
     };
-    inp.oninput = update; inp.onchange = update;
+    inp.oninput  = function(){ update(false); };
+    inp.onchange = function(){ update(true);  };
   });
   content.querySelectorAll(".line-eqpt-select").forEach(function(sel){
     sel.onclick = function(e){ e.stopPropagation(); };
@@ -2128,6 +2509,17 @@ function wireDoneTicksGlobal() {
       var lk = tr.getAttribute("data-lk") || "";
       var newVal = inp.value || "";
       var oldVal = isStart ? getLineCStart(lk) : getLineCEnd(lk);
+      // Block past-date picks. The input also has min=today, but a user
+      // typing the date manually can still slip a past date through, so
+      // double-check here.
+      if (newVal) {
+        var todayISO = todayISOString_();
+        if (newVal < todayISO) {
+          alert("Cannot pick a date earlier than today (" + fmtDateDMY(todayISO) + ").");
+          inp.value = oldVal;
+          return;
+        }
+      }
       var start = isStart ? newVal : getLineCStart(lk);
       var end   = isStart ? getLineCEnd(lk) : newVal;
       // Basic ordering check.
@@ -2180,10 +2572,36 @@ document.addEventListener("keydown", function(e){
     document.getElementById("drillModal").classList.remove("open");
     var lm = document.getElementById("loginModal"); if (lm) lm.classList.remove("open");
     var um = document.getElementById("userPanelModal"); if (um) um.classList.remove("open");
+    var sm = document.getElementById("eqptScheduleModal"); if (sm) sm.classList.remove("open");
   }
 });
+// Returns true if the existing non-"All" options of `sel` match `vals` in the
+// same order. Lets the caller skip an expensive innerHTML rewrite (which
+// would trigger an unnecessary layout/paint) when nothing has actually
+// changed â€" a common case during the 30 sec auto-refresh.
+function optionsUnchanged_(sel, vals) {
+  if (!sel) return false;
+  var current = [];
+  for (var i = 0; i < sel.options.length; i++) {
+    var v = sel.options[i].value;
+    if (v === "" || v === BLANK_FILTER) continue; // skip "All" and blank
+    current.push(v);
+  }
+  if (current.length !== vals.length) return false;
+  for (var j = 0; j < current.length; j++) {
+    if (current[j] !== vals[j]) return false;
+  }
+  return true;
+}
 function populateSelect(sel, vals) {
+  if (!sel) return;
   var prev = sel.value;
+  if (optionsUnchanged_(sel, vals)) {
+    // Fast path: keep existing DOM, just normalize the selection.
+    if (prev && vals.indexOf(prev) >= 0) sel.value = prev;
+    else sel.value = "";
+    return;
+  }
   sel.innerHTML = '<option value="">All</option>' + vals.map(function(v){return '<option value="' + esc(v) + '">' + esc(v) + '</option>';}).join("");
   if (prev && vals.indexOf(prev) >= 0) sel.value = prev;
   else sel.value = "";
@@ -2196,6 +2614,11 @@ function populateSelect(sel, vals) {
 function populateSelectDates(sel, vals) {
   if (!sel) return;
   var prev = sel.value;
+  if (optionsUnchanged_(sel, vals)) {
+    if (prev && vals.indexOf(prev) >= 0) sel.value = prev;
+    else sel.value = "";
+    return;
+  }
   sel.innerHTML = '<option value="">All</option>' + vals.map(function(v){
     return '<option value="' + esc(v) + '">' + esc(fmtDateDMY(v)) + '</option>';
   }).join("");
@@ -2214,6 +2637,41 @@ function addBlankOption(sel) {
   else sel.appendChild(opt);
   sel.value = prev;
 }
+// ---- "User's Job Pending" toggle ----
+// Bool flag flipped by the User's Job Pending button. When ON, the BOM
+// filter restricts to BOMs that have at least one line where:
+//   - Done is NOT ticked
+//   - HOD is assigned (LINE_HOD[lk] is non-empty)
+//   - APPROVE_STATUS = "APPROVED" (case-insensitive)
+//   - AT LEAST ONE of (EQPT, commit_start, commit_end) is missing
+// The drill-down child table filters identically, so the user immediately
+// sees only the lines they still need to fill in.
+var USER_PENDING_MODE = false;
+function isLineUserPending(l) {
+  if (!l) return false;
+  if (isLineDone(l)) return false;
+  var lk = lineKey(l);
+  if (!LINE_HOD[lk]) return false;
+  var ap = l.APPROVE_STATUS == null ? "" : String(l.APPROVE_STATUS).trim().toUpperCase();
+  if (ap !== "APPROVED") return false;
+  var missingEqpt = !LINE_EQPT[lk];
+  var missingCS   = !LINE_CSTART[lk];
+  var missingCE   = !LINE_CEND[lk];
+  return missingEqpt || missingCS || missingCE;
+}
+function bomHasUserPending(r) {
+  return (LINES_BY_BOM.get(prodKey(r)) || []).some(isLineUserPending);
+}
+function toggleUserPendingMode() {
+  USER_PENDING_MODE = !USER_PENDING_MODE;
+  var btn = document.getElementById("userPendingBtn");
+  if (btn) btn.classList.toggle("active", USER_PENDING_MODE);
+  if (typeof showFilterToast === "function") {
+    showFilterToast(USER_PENDING_MODE ? "Showing User's Job Pending only" : "User's Job Pending cleared");
+  }
+  renderTable({ skipSideTables: true });
+}
+window.toggleUserPendingMode = toggleUserPendingMode;
 // Excel-style dependent filter: returns the BOMs that pass every currently
 // active filter, with the option to silence ONE filter for the call. Used by
 // dropdown population so each filter only lists values that would still yield
@@ -2292,6 +2750,7 @@ function applyAllFilters_(opts) {
       var balAgg = rowAggregates(r, fEqpt, fHod, fApprove, fCS, fCE);
       if (Math.abs(balAgg.balance) < 0.0005) return false;
     }
+    if (USER_PENDING_MODE && !bomHasUserPending(r)) return false;
     return true;
   });
 }
@@ -2354,11 +2813,18 @@ function clearFilters() {
   document.getElementById("fltSearch").value = "";
   document.getElementById("fltNonzero").checked = true;
   document.getElementById("fltBalanceNonzero").checked = true;
-  refreshFilters();
-  renderTable();
+  // Also reset the "User's Job Pending" toggle so Clear Filters returns the
+  // dashboard to its default view.
+  USER_PENDING_MODE = false;
+  var upBtn = document.getElementById("userPendingBtn");
+  if (upBtn) upBtn.classList.remove("active");
+  // refreshFilters() is invoked inside renderTable, so calling it twice in
+  // a row just doubles the L3/L4 dropdown DOM rewrite â€" skip the extra
+  // call. Same applies to onAnyFilterChange and applyFilters below.
+  renderTable({ skipSideTables: true });
 }
 window.clearFilters = clearFilters;
-function onAnyFilterChange() { refreshFilters(); renderTable(); }
+function onAnyFilterChange() { renderTable({ skipSideTables: true }); }
 function applyFilters(overrides, opts) {
   opts = opts || {};
   if (!overrides) return;
@@ -2368,8 +2834,7 @@ function applyFilters(overrides, opts) {
     if (el.type === "checkbox") el.checked = !!v;
     else el.value = (v == null ? "" : String(v));
   });
-  refreshFilters();
-  renderTable();
+  renderTable({ skipSideTables: true });
   if (opts.toast) showFilterToast(opts.toast);
   if (opts.scroll !== false) {
     var p = document.querySelector(".table-wrap");
