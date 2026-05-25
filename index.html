@@ -187,12 +187,19 @@
   .line-date-input:focus { outline: none; border-color: #4a7dd6; box-shadow: 0 0 0 2px rgba(74,125,214,0.15); }
   .eqpt-cell { background: #fffbe6; }
   .hod-cell { background: #eef5ff; }
+  .commit-cell { background: #fdf4ff; }
+  .commit-cell input[type="date"] { width: 130px; padding: 2px 4px; border: 1px solid #d9c2dd; border-radius: 4px; background: #fff; font-size: 11px; }
+  .commit-cell input[type="date"]:disabled { background: #f3f4f6; color: #888; cursor: not-allowed; }
   .line-eqpt-select, .line-hod-select { width: 130px; padding: 3px 5px; font-size: 11px; border: 1px solid #d6d8db; border-radius: 4px; background: #fff; cursor: pointer; font-family: inherit; }
   .line-eqpt-select:focus, .line-hod-select:focus { outline: none; border-color: #4a7dd6; box-shadow: 0 0 0 2px rgba(74,125,214,0.15); }
-  /* Equipment Blocking Status takes the LEFT 50% of the dashboard width.
-     On narrow viewports it falls back to full width so it stays readable. */
-  .equipment-block-card { margin-bottom: 18px; width: 50%; max-width: 50%; }
-  @media (max-width: 900px) { .equipment-block-card { width: 100%; max-width: 100%; } }
+  /* Equipment Blocking Status + HOD Balance share one .row (2-col grid).
+     The .equipment-block-card class is kept for backwards compatibility but
+     no longer forces a width â€" the grid handles layout. */
+  .equipment-block-card { margin-bottom: 18px; }
+  .dashboard-status-row .equipment-block-wrap { max-height: 320px; overflow-y: auto; }
+  .hod-balance-table tr.hod-row { cursor: pointer; }
+  .hod-balance-table tr.hod-row:hover { background: #f1f9f4; }
+  .hod-balance-table tr.hod-row.hod-blank { color: #888; font-style: italic; }
   .equipment-block-wrap { overflow-x: auto; border: 1px solid #e6e8eb; border-radius: 6px; }
   .equipment-block-table { width: 100%; border-collapse: collapse; font-size: 12px; }
   .equipment-block-table th { background: #f3f4f6; padding: 8px 10px; border-bottom: 1px solid #d6d8db; text-align: left; font-weight: 600; white-space: nowrap; }
@@ -265,33 +272,41 @@
   <div id="content" style="display:none">
     <div class="kpis" id="kpis"></div>
 
-    <div class="card equipment-block-card">
-      <h3>Equipment Blocking Status</h3>
-      <div class="equipment-block-wrap">
-        <table class="equipment-block-table">
-          <thead>
-            <tr>
-              <th>EQPT</th>
-              <th style="text-align:right;">Balance Qty</th>
-              <th>Blocked Till</th>
-              <th style="text-align:right;">Days</th>
-            </tr>
-          </thead>
-          <tbody id="equipmentBlockBody">
-            <tr><td colspan="4" class="empty">Assign EQPT in drill-down to see blocking status.</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="row">
+    <div class="row dashboard-status-row">
       <div class="card">
-        <h3>Balance Quantity by SFG Level 4 Category (KM)</h3>
-        <div class="chart-wrap"><canvas id="chart-top-km"></canvas></div>
+        <h3>Equipment Blocking Status</h3>
+        <div class="equipment-block-wrap">
+          <table class="equipment-block-table">
+            <thead>
+              <tr>
+                <th>EQPT</th>
+                <th style="text-align:right;">Balance Qty</th>
+                <th>Blocked Till</th>
+                <th style="text-align:right;">Days</th>
+              </tr>
+            </thead>
+            <tbody id="equipmentBlockBody">
+              <tr><td colspan="4" class="empty">Assign EQPT in drill-down to see blocking status.</td></tr>
+            </tbody>
+          </table>
+        </div>
       </div>
       <div class="card">
-        <h3>Balance Quantity by SFG Level 3 Category</h3>
-        <div class="chart-wrap"><canvas id="chart-l3"></canvas></div>
+        <h3>Balance Quantity by HOD</h3>
+        <div class="equipment-block-wrap">
+          <table class="equipment-block-table hod-balance-table">
+            <thead>
+              <tr>
+                <th>HOD</th>
+                <th style="text-align:right;">Open Lines</th>
+                <th style="text-align:right;">Balance Qty</th>
+              </tr>
+            </thead>
+            <tbody id="hodBalanceBody">
+              <tr><td colspan="3" class="empty">Assign HOD in drill-down to see workload distribution.</td></tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
 
@@ -319,6 +334,12 @@
         </label>
         <label>Approve Status
           <select id="fltApprove"><option value="">All</option></select>
+        </label>
+        <label>Commit Start
+          <select id="fltCStart"><option value="">All</option></select>
+        </label>
+        <label>Commit End
+          <select id="fltCEnd"><option value="">All</option></select>
         </label>
         <label>Search
           <input id="fltSearch" type="text" placeholder="BOM, code, name..." />
@@ -454,7 +475,7 @@ let DATA_LOAD_IN_PROGRESS = false;
 // Optional shared manual-input endpoint.
 // Keep blank for browser-only localStorage. Paste the separate Planning Inputs
 // Apps Script Web App URL here to share EQPT/HOD/Done/Production Done across PCs.
-const INPUT_API_URL = "https://script.google.com/macros/s/AKfycbydnvDxrwJ4B1_BchD-jKvuk52wx4hDLXvc1GmHNY1d8tfPuPc-ObgmjhL6I_hexgd4/exec";
+const INPUT_API_URL = "https://script.google.com/macros/s/AKfycbze6Ci_TKuOJm56wdgZUiVDhFeqhiq2JcGVKYh5-yYEIqdNKast6mI1ubZ9Mps837Xc/exec";
 
 // Auto-pull fresh Google Sheet data. Apps Script requests use cache-busting,
 // so edits in the sheet show here without manually pressing Refresh.
@@ -484,6 +505,85 @@ function setLineHod(lk, v) {
   saveRemoteLineInput(lk);
 }
 
+// ---- Per-line Commitment Start / End dates (manual, drill-down only) ----
+// Editable by "user" and "super_admin" roles. "admin" role gets disabled
+// inputs (view only). Conflict rule: same EQPT cannot be booked across two
+// lines whose [commit_start, commit_end] ranges overlap â€" the second
+// booking shows a "already booked upto YYYY-MM-DD by <user>" error and is
+// rolled back to the previous value.
+const LINE_CSTART_KEY = "erp_line_commit_start_v1";
+const LINE_CEND_KEY   = "erp_line_commit_end_v1";
+const LINE_CBY_KEY    = "erp_line_commit_by_v1";
+const LINE_CSTART = (function() { try { return JSON.parse(localStorage.getItem(LINE_CSTART_KEY) || "{}"); } catch(e) { return {}; } })();
+const LINE_CEND   = (function() { try { return JSON.parse(localStorage.getItem(LINE_CEND_KEY)   || "{}"); } catch(e) { return {}; } })();
+const LINE_CBY    = (function() { try { return JSON.parse(localStorage.getItem(LINE_CBY_KEY)    || "{}"); } catch(e) { return {}; } })();
+function saveLineCommit() {
+  try { localStorage.setItem(LINE_CSTART_KEY, JSON.stringify(LINE_CSTART)); } catch(e) {}
+  try { localStorage.setItem(LINE_CEND_KEY,   JSON.stringify(LINE_CEND));   } catch(e) {}
+  try { localStorage.setItem(LINE_CBY_KEY,    JSON.stringify(LINE_CBY));    } catch(e) {}
+}
+function getLineCStart(lk) { return LINE_CSTART[lk] || ""; }
+function getLineCEnd(lk)   { return LINE_CEND[lk]   || ""; }
+function getLineCBy(lk)    { return LINE_CBY[lk]    || ""; }
+function setLineCommit(lk, start, end, by) {
+  if (!start) delete LINE_CSTART[lk]; else LINE_CSTART[lk] = start;
+  if (!end)   delete LINE_CEND[lk];   else LINE_CEND[lk]   = end;
+  if (!by)    delete LINE_CBY[lk];    else LINE_CBY[lk]    = by;
+  saveLineCommit();
+  saveRemoteLineInput(lk);
+}
+// Date overlap helper: two inclusive ranges [a1,a2] and [b1,b2] overlap iff
+// a1 <= b2 AND b1 <= a2. ISO date strings sort lexicographically so a direct
+// string compare is correct.
+function rangesOverlap_(a1, a2, b1, b2) {
+  if (!a1 || !a2 || !b1 || !b2) return false;
+  return a1 <= b2 && b1 <= a2;
+}
+// Find any OTHER line with the same EQPT whose commit range overlaps with the
+// proposed [start, end]. Returns { lk, eqpt, start, end, by } of the first
+// conflict found, or null if none.
+//
+// Partial-range support: the editing line may have only ONE of start/end set
+// (e.g. user just picked Commit Start, hasn't picked End yet). We treat the
+// known boundary as a degenerate "point range" so a single conflicting date
+// still triggers an error â€" otherwise users could silently overlap by
+// committing one boundary at a time. The OTHER line is also tolerated as a
+// partial range (same logic).
+function findCommitConflict_(selfLk, eqpt, start, end) {
+  if (!eqpt) return null;
+  if (!start && !end) return null;
+  // Collapse the editing line's (possibly partial) range to [a1, a2].
+  var a1 = start || end;
+  var a2 = end   || start;
+  if (a1 > a2) return null; // ordering already validated by the caller
+  var src = Array.isArray(LINES_ALL) && LINES_ALL.length ? LINES_ALL : (Array.isArray(LINES) ? LINES : []);
+  for (var i = 0; i < src.length; i++) {
+    var l = src[i];
+    var lk2 = lineKey(l);
+    if (lk2 === selfLk) continue;
+    if ((LINE_EQPT[lk2] || "") !== eqpt) continue;
+    var s2 = LINE_CSTART[lk2] || "";
+    var e2 = LINE_CEND[lk2] || "";
+    if (!s2 && !e2) continue; // other line has no booking â€" nothing to clash with
+    var b1 = s2 || e2;
+    var b2 = e2 || s2;
+    if (a1 <= b2 && b1 <= a2) {
+      return { lk: lk2, eqpt: eqpt, start: s2, end: e2, by: LINE_CBY[lk2] || "" };
+    }
+  }
+  return null;
+}
+// True when the current user is allowed to edit commitment dates. Aligned with
+// the back-end rule: user + super_admin yes, admin no, unknown role yes (legacy
+// sessions / first-time login won't get blocked accidentally).
+function canEditCommitment_() {
+  try {
+    var s = typeof loadSession === "function" ? loadSession() : null;
+    var r = s && s.role ? String(s.role).toLowerCase() : "";
+    return r !== "admin";
+  } catch(e) { return true; }
+}
+
 // ---- Rollup: which EQPTs / HODs are assigned across each BOM's lines? ----
 // Used by parent-table EQPT and HOD filters: a BOM passes the filter if at
 // least one of its lines (with SFG_REQ > 0) has the selected EQPT / HOD.
@@ -494,6 +594,11 @@ var HOD_BY_BOM = new Map();
 // parent-table filter can quickly answer "does this BOM have any line with
 // the selected status?".
 var APPROVE_BY_BOM = new Map();
+// Per-BOM rollups for the new Commit Start / Commit End filters. Mirrors the
+// EQPT/HOD pattern: a BOM passes the filter if at least one of its lines has
+// the selected date (or, when (blank) is picked, no date set).
+var CSTART_BY_BOM = new Map();
+var CEND_BY_BOM = new Map();
 // Index of all SFG_REQ>0 lines grouped by BOM key â€" lets us recompute parent
 // aggregates per-filter without re-scanning all LINES per row.
 var LINES_BY_BOM = new Map();
@@ -501,6 +606,8 @@ function buildLineAssignmentMaps() {
   EQPT_BY_BOM = new Map();
   HOD_BY_BOM = new Map();
   APPROVE_BY_BOM = new Map();
+  CSTART_BY_BOM = new Map();
+  CEND_BY_BOM = new Map();
   LINES_BY_BOM = new Map();
   if (!Array.isArray(LINES)) return;
   LINES.forEach(function(l){
@@ -527,6 +634,16 @@ function buildLineAssignmentMaps() {
         APPROVE_BY_BOM.get(k).add(apStr);
       }
     }
+    var cs = LINE_CSTART[lk];
+    if (cs) {
+      if (!CSTART_BY_BOM.has(k)) CSTART_BY_BOM.set(k, new Set());
+      CSTART_BY_BOM.get(k).add(cs);
+    }
+    var ce = LINE_CEND[lk];
+    if (ce) {
+      if (!CEND_BY_BOM.has(k)) CEND_BY_BOM.set(k, new Set());
+      CEND_BY_BOM.get(k).add(ce);
+    }
   });
 }
 
@@ -535,11 +652,12 @@ function buildLineAssignmentMaps() {
 // reflect only the child lines matching those filters; otherwise they fall back
 // to the server-computed totals.
 var AGG_CACHE = new Map();
-function rowAggregates(r, fEqpt, fHod, fApprove) {
-  var ck = prodKey(r) + "||" + (fEqpt || "") + "||" + (fHod || "") + "||" + (fApprove || "");
+function rowAggregates(r, fEqpt, fHod, fApprove, fCStart, fCEnd) {
+  var ck = prodKey(r) + "||" + (fEqpt || "") + "||" + (fHod || "") + "||" +
+           (fApprove || "") + "||" + (fCStart || "") + "||" + (fCEnd || "");
   if (AGG_CACHE.has(ck)) return AGG_CACHE.get(ck);
   var out;
-  if (!fEqpt && !fHod && !fApprove) {
+  if (!fEqpt && !fHod && !fApprove && !fCStart && !fCEnd) {
     out = {
       lines: r.LINES, mc_count: r.MC_COUNT,
       net_sum: r.NET_SUM || 0, req_sum: r.REQ_SUM,
@@ -557,6 +675,12 @@ function rowAggregates(r, fEqpt, fHod, fApprove) {
       var apv = l.APPROVE_STATUS == null ? "" : String(l.APPROVE_STATUS).trim();
       if (fApprove === BLANK_FILTER) { if (apv) return false; }
       else if (fApprove && apv !== fApprove) return false;
+      // Commit Start / Commit End filters â€" blank sentinel matches lines
+      // where the date is not set yet.
+      if (fCStart === BLANK_FILTER) { if (LINE_CSTART[lk]) return false; }
+      else if (fCStart && (LINE_CSTART[lk] || "") !== fCStart) return false;
+      if (fCEnd === BLANK_FILTER) { if (LINE_CEND[lk]) return false; }
+      else if (fCEnd && (LINE_CEND[lk] || "") !== fCEnd) return false;
       return true;
     });
     var net = 0, req = 0, pd = 0, td = "";
@@ -735,6 +859,35 @@ function hasInputApi() {
 const LOCAL_RECENT = {};
 const LOCAL_RECENT_MS = 15000;
 
+// Google Sheets auto-converts cells that look like "YYYY-MM-DD" into Date
+// values. When Apps Script JSON-serializes the row, those become full ISO
+// timestamps ("2026-05-25T00:00:00.000Z"), which <input type="date"> refuses
+// to render. This helper strips an incoming value back down to the
+// YYYY-MM-DD portion so the date picker shows the saved value and the
+// lexicographic overlap-check still works.
+function normalizeISODateString_(v) {
+  if (v == null) return "";
+  if (v && typeof v.toISOString === "function") {
+    var iso = v.toISOString();
+    return iso.slice(0, 10);
+  }
+  var s = String(v).trim();
+  if (!s) return "";
+  // Already YYYY-MM-DD or ISO timestamp â€" take the leading date portion.
+  var m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return m[1] + "-" + m[2] + "-" + m[3];
+  // Fallback: try the JS Date parser for things like
+  // "Mon May 25 2026 00:00:00 GMT+0530".
+  var d = new Date(s);
+  if (!isNaN(d.getTime())) {
+    var yyyy = d.getFullYear();
+    var mm = String(d.getMonth() + 1).padStart(2, "0");
+    var dd = String(d.getDate()).padStart(2, "0");
+    return yyyy + "-" + mm + "-" + dd;
+  }
+  return "";
+}
+
 function applyRemoteInputRecord(rec) {
   if (!rec || !rec.line_id) return;
   var lk = String(rec.line_id);
@@ -752,6 +905,19 @@ function applyRemoteInputRecord(rec) {
   var hod = rec.hod == null ? "" : String(rec.hod).trim();
   if (hod) LINE_HOD[lk] = hod;
   else delete LINE_HOD[lk];
+  // Commitment dates: Google Sheets converts YYYY-MM-DD cells into Date
+  // objects, so the Apps Script JSON contains a full ISO timestamp. Strip it
+  // back down to YYYY-MM-DD before storing â€" otherwise the <input type=
+  // "date"> stays blank and the lexicographic overlap-check breaks.
+  var cs = normalizeISODateString_(rec.commit_start);
+  if (cs) LINE_CSTART[lk] = cs;
+  else delete LINE_CSTART[lk];
+  var ce = normalizeISODateString_(rec.commit_end);
+  if (ce) LINE_CEND[lk] = ce;
+  else delete LINE_CEND[lk];
+  var cb = rec.commit_by == null ? "" : String(rec.commit_by).trim();
+  if (cb) LINE_CBY[lk] = cb;
+  else delete LINE_CBY[lk];
 }
 
 function loadRemoteInputs() {
@@ -784,6 +950,7 @@ function loadRemoteInputs() {
         saveLinePD();
         saveLineEqpt();
         saveLineHod();
+        saveLineCommit();
       } catch(e) {
         console.warn("Planning inputs parse failed", e);
       }
@@ -810,6 +977,8 @@ function pushLocalOnlyToRemote(serverRecords) {
   Object.keys(LINE_PD).forEach(function(k){ localKeys.add(k); });
   Object.keys(LINE_EQPT).forEach(function(k){ localKeys.add(k); });
   Object.keys(LINE_HOD).forEach(function(k){ localKeys.add(k); });
+  Object.keys(LINE_CSTART).forEach(function(k){ localKeys.add(k); });
+  Object.keys(LINE_CEND).forEach(function(k){ localKeys.add(k); });
   var pushed = 0;
   localKeys.forEach(function(lk){
     if (!lk || serverKeys.has(lk)) return;
@@ -834,6 +1003,9 @@ function saveRemoteLineInput(lk) {
   body.set("prod_done", LINE_PD[lk] == null ? "" : String(LINE_PD[lk]));
   body.set("eqpt", LINE_EQPT[lk] || "");
   body.set("hod", LINE_HOD[lk] || "");
+  body.set("commit_start", LINE_CSTART[lk] || "");
+  body.set("commit_end",   LINE_CEND[lk]   || "");
+  body.set("commit_by",    LINE_CBY[lk]    || "");
   body.set("updated_at", new Date().toISOString());
   // Tag the edit with the logged-in username so the sheet shows who changed
   // what (anonymous edits show up as blank).
@@ -841,6 +1013,19 @@ function saveRemoteLineInput(lk) {
     var _s = typeof loadSession === "function" ? loadSession() : null;
     body.set("updated_by", _s && _s.username ? _s.username : "");
   } catch(_e) {}
+  // Lightweight debug print so the user can verify in DevTools (F12 -> Console)
+  // that commitment dates are actually included in the POST. no-cors hides the
+  // response, so this is the easiest way to see what we sent.
+  console.info("[Planning sync] POST", {
+    line_id: lk,
+    eqpt: LINE_EQPT[lk] || "",
+    hod: LINE_HOD[lk] || "",
+    done: LINE_DONE[lk] ? 1 : 0,
+    prod_done: LINE_PD[lk],
+    commit_start: LINE_CSTART[lk] || "",
+    commit_end:   LINE_CEND[lk]   || "",
+    commit_by:    LINE_CBY[lk]    || ""
+  });
   fetch(INPUT_API_URL, {
     method: "POST",
     mode: "no-cors",
@@ -1110,42 +1295,44 @@ function renderAll() {
     eqpt: document.getElementById("fltEqpt").value,
     hod:  document.getElementById("fltHod").value,
     approve: document.getElementById("fltApprove").value,
+    cstart: (function(){ var el = document.getElementById("fltCStart"); return el ? el.value : ""; })(),
+    cend:   (function(){ var el = document.getElementById("fltCEnd");   return el ? el.value : ""; })(),
     search: document.getElementById("fltSearch").value,
     nonzero: document.getElementById("fltNonzero").checked,
     balanceNonzero: document.getElementById("fltBalanceNonzero").checked
   };
   renderKpis();
   refreshFilters();
-  // EQPT / HOD filter dropdowns are now populated from the values ACTUALLY
-  // present in the currently-loaded LINES (post view-filter), not from the
-  // full master lists. A User scoped to HOD = ATINDRYA only sees ATINDRYA in
-  // the dropdown; a Super Admin (unrestricted) still sees every assigned
-  // HOD / EQPT because their LINES contain all of them.
-  var hodSet = new Set(), eqptSet = new Set();
-  (LINES || []).forEach(function(l){
-    var lk = lineKey(l);
-    var h = LINE_HOD[lk]; if (h) hodSet.add(String(h).trim());
-    var e = LINE_EQPT[lk]; if (e) eqptSet.add(String(e).trim());
+  // All line-level filter dropdowns (EQPT/HOD/Approve/CStart/CEnd) are now
+  // Excel-style dependent: each one only lists values whose BOMs would
+  // survive the OTHER active filters and checkboxes. So selecting an option
+  // is guaranteed to yield at least one BOM in the pivot â€" no more "(no
+  // matching BOMs)" dead ends. populateLineFilter_ also preserves the
+  // currently selected value even if it would no longer match, so the user
+  // never gets silently reset.
+  populateLineFilter_({
+    selectId: "fltEqpt", excludeKey: "EQPT",
+    valueGetter: function(l){ return LINE_EQPT[lineKey(l)]; }
   });
-  var hodVals = Array.from(hodSet).sort();
-  var eqptVals = Array.from(eqptSet).sort();
-  populateSelect(document.getElementById("fltEqpt"), eqptVals);
-  populateSelect(document.getElementById("fltHod"), hodVals);
-  addBlankOption(document.getElementById("fltEqpt"));
-  addBlankOption(document.getElementById("fltHod"));
-  // Approve Status dropdown is populated from distinct values on the live
-  // lines (not a separate master sheet). "(blank)" option lets the user
-  // surface BOMs whose lines have no approval value yet.
-  var approveSet = new Set();
-  (LINES || []).forEach(function(l){
-    if (num(l["SFG_REQUIRED_AG_BAL TO PRD FG"]) <= 0) return;
-    var ap = l.APPROVE_STATUS;
-    if (ap == null) return;
-    var s = String(ap).trim();
-    if (s) approveSet.add(s);
+  populateLineFilter_({
+    selectId: "fltHod", excludeKey: "HOD",
+    valueGetter: function(l){ return LINE_HOD[lineKey(l)]; }
   });
-  populateSelect(document.getElementById("fltApprove"), Array.from(approveSet).sort());
-  addBlankOption(document.getElementById("fltApprove"));
+  populateLineFilter_({
+    selectId: "fltApprove", excludeKey: "APPROVE",
+    valueGetter: function(l){
+      var ap = l.APPROVE_STATUS;
+      return ap == null ? "" : String(ap).trim();
+    }
+  });
+  populateLineFilter_({
+    selectId: "fltCStart", excludeKey: "CSTART", isDate: true,
+    valueGetter: function(l){ return LINE_CSTART[lineKey(l)]; }
+  });
+  populateLineFilter_({
+    selectId: "fltCEnd", excludeKey: "CEND", isDate: true,
+    valueGetter: function(l){ return LINE_CEND[lineKey(l)]; }
+  });
   // Restore saved filter selections. We only set a value if the option still
   // exists (e.g. an EQPT removed from EQPT_MASTER would silently fall back
   // to "All" rather than show a stale invisible selection).
@@ -1161,6 +1348,8 @@ function renderAll() {
   restoreSel("fltEqpt", saved.eqpt);
   restoreSel("fltHod",  saved.hod);
   restoreSel("fltApprove", saved.approve);
+  restoreSel("fltCStart",  saved.cstart);
+  restoreSel("fltCEnd",    saved.cend);
   document.getElementById("fltSearch").value = saved.search || "";
   document.getElementById("fltNonzero").checked = !!saved.nonzero;
   document.getElementById("fltBalanceNonzero").checked = !!saved.balanceNonzero;
@@ -1170,6 +1359,8 @@ function renderAll() {
   document.getElementById("fltEqpt").onchange = onAnyFilterChange;
   document.getElementById("fltHod").onchange = onAnyFilterChange;
   document.getElementById("fltApprove").onchange = onAnyFilterChange;
+  var _cs = document.getElementById("fltCStart"); if (_cs) _cs.onchange = onAnyFilterChange;
+  var _ce = document.getElementById("fltCEnd");   if (_ce) _ce.onchange = onAnyFilterChange;
   document.getElementById("fltNonzero").onchange = onAnyFilterChange;
   document.getElementById("fltBalanceNonzero").onchange = onAnyFilterChange;
   document.getElementById("fltSearch").oninput = renderTable;
@@ -1177,38 +1368,45 @@ function renderAll() {
 }
 
 function renderKpis() {
+  // KPI cards are driven by the per-row Balance (= SFG Net Qty â€" Production
+  // Done, computed live via getBalance) so the top cards always reflect what
+  // is STILL pending on the shop floor, not the static requirement number.
   var total = ROWS.length;
-  var nz = ROWS.filter(function(r){return r.REQ_SUM > 0;}).length;
+  // "Pending" = Balance > 0 (positive remainder; over-produced rows where
+  // balance is negative or zero are excluded from the count and sums).
+  var nz = ROWS.filter(function(r){ return getBalance(r) > 0.0005; }).length;
   var kmRows = ROWS.filter(function(r){return r.UM === "KM";});
   var kgRows = ROWS.filter(function(r){return r.UM === "KG";});
-  var sumKm = kmRows.reduce(function(a,r){return a + r.REQ_SUM;}, 0);
-  var sumKg = kgRows.reduce(function(a,r){return a + r.REQ_SUM;}, 0);
-  var kmNz = kmRows.filter(function(r){return r.REQ_SUM > 0;}).length;
-  var kgNz = kgRows.filter(function(r){return r.REQ_SUM > 0;}).length;
-  var topKm = kmRows.slice().sort(function(a,b){return b.REQ_SUM - a.REQ_SUM;})[0];
-  var topKg = kgRows.slice().sort(function(a,b){return b.REQ_SUM - a.REQ_SUM;})[0];
+  var sumKm = kmRows.reduce(function(a,r){ var b = getBalance(r); return a + (b > 0 ? b : 0); }, 0);
+  var sumKg = kgRows.reduce(function(a,r){ var b = getBalance(r); return a + (b > 0 ? b : 0); }, 0);
+  var kmNz = kmRows.filter(function(r){ return getBalance(r) > 0.0005; }).length;
+  var kgNz = kgRows.filter(function(r){ return getBalance(r) > 0.0005; }).length;
+  var topKm = kmRows.slice().sort(function(a,b){ return getBalance(b) - getBalance(a); })[0];
+  var topKg = kgRows.slice().sort(function(a,b){ return getBalance(b) - getBalance(a); })[0];
+  var topKmBal = topKm ? getBalance(topKm) : 0;
+  var topKgBal = topKg ? getBalance(topKg) : 0;
   // Each KPI card can carry a "click" action that applies a filter on the
   // pivot table below. Cards without an action stay plain (info-only).
   var kpis = [
     {
-      label: "Distinct BOMs", value: total, sub: nz + " with requirement > 0",
+      label: "Distinct BOMs", value: total, sub: nz + " with balance > 0",
       click: function(){ clearFilters(); showFilterToast("Filters cleared"); }
     },
     {
-      label: "Required (KM)", value: fmt(sumKm, 2) + " km", sub: kmNz + " BOMs / " + kmRows.length + " total in KM",
+      label: "Balance (KM)", value: fmt(sumKm, 2) + " km", sub: kmNz + " BOMs pending / " + kmRows.length + " total in KM",
       click: function(){ applyFilters({ fltUm: "KM" }, { toast: "Filtered: Unit = KM" }); }
     },
     {
-      label: "Required (KG)", value: fmt(sumKg, 0) + " kg", sub: kgNz + " BOMs / " + kgRows.length + " total in KG",
+      label: "Balance (KG)", value: fmt(sumKg, 0) + " kg", sub: kgNz + " BOMs pending / " + kgRows.length + " total in KG",
       click: function(){ applyFilters({ fltUm: "KG" }, { toast: "Filtered: Unit = KG" }); }
     },
     {
-      label: "Top BOM (KM)", value: topKm ? fmt(topKm.REQ_SUM, 2) + " km" : "-", sub: topKm ? (topKm.SFG_NAME || "").slice(0, 40) : "",
-      click: topKm ? function(){ applyFilters({ fltUm: "KM", fltSearch: topKm.SFG_CODE || topKm.SFG_NAME }, { toast: "Filtered to top KM BOM" }); } : null
+      label: "Top BOM (KM)", value: topKm && topKmBal > 0 ? fmt(topKmBal, 2) + " km" : "-", sub: topKm && topKmBal > 0 ? (topKm.SFG_NAME || "").slice(0, 40) : "",
+      click: topKm && topKmBal > 0 ? function(){ applyFilters({ fltUm: "KM", fltSearch: topKm.SFG_CODE || topKm.SFG_NAME }, { toast: "Filtered to top KM BOM by balance" }); } : null
     },
     {
-      label: "Top BOM (KG)", value: topKg ? fmt(topKg.REQ_SUM, 0) + " kg" : "-", sub: topKg ? (topKg.SFG_NAME || "").slice(0, 40) : "",
-      click: topKg ? function(){ applyFilters({ fltUm: "KG", fltSearch: topKg.SFG_CODE || topKg.SFG_NAME }, { toast: "Filtered to top KG BOM" }); } : null
+      label: "Top BOM (KG)", value: topKg && topKgBal > 0 ? fmt(topKgBal, 0) + " kg" : "-", sub: topKg && topKgBal > 0 ? (topKg.SFG_NAME || "").slice(0, 40) : "",
+      click: topKg && topKgBal > 0 ? function(){ applyFilters({ fltUm: "KG", fltSearch: topKg.SFG_CODE || topKg.SFG_NAME }, { toast: "Filtered to top KG BOM by balance" }); } : null
     }
   ];
   var container = document.getElementById("kpis");
@@ -1249,7 +1447,10 @@ function renderEquipmentBlockTable() {
       var lk = lineKey(l);
       var eqpt = getLineEqpt(lk);
       if (!eqpt) return;
-      var d = getLineDateFromRow(l);
+      // "Blocked Till" is now the MAX commit_end across all lines that have
+      // booked this equipment. Falls back to blank when no line has a
+      // commit_end set yet â€" the user can fill it from the drill-down.
+      var d = getLineCEnd(lk);
       var balance = Math.max(num(l.SFG_NET_ORD_QTY) - getLineProdDone(l), 0);
       if (!map.has(eqpt)) {
         map.set(eqpt, { eqpt: eqpt, lines: 0, mcs: new Set(), balance: 0, maxDate: "" });
@@ -1327,47 +1528,66 @@ function makeChart(id, type, labels, data, opts) {
   });
 }
 
-function renderTopKmChart() {
+// HOD-wise balance table (replaces the old L3 / L4 KM charts).
+// Iterates LINES (the role-filtered set, so each user sees the workload for
+// their own data scope) and aggregates per-line balance by assigned HOD.
+// Skipped: ticked-Done lines, lines with SFG_REQ <= 0. Lines without an HOD
+// assigned roll up into a single "(Not Assigned)" row at the bottom.
+function renderHodBalanceTable() {
+  var body = document.getElementById("hodBalanceBody");
+  if (!body) return;
   var map = new Map();
-  ROWS.forEach(function(r){
-    var balance = getBalance(r);
-    if (r.UM !== "KM" || balance <= 0.0005) return;
-    var l = r.L4 || "-";
-    map.set(l, (map.get(l) || 0) + balance);
+  if (Array.isArray(LINES)) {
+    LINES.forEach(function(l){
+      if (num(l["SFG_REQUIRED_AG_BAL TO PRD FG"]) <= 0) return;
+      if (isLineDone(l)) return;
+      var lk = lineKey(l);
+      var hod = getLineHod(lk) || "(Not Assigned)";
+      var balance = Math.max(num(l.SFG_NET_ORD_QTY) - getLineProdDone(l), 0);
+      if (!map.has(hod)) {
+        map.set(hod, { hod: hod, lines: 0, balance: 0 });
+      }
+      var g = map.get(hod);
+      g.lines += 1;
+      g.balance += balance;
+    });
+  }
+  // Sort by balance descending; push "(Not Assigned)" to the bottom regardless
+  // of magnitude so the named HODs lead the table.
+  var rows = Array.from(map.values()).sort(function(a, b){
+    var aBlank = a.hod === "(Not Assigned)";
+    var bBlank = b.hod === "(Not Assigned)";
+    if (aBlank && !bBlank) return 1;
+    if (!aBlank && bBlank) return -1;
+    return b.balance - a.balance;
   });
-  var entries = Array.from(map.entries()).sort(function(a,b){return b[1]-a[1];}).slice(0, 10);
-  // Keep both the FULL L4 name (used to apply the filter on click) and the
-  // truncated label (used by the chart for display).
-  var fullLabels = entries.map(function(e){ return e[0]; });
-  var labels = fullLabels.map(function(name){
-    return name.slice(0, 38) + (name.length > 38 ? "..." : "");
-  });
-  makeChart("chart-top-km", "bar", labels, entries.map(function(e){return e[1];}), {
-    chartOpts: { indexAxis: "y" },
-    onBarClick: function(_lbl, _val, idx) {
-      var fullL4 = fullLabels[idx];
-      if (!fullL4 || fullL4 === "-") return;
-      applyFilters({ fltUm: "KM", fltL4: fullL4 }, { toast: "Filtered: L4 = " + fullL4 });
-    }
-  });
-}
-
-function renderL3Chart() {
-  var map = new Map();
-  ROWS.forEach(function(r){
-    var balance = getBalance(r);
-    if (r.UM !== "KM" || balance <= 0.0005) return;
-    var l = r.L3 || "-";
-    map.set(l, (map.get(l) || 0) + balance);
-  });
-  var entries = Array.from(map.entries()).sort(function(a,b){return b[1]-a[1];});
-  var labels = entries.map(function(e){ return e[0]; });
-  makeChart("chart-l3", "bar", labels, entries.map(function(e){return e[1];}), {
-    chartOpts: { indexAxis: "y" },
-    onBarClick: function(label, _val, _idx) {
-      if (!label || label === "-") return;
-      applyFilters({ fltUm: "KM", fltL3: label }, { toast: "Filtered: L3 = " + label });
-    }
+  if (!rows.length) {
+    body.innerHTML = '<tr><td colspan="3" class="empty">Assign HOD in drill-down to see workload distribution.</td></tr>';
+    return;
+  }
+  body.innerHTML = rows.map(function(r){
+    var isBlank = r.hod === "(Not Assigned)";
+    var cls = "hod-row" + (isBlank ? " hod-blank" : "");
+    var title = isBlank
+      ? "Click to filter pivot to un-assigned lines"
+      : "Click to filter pivot by HOD = " + r.hod;
+    var dataVal = isBlank ? BLANK_FILTER : r.hod;
+    return '<tr class="' + cls + '" data-hod="' + esc(dataVal) + '" title="' + esc(title) + '">' +
+      '<td><strong>' + esc(r.hod) + '</strong></td>' +
+      '<td class="num">' + esc(String(r.lines)) + '</td>' +
+      '<td class="num">' + fmt(r.balance, 3) + '</td>' +
+    '</tr>';
+  }).join("");
+  // Wire row clicks: filter pivot by HOD. Uses the BLANK_FILTER sentinel for
+  // the "(Not Assigned)" pseudo-row so the existing filter machinery handles
+  // un-assigned lines correctly.
+  body.querySelectorAll("tr.hod-row").forEach(function(tr){
+    tr.onclick = function(){
+      var h = tr.getAttribute("data-hod");
+      if (!h) return;
+      var label = h === BLANK_FILTER ? "(blank)" : h;
+      applyFilters({ fltHod: h }, { toast: "Filtered: HOD = " + label });
+    };
   });
 }
 
@@ -1381,7 +1601,7 @@ var COLS = [
   { key: "LINES", label: "Lines", num: true },
   { key: "MC_COUNT", label: "MC Count", num: true },
   { key: "NET_SUM", label: "SFG Net Qty", num: true },
-  { key: "REQ_SUM", label: "SFG REQUIRED", num: true, primary: true },
+  { key: "REQ_SUM", label: "FG_BALANCE_HOD", num: true, primary: true },
   { key: "PROD_DONE", label: "Production Done", num: true, computed: true },
   { key: "BALANCE", label: "Balance", num: true, computed: true },
   { key: "TARGET_DATE", label: "Target Close Date", computed: true }
@@ -1396,8 +1616,7 @@ function renderTable() {
   buildLineAssignmentMaps();
   AGG_CACHE = new Map();
   renderEquipmentBlockTable();
-  renderTopKmChart();
-  renderL3Chart();
+  renderHodBalanceTable();
   var head = document.getElementById("pivot-head");
   head.innerHTML = COLS.map(function(c){
     return '<th data-k="' + c.key + '" class="' + (SORT.key === c.key ? "sorted " + (SORT.asc ? "asc" : "") : "") + (c.primary ? " primary" : "") + '"' + (c.num ? ' style="text-align:right;"' : "") + '>' + esc(c.label) + '</th>';
@@ -1417,6 +1636,10 @@ function renderTable() {
   var fEqpt = document.getElementById("fltEqpt").value;
   var fHod = document.getElementById("fltHod").value;
   var fApprove = document.getElementById("fltApprove").value;
+  var _csEl = document.getElementById("fltCStart");
+  var _ceEl = document.getElementById("fltCEnd");
+  var fCStart = _csEl ? _csEl.value : "";
+  var fCEnd   = _ceEl ? _ceEl.value : "";
   var q = document.getElementById("fltSearch").value.toLowerCase().trim();
   var nzOnly = document.getElementById("fltNonzero").checked;
   var balanceNzOnly = document.getElementById("fltBalanceNonzero").checked;
@@ -1453,16 +1676,33 @@ function renderTable() {
       var aps = APPROVE_BY_BOM.get(prodKey(r));
       if (!aps || !aps.has(fApprove)) return false;
     }
+    // Commit Start / Commit End roll-up checks. Same shape as EQPT/HOD:
+    // BLANK_FILTER passes BOMs that have at least one line WITHOUT a date set.
+    if (fCStart === BLANK_FILTER) {
+      var blinesCS = LINES_BY_BOM.get(prodKey(r)) || [];
+      if (!blinesCS.some(function(l){ return !LINE_CSTART[lineKey(l)]; })) return false;
+    } else if (fCStart) {
+      var css = CSTART_BY_BOM.get(prodKey(r));
+      if (!css || !css.has(fCStart)) return false;
+    }
+    if (fCEnd === BLANK_FILTER) {
+      var blinesCE = LINES_BY_BOM.get(prodKey(r)) || [];
+      if (!blinesCE.some(function(l){ return !LINE_CEND[lineKey(l)]; })) return false;
+    } else if (fCEnd) {
+      var ces = CEND_BY_BOM.get(prodKey(r));
+      if (!ces || !ces.has(fCEnd)) return false;
+    }
     // If two or more line-level filters are active simultaneously, require at
     // least one line that satisfies ALL of them together (not just the BOM
     // having SOME line per individual filter).
-    var activeLineFilters = (fEqpt ? 1 : 0) + (fHod ? 1 : 0) + (fApprove ? 1 : 0);
+    var activeLineFilters = (fEqpt ? 1 : 0) + (fHod ? 1 : 0) + (fApprove ? 1 : 0) +
+                            (fCStart ? 1 : 0) + (fCEnd ? 1 : 0);
     if (activeLineFilters >= 2) {
-      var agg = rowAggregates(r, fEqpt, fHod, fApprove);
+      var agg = rowAggregates(r, fEqpt, fHod, fApprove, fCStart, fCEnd);
       if (agg.lines === 0) return false;
     }
     if (balanceNzOnly) {
-      var balAgg = rowAggregates(r, fEqpt, fHod, fApprove);
+      var balAgg = rowAggregates(r, fEqpt, fHod, fApprove, fCStart, fCEnd);
       if (Math.abs(balAgg.balance) < 0.0005) return false;
     }
     if (q) {
@@ -1474,8 +1714,8 @@ function renderTable() {
 
   filtered = filtered.slice().sort(function(a,b){
     var av, bv;
-    var aA = rowAggregates(a, fEqpt, fHod, fApprove);
-    var bA = rowAggregates(b, fEqpt, fHod, fApprove);
+    var aA = rowAggregates(a, fEqpt, fHod, fApprove, fCStart, fCEnd);
+    var bA = rowAggregates(b, fEqpt, fHod, fApprove, fCStart, fCEnd);
     if (SORT.key === "PROD_DONE") { av = aA.prod_done; bv = bA.prod_done; }
     else if (SORT.key === "BALANCE") { av = aA.balance; bv = bA.balance; }
     else if (SORT.key === "TARGET_DATE") { av = aA.target_date; bv = bA.target_date; }
@@ -1506,7 +1746,7 @@ function renderTable() {
   }
 
   body.innerHTML = filtered.map(function(r){
-    var agg = rowAggregates(r, fEqpt, fHod, fApprove);
+    var agg = rowAggregates(r, fEqpt, fHod, fApprove, fCStart, fCEnd);
     var zero = agg.req_sum <= 0;
     var done = agg.prod_done;
     var bal = agg.balance;
@@ -1550,22 +1790,27 @@ function renderTable() {
   var mcSet = new Set();
   var maxDate = "";
   filtered.forEach(function(r){
-    var a = rowAggregates(r, fEqpt, fHod, fApprove);
+    var a = rowAggregates(r, fEqpt, fHod, fApprove, fCStart, fCEnd);
     totalLines += a.lines;
     if (r.UM === "KM") { totalKmReq += a.req_sum; totalKmNet += a.net_sum; totalKmDone += a.prod_done; }
     else if (r.UM === "KG") { totalKgReq += a.req_sum; totalKgNet += a.net_sum; totalKgDone += a.prod_done; }
     if (a.target_date && (!maxDate || a.target_date > maxDate)) maxDate = a.target_date;
   });
-  if (fEqpt || fHod || fApprove) {
+  if (fEqpt || fHod || fApprove || fCStart || fCEnd) {
     filtered.forEach(function(r){
       (LINES_BY_BOM.get(prodKey(r)) || []).forEach(function(l){
-        if (fEqpt === BLANK_FILTER) { if (LINE_EQPT[lineKey(l)]) return; }
-        else if (fEqpt && getLineEqpt(lineKey(l)) !== fEqpt) return;
-        if (fHod === BLANK_FILTER) { if (LINE_HOD[lineKey(l)]) return; }
-        else if (fHod && getLineHod(lineKey(l)) !== fHod) return;
+        var lkF = lineKey(l);
+        if (fEqpt === BLANK_FILTER) { if (LINE_EQPT[lkF]) return; }
+        else if (fEqpt && getLineEqpt(lkF) !== fEqpt) return;
+        if (fHod === BLANK_FILTER) { if (LINE_HOD[lkF]) return; }
+        else if (fHod && getLineHod(lkF) !== fHod) return;
         var apv = l.APPROVE_STATUS == null ? "" : String(l.APPROVE_STATUS).trim();
         if (fApprove === BLANK_FILTER) { if (apv) return; }
         else if (fApprove && apv !== fApprove) return;
+        if (fCStart === BLANK_FILTER) { if (LINE_CSTART[lkF]) return; }
+        else if (fCStart && (LINE_CSTART[lkF] || "") !== fCStart) return;
+        if (fCEnd === BLANK_FILTER) { if (LINE_CEND[lkF]) return; }
+        else if (fCEnd && (LINE_CEND[lkF] || "") !== fCEnd) return;
         if (l.MC_NO) mcSet.add(String(l.MC_NO).trim());
       });
     });
@@ -1596,6 +1841,10 @@ function openDrillDown(bom, code, name) {
     var fE = document.getElementById("fltEqpt").value;
     var fH = document.getElementById("fltHod").value;
     var fA = document.getElementById("fltApprove").value;
+    var fCSEl = document.getElementById("fltCStart");
+    var fCEEl = document.getElementById("fltCEnd");
+    var fCS = fCSEl ? fCSEl.value : "";
+    var fCE = fCEEl ? fCEEl.value : "";
     return LINES.filter(function(l){
       if ((l.SFG_BOM || "") !== (bom || "") || (l.SFG_CODE || "") !== (code || "")) return false;
       if (num(l["SFG_REQUIRED_AG_BAL TO PRD FG"]) <= 0) return false;
@@ -1607,6 +1856,10 @@ function openDrillDown(bom, code, name) {
       var apv = l.APPROVE_STATUS == null ? "" : String(l.APPROVE_STATUS).trim();
       if (fA === BLANK_FILTER) { if (apv) return false; }
       else if (fA && apv !== fA) return false;
+      if (fCS === BLANK_FILTER) { if (LINE_CSTART[lk]) return false; }
+      else if (fCS && (LINE_CSTART[lk] || "") !== fCS) return false;
+      if (fCE === BLANK_FILTER) { if (LINE_CEND[lk]) return false; }
+      else if (fCE && (LINE_CEND[lk] || "") !== fCE) return false;
       return true;
     });
   }
@@ -1618,6 +1871,10 @@ function openDrillDown(bom, code, name) {
   var _fE = document.getElementById("fltEqpt").value;
   var _fH = document.getElementById("fltHod").value;
   var _fA = document.getElementById("fltApprove").value;
+  var _fCSel = document.getElementById("fltCStart");
+  var _fCEsel = document.getElementById("fltCEnd");
+  var _fCS = _fCSel ? _fCSel.value : "";
+  var _fCE = _fCEsel ? _fCEsel.value : "";
   var filterBits = [];
   if (_fE === BLANK_FILTER) filterBits.push("EQPT = (blank)");
   else if (_fE) filterBits.push("EQPT = " + _fE);
@@ -1625,6 +1882,10 @@ function openDrillDown(bom, code, name) {
   else if (_fH) filterBits.push("HOD = " + _fH);
   if (_fA === BLANK_FILTER) filterBits.push("Approve = (blank)");
   else if (_fA) filterBits.push("Approve = " + _fA);
+  if (_fCS === BLANK_FILTER) filterBits.push("Commit Start = (blank)");
+  else if (_fCS) filterBits.push("Commit Start = " + fmtDateDMY(_fCS));
+  if (_fCE === BLANK_FILTER) filterBits.push("Commit End = (blank)");
+  else if (_fCE) filterBits.push("Commit End = " + fmtDateDMY(_fCE));
   var filterDesc = filterBits.length
     ? ' &nbsp; / &nbsp; <span style="color:#a85;font-weight:600;">Filtered: ' + esc(filterBits.join(", ")) + '</span>'
     : '';
@@ -1646,7 +1907,7 @@ function openDrillDown(bom, code, name) {
       { l: "Total Lines", v: totalLines },
       { l: "Lines Done (ticked)", v: doneCount + " / " + totalLines },
       { l: "SFG Net Qty", v: fmt(sumSfgNet, 3) + " " + (um || "") },
-      { l: "SFG Required", v: fmt(sumReq, 3) + " " + (um || "") },
+      { l: "FG_BALANCE_HOD", v: fmt(sumReq, 3) + " " + (um || "") },
       { l: "Production Done", v: fmt(sumProdDone, 3) + " " + (um || "") }
     ].map(function(s){ return '<div class="drill-stat"><div class="l">' + esc(s.l) + '</div><div class="v">' + esc(String(s.v)) + '</div></div>'; }).join("");
   }
@@ -1691,12 +1952,12 @@ function openDrillDown(bom, code, name) {
           return br - ar;
         });
         var partyPDInit = (function(){ var s = 0; p.mcMap.forEach(function(arr){ arr.forEach(function(l){ s += getLineProdDone(l); }); }); return s; })();
-        html += '<div class="party-group open"><div class="party-head"><span>' + esc(p.party) + '</span><span class="right">' + mcArr.length + ' MC / ' + p.lineCount + ' lines / SFG Req <strong>' + fmt(p.totalReq, 3) + ' ' + esc(um) + '</strong> / Prod Done ' + fmt(partyPDInit, 3) + ' ' + esc(um) + '</span></div><div class="party-body">';
+        html += '<div class="party-group open"><div class="party-head"><span>' + esc(p.party) + '</span><span class="right">' + mcArr.length + ' MC / ' + p.lineCount + ' lines / FG_BALANCE_HOD <strong>' + fmt(p.totalReq, 3) + ' ' + esc(um) + '</strong> / Prod Done ' + fmt(partyPDInit, 3) + ' ' + esc(um) + '</span></div><div class="party-body">';
         mcArr.forEach(function(pair){
           var mc = pair[0], mcLines = pair[1];
           var mcReq = mcLines.reduce(function(a,l){return a + num(l["SFG_REQUIRED_AG_BAL TO PRD FG"]);}, 0);
           var mcPDInit = mcLines.reduce(function(a,l){return a + getLineProdDone(l);}, 0);
-          html += '<div class="mc-block"><div class="mc-head">MC ' + esc(mc) + ' &nbsp; <span style="font-weight:400;color:#666;">- ' + mcLines.length + ' line(s) / SFG Req ' + fmt(mcReq, 3) + ' ' + esc(um) + ' / Prod Done ' + fmt(mcPDInit, 3) + ' ' + esc(um) + '</span></div>' + renderPordTable(mcLines, um) + '</div>';
+          html += '<div class="mc-block"><div class="mc-head">MC ' + esc(mc) + ' &nbsp; <span style="font-weight:400;color:#666;">- ' + mcLines.length + ' line(s) / FG_BALANCE_HOD ' + fmt(mcReq, 3) + ' ' + esc(um) + ' / Prod Done ' + fmt(mcPDInit, 3) + ' ' + esc(um) + '</span></div>' + renderPordTable(mcLines, um) + '</div>';
         });
         html += '</div></div>';
       });
@@ -1726,13 +1987,16 @@ function renderPordTable(lines, um) {
     { key: "FG_BALANCE_TO_PRODUCTION", label: "Balance", num: true },
     { key: "_pct", label: "Compl %" },
     { key: "SFG_NET_ORD_QTY", label: "SFG Net", num: true },
-    { key: "SFG_REQUIRED_AG_BAL TO PRD FG", label: "SFG Req", num: true },
+    { key: "SFG_REQUIRED_AG_BAL TO PRD FG", label: "FG_BALANCE_HOD", num: true },
     { key: "_line_pd", label: "Production Done Qty", num: true },
     { key: "_line_date", label: "Target Date of Prod Closer" },
     { key: "_eqpt", label: "EQPT" },
+    { key: "_cstart", label: "Commit Start" },
+    { key: "_cend", label: "Commit End" },
     { key: "_hod", label: "HOD" },
     { key: "_status", label: "Status" }
   ];
+  var commitEditable = canEditCommitment_();
   var sorted = lines.slice().sort(function(a,b){return (a.PORD_NO || "").localeCompare(b.PORD_NO || "");});
   var rowsHtml = sorted.map(function(l){
     var open = num(l.FG_BALANCE_TO_PRODUCTION) > 0.001;
@@ -1773,6 +2037,23 @@ function renderPordTable(lines, um) {
         var optsH = '<option value="">-- select --</option>' + HOD_MASTER.map(function(h){ return '<option value="' + esc(h) + '"' + (selH === h ? ' selected' : '') + '>' + esc(h) + '</option>'; }).join("");
         var disH = done ? ' disabled title="Un-tick Done to change HOD"' : '';
         return '<td class="hod-cell"><select class="line-hod-select"' + disH + '>' + optsH + '</select></td>';
+      }
+      if (c.key === "_cstart" || c.key === "_cend") {
+        var lkC = lineKey(l);
+        var isStart = c.key === "_cstart";
+        var val = isStart ? getLineCStart(lkC) : getLineCEnd(lkC);
+        var cls = isStart ? "line-cstart-input" : "line-cend-input";
+        var disC = "";
+        var titleC = "";
+        if (done) {
+          disC = ' disabled';
+          titleC = ' title="Un-tick Done to change commitment date"';
+        } else if (!commitEditable) {
+          disC = ' disabled';
+          titleC = ' title="Admin role cannot edit commitment dates"';
+        }
+        return '<td class="commit-cell"><input type="date" class="' + cls + '"' + disC + titleC +
+               ' value="' + esc(val) + '" /></td>';
       }
       var v = l[c.key];
       if (c.num) return '<td class="num">' + (v == null || v === "" ? "-" : fmt(num(v), 3)) + '</td>';
@@ -1835,6 +2116,62 @@ function wireDoneTicksGlobal() {
       if (typeof renderTable === "function") renderTable();
     };
   });
+  // Commit Start / Commit End inputs. Validation runs only when BOTH dates
+  // are set and the line has an EQPT assigned â€" otherwise we let the user
+  // type one half of the range without nagging.
+  function handleCommitChange(inp, isStart) {
+    inp.onclick = function(e){ e.stopPropagation(); };
+    inp.onkeydown = function(e){ e.stopPropagation(); };
+    inp.onchange = function(){
+      if (inp.disabled) return;
+      var tr = inp.closest("tr"); if (!tr) return;
+      var lk = tr.getAttribute("data-lk") || "";
+      var newVal = inp.value || "";
+      var oldVal = isStart ? getLineCStart(lk) : getLineCEnd(lk);
+      var start = isStart ? newVal : getLineCStart(lk);
+      var end   = isStart ? getLineCEnd(lk) : newVal;
+      // Basic ordering check.
+      if (start && end && start > end) {
+        alert("Commit End date cannot be earlier than Commit Start date.");
+        inp.value = oldVal;
+        return;
+      }
+      var eqpt = LINE_EQPT[lk] || "";
+      // Conflict-check whenever the user has picked at least one date AND an
+      // EQPT is assigned. We deliberately do NOT require both start AND end
+      // to be set â€" a single conflicting date should already raise the
+      // error, otherwise the user could silently overlap a booked range by
+      // setting one boundary at a time.
+      if (eqpt && (start || end)) {
+        var conflict = findCommitConflict_(lk, eqpt, start, end);
+        if (conflict) {
+          var byTxt = conflict.by ? " by " + conflict.by : "";
+          var rangeTxt;
+          if (conflict.start && conflict.end) {
+            rangeTxt = fmtDateDMY(conflict.start) + " to " + fmtDateDMY(conflict.end);
+          } else {
+            rangeTxt = "on " + fmtDateDMY(conflict.end || conflict.start);
+          }
+          alert("This equipment (" + eqpt + ") is already booked " + rangeTxt + byTxt +
+                ". Choose a non-overlapping date.");
+          inp.value = oldVal;
+          return;
+        }
+      }
+      // Persist (locally + remote). commit_by stamps the current logged-in
+      // username; admins cannot reach this path since the input is disabled.
+      var by = "";
+      try {
+        var s = typeof loadSession === "function" ? loadSession() : null;
+        by = s && s.username ? s.username : "";
+      } catch(e) {}
+      setLineCommit(lk, start, end, by);
+      if (typeof window.__drillRenderBody === "function") window.__drillRenderBody();
+      if (typeof renderTable === "function") renderTable();
+    };
+  }
+  content.querySelectorAll(".line-cstart-input").forEach(function(inp){ handleCommitChange(inp, true);  });
+  content.querySelectorAll(".line-cend-input").forEach(function(inp){   handleCommitChange(inp, false); });
 }
 document.getElementById("drillClose").onclick = function(){ document.getElementById("drillModal").classList.remove("open"); };
 document.getElementById("drillModal").onclick = function(e){ if (e.target.id === "drillModal") document.getElementById("drillModal").classList.remove("open"); };
@@ -1851,6 +2188,20 @@ function populateSelect(sel, vals) {
   if (prev && vals.indexOf(prev) >= 0) sel.value = prev;
   else sel.value = "";
 }
+// Like populateSelect but renders ISO YYYY-MM-DD values as DD-MM-YYYY in the
+// dropdown label, while keeping the ISO value as the underlying option value.
+// Used by the Commit Start / Commit End filter dropdowns so users see
+// familiar Indian date formatting but downstream equality checks against
+// LINE_CSTART / LINE_CEND continue to work without conversion.
+function populateSelectDates(sel, vals) {
+  if (!sel) return;
+  var prev = sel.value;
+  sel.innerHTML = '<option value="">All</option>' + vals.map(function(v){
+    return '<option value="' + esc(v) + '">' + esc(fmtDateDMY(v)) + '</option>';
+  }).join("");
+  if (prev && vals.indexOf(prev) >= 0) sel.value = prev;
+  else sel.value = "";
+}
 var BLANK_FILTER = "__BLANK__";
 function addBlankOption(sel) {
   if (!sel) return;
@@ -1863,18 +2214,118 @@ function addBlankOption(sel) {
   else sel.appendChild(opt);
   sel.value = prev;
 }
-function rowsExcluding(exclude) {
-  var fUm = document.getElementById("fltUm").value;
-  var fL3 = document.getElementById("fltL3").value;
-  var fL4 = document.getElementById("fltL4").value;
+// Excel-style dependent filter: returns the BOMs that pass every currently
+// active filter, with the option to silence ONE filter for the call. Used by
+// dropdown population so each filter only lists values that would still yield
+// results given the rest of the current selection. opts.exclude can be:
+//   "UM" | "L3" | "L4" | "EQPT" | "HOD" | "APPROVE" | "CSTART" | "CEND"
+// Behavior must stay in sync with the inline filter logic inside
+// renderTable() â€" any tweak there needs the matching tweak here.
+function applyAllFilters_(opts) {
+  opts = opts || {};
+  var ex = opts.exclude || "";
+  var fUm = ex === "UM" ? "" : document.getElementById("fltUm").value;
+  var fL3 = ex === "L3" ? "" : document.getElementById("fltL3").value;
+  var fL4 = ex === "L4" ? "" : document.getElementById("fltL4").value;
+  var fEqpt = ex === "EQPT" ? "" : document.getElementById("fltEqpt").value;
+  var fHod  = ex === "HOD"  ? "" : document.getElementById("fltHod").value;
+  var fApprove = ex === "APPROVE" ? "" : document.getElementById("fltApprove").value;
+  var fCSel = document.getElementById("fltCStart");
+  var fCEel = document.getElementById("fltCEnd");
+  var fCS = (ex === "CSTART" || !fCSel) ? "" : fCSel.value;
+  var fCE = (ex === "CEND"   || !fCEel) ? "" : fCEel.value;
   var nzOnly = document.getElementById("fltNonzero").checked;
+  var balanceNzOnly = document.getElementById("fltBalanceNonzero").checked;
+
   return ROWS.filter(function(r){
-    if (exclude !== "UM" && fUm && r.UM !== fUm) return false;
-    if (exclude !== "L3" && fL3 && r.L3 !== fL3) return false;
-    if (exclude !== "L4" && fL4 && r.L4 !== fL4) return false;
+    if (fUm && r.UM !== fUm) return false;
+    if (fL3 && r.L3 !== fL3) return false;
+    if (fL4 && r.L4 !== fL4) return false;
     if (nzOnly && r.REQ_SUM <= 0) return false;
+    if (fEqpt === BLANK_FILTER) {
+      var blines = LINES_BY_BOM.get(prodKey(r)) || [];
+      if (!blines.some(function(l){ return !LINE_EQPT[lineKey(l)]; })) return false;
+    } else if (fEqpt) {
+      var es = EQPT_BY_BOM.get(prodKey(r));
+      if (!es || !es.has(fEqpt)) return false;
+    }
+    if (fHod === BLANK_FILTER) {
+      var blines2 = LINES_BY_BOM.get(prodKey(r)) || [];
+      if (!blines2.some(function(l){ return !LINE_HOD[lineKey(l)]; })) return false;
+    } else if (fHod) {
+      var hs = HOD_BY_BOM.get(prodKey(r));
+      if (!hs || !hs.has(fHod)) return false;
+    }
+    if (fApprove === BLANK_FILTER) {
+      var blines3 = LINES_BY_BOM.get(prodKey(r)) || [];
+      if (!blines3.some(function(l){
+        var apv = l.APPROVE_STATUS == null ? "" : String(l.APPROVE_STATUS).trim();
+        return !apv;
+      })) return false;
+    } else if (fApprove) {
+      var aps = APPROVE_BY_BOM.get(prodKey(r));
+      if (!aps || !aps.has(fApprove)) return false;
+    }
+    if (fCS === BLANK_FILTER) {
+      var blinesCS = LINES_BY_BOM.get(prodKey(r)) || [];
+      if (!blinesCS.some(function(l){ return !LINE_CSTART[lineKey(l)]; })) return false;
+    } else if (fCS) {
+      var css = CSTART_BY_BOM.get(prodKey(r));
+      if (!css || !css.has(fCS)) return false;
+    }
+    if (fCE === BLANK_FILTER) {
+      var blinesCE = LINES_BY_BOM.get(prodKey(r)) || [];
+      if (!blinesCE.some(function(l){ return !LINE_CEND[lineKey(l)]; })) return false;
+    } else if (fCE) {
+      var ces = CEND_BY_BOM.get(prodKey(r));
+      if (!ces || !ces.has(fCE)) return false;
+    }
+    // Combined line-filter check (â‰¥2 line filters active â†’ at least one line
+    // must satisfy them all together, not just one filter each).
+    var activeLineFilters = (fEqpt ? 1 : 0) + (fHod ? 1 : 0) + (fApprove ? 1 : 0) +
+                            (fCS ? 1 : 0) + (fCE ? 1 : 0);
+    if (activeLineFilters >= 2) {
+      var agg = rowAggregates(r, fEqpt, fHod, fApprove, fCS, fCE);
+      if (agg.lines === 0) return false;
+    }
+    if (balanceNzOnly) {
+      var balAgg = rowAggregates(r, fEqpt, fHod, fApprove, fCS, fCE);
+      if (Math.abs(balAgg.balance) < 0.0005) return false;
+    }
     return true;
   });
+}
+function rowsExcluding(exclude) {
+  // Backwards-compat shim â€" delegates to applyAllFilters_ so the
+  // UM/L3/L4 dropdowns also respect line-level filters + checkboxes.
+  return applyAllFilters_({ exclude: exclude });
+}
+// Populate a line-level filter dropdown (EQPT/HOD/Approve/CStart/CEnd) with
+// only values whose BOMs would still survive given the OTHER active filters.
+// Preserves the currently selected value (even if it falls outside the
+// candidate set) so user picks aren't silently reset to "All".
+function populateLineFilter_(opts) {
+  var sel = document.getElementById(opts.selectId);
+  if (!sel) return;
+  var currentVal = sel.value;
+  var rows = applyAllFilters_({ exclude: opts.excludeKey });
+  var vals = new Set();
+  var hasBlank = false;
+  rows.forEach(function(r){
+    (LINES_BY_BOM.get(prodKey(r)) || []).forEach(function(l){
+      var v = opts.valueGetter(l);
+      if (v) vals.add(String(v).trim());
+      else hasBlank = true;
+    });
+  });
+  var arr = Array.from(vals).sort();
+  if (currentVal && currentVal !== BLANK_FILTER && arr.indexOf(currentVal) < 0) {
+    arr.push(currentVal);
+    arr.sort();
+  }
+  if (opts.isDate) populateSelectDates(sel, arr);
+  else populateSelect(sel, arr);
+  if (hasBlank || currentVal === BLANK_FILTER) addBlankOption(sel);
 }
 function refreshFilters() {
   var umSel = document.getElementById("fltUm");
@@ -1898,6 +2349,8 @@ function clearFilters() {
   document.getElementById("fltEqpt").value = "";
   document.getElementById("fltHod").value = "";
   var fa = document.getElementById("fltApprove"); if (fa) fa.value = "";
+  var fcs = document.getElementById("fltCStart"); if (fcs) fcs.value = "";
+  var fce = document.getElementById("fltCEnd");   if (fce) fce.value = "";
   document.getElementById("fltSearch").value = "";
   document.getElementById("fltNonzero").checked = true;
   document.getElementById("fltBalanceNonzero").checked = true;
@@ -1981,8 +2434,16 @@ function parseViewFilter(raw) {
       Object.keys(obj).forEach(function(k){
         var vals = obj[k];
         if (!Array.isArray(vals)) vals = [vals];
-        vals = vals.map(function(v){ return v == null ? "" : String(v).trim(); }).filter(Boolean);
-        if (vals.length > 0) out[k] = vals;
+        // KEEP "" entries - they are the explicit "(blank)" filter that
+        // matches rows with no value for this column. We only de-duplicate
+        // and stringify - no .filter(Boolean) because Boolean("") is false.
+        var seen = new Set();
+        var kept = [];
+        vals.forEach(function(v){
+          var s = v == null ? "" : String(v).trim();
+          if (!seen.has(s)) { seen.add(s); kept.push(s); }
+        });
+        if (kept.length > 0) out[k] = kept;
       });
       return out;
     } catch(e) { return {}; }
@@ -2399,14 +2860,21 @@ function renderFilterEditorBody() {
     var allValues = uniqueColumnValues(col);
     var selected = conds[col] || [];
     var sortedAll = Array.from(new Set(allValues.concat(selected))).sort();
+    // ALWAYS prepend a "(blank)" pseudo-option so the Super Admin can grant
+    // access to lines that have NO value for this column (e.g. lines where
+    // HOD / EQPT was never assigned). Stored as the empty string "" in the
+    // filter so the loadData check `actual === ""` matches correctly.
+    sortedAll = [""].concat(sortedAll.filter(function(v){ return v !== ""; }));
     var checkboxes = sortedAll.map(function(v){
       var isOn = selected.indexOf(v) >= 0;
-      return '<label style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;background:' + (isOn ? "#eef4ff" : "#f7f8fa") + ';border:1px solid ' + (isOn ? "#4a7dd6" : "#e6e8eb") + ';border-radius:14px;font-size:11px;cursor:pointer;margin:2px;">' +
+      var label = v === "" ? "(blank - not assigned)" : v;
+      var bg = isOn ? "#eef4ff" : (v === "" ? "#fff7e6" : "#f7f8fa");
+      var bd = isOn ? "#4a7dd6" : (v === "" ? "#e8c986" : "#e6e8eb");
+      return '<label style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;background:' + bg + ';border:1px solid ' + bd + ';border-radius:14px;font-size:11px;cursor:pointer;margin:2px;">' +
         '<input type="checkbox" data-col="' + esc(col) + '" data-val="' + esc(v) + '"' + (isOn ? " checked" : "") + ' onchange="toggleFilterValue(this)" style="margin:0;" />' +
-        esc(v) +
+        esc(label) +
       '</label>';
     }).join("");
-    if (!sortedAll.length) checkboxes = '<span style="color:#999;font-style:italic;font-size:11px;">No values found in current data for this column.</span>';
     return '<div style="border:1px solid #e6e8eb;border-radius:8px;padding:10px;margin-bottom:8px;">' +
       '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">' +
         '<strong style="font-size:12px;">' + esc(col) + '</strong>' +
@@ -2465,7 +2933,18 @@ function saveFilterEditor() {
   // rows. We treat "empty values" as "remove this filter column".
   var clean = {};
   Object.keys(FILTER_EDITOR_STATE.conditions).forEach(function(k){
-    var vals = (FILTER_EDITOR_STATE.conditions[k] || []).map(function(v){ return String(v).trim(); }).filter(Boolean);
+    // KEEP empty strings - they represent the explicit "(blank)" pseudo-value
+    // a Super Admin can pick to grant access to un-assigned rows. We only
+    // strip duplicates and ensure values are normalized strings.
+    var raw = FILTER_EDITOR_STATE.conditions[k] || [];
+    var vals = [];
+    var seen = new Set();
+    raw.forEach(function(v){
+      var s = v == null ? "" : String(v).trim();
+      if (seen.has(s)) return;
+      seen.add(s);
+      vals.push(s);
+    });
     if (vals.length) clean[k] = vals;
   });
   var json = Object.keys(clean).length ? JSON.stringify(clean) : "";
@@ -2483,10 +2962,11 @@ if (_fe) _fe.onclick = function(e){ if (e.target.id === "filterEditorModal") clo
 // Backdrop click closes modals
 var _lm = document.getElementById("loginModal"); if (_lm) _lm.onclick = function(e){ if (e.target.id === "loginModal") closeLoginModal(); };
 var _um = document.getElementById("userPanelModal"); if (_um) _um.onclick = function(e){ if (e.target.id === "userPanelModal") closeUserPanel(); };
+
 // Initial UI sync + conditional data load + auto-refresh
 applyRoleUI();
-if (currentRole() !== "anonymous") loadData(false);
-startAutoRefresh();
+if (typeof currentRole === "function" && currentRole() !== "anonymous") loadData(false);
+if (typeof startAutoRefresh === "function") startAutoRefresh();
 </script>
 </body>
 </html>
