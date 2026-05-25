@@ -238,6 +238,9 @@
   .schedule-table td { padding: 7px 10px; border-bottom: 1px solid #eef0f2; vertical-align: top; }
   .schedule-table td.new-date-changed { color: #1f7a3a; font-weight: 600; }
   .schedule-table td.new-date-same { color: #888; }
+  .schedule-table tr.overdue-row td { background: #ffe4e4; }
+  .schedule-table tr.overdue-row td:first-child { box-shadow: inset 4px 0 0 #c92a2a; }
+  .overdue-badge { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 8px; background: #c92a2a; color: #fff; font-size: 10px; font-weight: 700; letter-spacing: .2px; }
   .schedule-end-input { width: 130px; padding: 2px 4px; font-size: 11px; border: 1px solid #d9c2dd; border-radius: 4px; background: #fff; margin-left: 2px; }
   .schedule-end-input:focus { outline: none; border-color: #4a7dd6; box-shadow: 0 0 0 2px rgba(74,125,214,0.15); }
   .filter-cleared-toast { position: fixed; top: 18px; left: 50%; transform: translateX(-50%); background: #4a7dd6; color: #fff; padding: 8px 14px; border-radius: 6px; font-size: 12px; box-shadow: 0 4px 14px rgba(0,0,0,0.18); z-index: 100; opacity: 0; transition: opacity 0.18s ease; pointer-events: none; }
@@ -483,7 +486,7 @@
 
   <!-- Equipment Reschedule modal -->
   <div class="modal-backdrop" id="eqptScheduleModal" style="z-index:65;">
-    <div class="modal" style="max-width: 880px;">
+    <div class="modal" style="max-width: 1400px; width: 96vw;">
       <div class="modal-head">
         <div>
           <h2 id="eqptScheduleTitle">Reschedule Equipment</h2>
@@ -759,15 +762,34 @@ function renderEqptScheduleBody_() {
     var label = (line.PORD_NO || "(no PORD)") +
                 (line.MC_NO ? " / MC " + line.MC_NO : "") +
                 (line.SFG_NAME ? " - " + String(line.SFG_NAME).slice(0, 40) : "");
+    // Party + FG Item context so the planner can identify the customer & FG
+    // at a glance without opening the drill-down.
+    var partyName = line.ACC_NAME || "-";
+    var fgItem = line.FG_ITEM_NAME || "-";
+    // Balance qty (FG_BALANCE_HOD = SFG_REQUIRED_AG_BAL TO PRD FG) and HOD name
+    // for this booking so the planner can see what's pending and who owns it.
+    var balQty = num(line["SFG_REQUIRED_AG_BAL TO PRD FG"]);
+    var um = line.SFG_UM || "";
+    var balTxt = balQty > 0 ? (fmt(balQty, 3) + (um ? " " + um : "")) : "-";
+    var hodName = LINE_HOD[p.lk] || "-";
     var sameAsOrig = (p.newStart === p.origStart && p.newEnd === p.origEnd);
     var newCls = sameAsOrig ? "new-date-same" : "new-date-changed";
+    // Overdue = original commit_end is already in the past (booking should
+    // have finished by now). Flag the row visually so planners can fix slips.
+    var isOverdue = !!(p.origEnd && p.origEnd < todayISO);
+    var rowCls = isOverdue ? ' class="overdue-row"' : '';
+    var overdueBadge = isOverdue ? '<span class="overdue-badge" title="Original Commit End has passed">OVERDUE</span>' : '';
     var upDisabled  = i === 0 ? ' disabled' : '';
     var downDisabled = i === proposed.length - 1 ? ' disabled' : '';
     // End date is the editable handle â€" changing it shrinks/extends this
     // booking's duration, and downstream rows auto-shift on re-render.
-    return '<tr data-idx="' + i + '">' +
-      '<td><strong>' + (i + 1) + '</strong></td>' +
+    return '<tr data-idx="' + i + '"' + rowCls + '>' +
+      '<td><strong>' + (i + 1) + '</strong>' + overdueBadge + '</td>' +
       '<td>' + esc(label) + '</td>' +
+      '<td>' + esc(partyName) + '</td>' +
+      '<td>' + esc(fgItem) + '</td>' +
+      '<td class="num">' + esc(balTxt) + '</td>' +
+      '<td>' + esc(hodName) + '</td>' +
       '<td class="num">' + p.durationDays + ' day' + (p.durationDays === 1 ? '' : 's') + '</td>' +
       '<td style="white-space:nowrap;color:#666;">' + esc(fmtDateDMY(p.origStart)) + ' &rarr; ' + esc(fmtDateDMY(p.origEnd)) + '</td>' +
       '<td class="' + newCls + '" style="white-space:nowrap;">' +
@@ -782,17 +804,23 @@ function renderEqptScheduleBody_() {
     '</tr>';
   }).join("");
   body.innerHTML =
+    '<div style="overflow-x:auto;">' +
     '<table class="schedule-table">' +
       '<thead><tr>' +
         '<th>SL</th>' +
         '<th>Line</th>' +
+        '<th>Party</th>' +
+        '<th>FG Item</th>' +
+        '<th style="text-align:right;">Balance Qty</th>' +
+        '<th>HOD</th>' +
         '<th style="text-align:right;">Duration</th>' +
         '<th>Current</th>' +
         '<th>New (start &rarr; end editable)</th>' +
         '<th style="text-align:right;">Reorder</th>' +
       '</tr></thead>' +
       '<tbody>' + rowsHtml + '</tbody>' +
-    '</table>';
+    '</table>' +
+    '</div>';
   body.querySelectorAll(".reorder-btn").forEach(function(btn){
     btn.onclick = function(){
       if (btn.disabled) return;
@@ -1039,6 +1067,17 @@ function buildLinePDMap() {
 function getProdDone(r) { return LINE_PD_BY_BOM.get(prodKey(r)) || 0; }
 function getBalance(r) { return (r.NET_SUM || 0) - getProdDone(r); }
 function clearAllProdDone() {
+  // Defence-in-depth: CSS .super-only already hides this button for everyone
+  // except super_admin, but if someone calls window.clearAllProdDone() from
+  // the console we still want to block it.
+  try {
+    var s = typeof loadSession === "function" ? loadSession() : null;
+    var role = s && s.role ? String(s.role).toLowerCase() : "";
+    if (role !== "super_admin") {
+      alert("Only Super Admin can clear Production Done.");
+      return;
+    }
+  } catch(e) {}
   if (!confirm("Clear all per-line Done ticks and manually entered Production Done Qty?")) return;
   for (var k in LINE_DONE) delete LINE_DONE[k];
   for (var k2 in LINE_PD) delete LINE_PD[k2];
