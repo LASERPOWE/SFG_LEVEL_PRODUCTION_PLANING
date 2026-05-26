@@ -198,6 +198,8 @@
   .commit-cell { background: #fdf4ff; }
   .commit-cell input[type="date"] { width: 130px; padding: 2px 4px; border: 1px solid #d9c2dd; border-radius: 4px; background: #fff; font-size: 11px; }
   .commit-cell input[type="date"]:disabled { background: #f3f4f6; color: #888; cursor: not-allowed; }
+  .commit-by-name { margin-top: 3px; font-size: 10px; color: #6b3a78; font-style: italic; white-space: nowrap; }
+  .commit-by-name.commit-by-empty { color: #b8a4be; font-style: normal; }
   .line-eqpt-select, .line-hod-select { width: 130px; padding: 3px 5px; font-size: 11px; border: 1px solid #d6d8db; border-radius: 4px; background: #fff; cursor: pointer; font-family: inherit; }
   .line-eqpt-select:focus, .line-hod-select:focus { outline: none; border-color: #4a7dd6; box-shadow: 0 0 0 2px rgba(74,125,214,0.15); }
   /* Equipment Blocking Status + HOD Balance share one .row (2-col grid).
@@ -205,6 +207,21 @@
      no longer forces a width â€" the grid handles layout. */
   .equipment-block-card { margin-bottom: 18px; }
   .dashboard-status-row .equipment-block-wrap { max-height: 320px; overflow-y: auto; }
+  /* Status row now holds 3 cards (EQPT / HOD / Party balance). Auto-fit so
+     cards wrap gracefully on narrower viewports. */
+  .row.dashboard-status-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  @media (max-width: 1200px) { .row.dashboard-status-row { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 700px)  { .row.dashboard-status-row { grid-template-columns: 1fr; } }
+  .equipment-block-table tr.party-row { cursor: pointer; }
+  .equipment-block-table tr.party-row:hover { background: #fff8ec; }
+  .equipment-block-table .overdue-count { color: #c92a2a; font-weight: 700; }
+  .equipment-block-table .overdue-count.zero { color: #888; font-weight: 400; }
+  /* Generic "selected row" indicator for click-toggle highlight. Applies to
+     every <tbody> row across the dashboard. The blue left-rule + tinted bg
+     persists until the user clicks the same row again (toggle off) or clicks
+     a different row in the same table. */
+  tbody tr.row-selected td { background: #dbeafe !important; }
+  tbody tr.row-selected td:first-child { box-shadow: inset 4px 0 0 #2563eb; }
   .hod-balance-table tr.hod-row { cursor: pointer; }
   .hod-balance-table tr.hod-row:hover { background: #f1f9f4; }
   .hod-balance-table tr.hod-row.hod-blank { color: #888; font-style: italic; }
@@ -241,6 +258,8 @@
   .schedule-table tr.overdue-row td { background: #ffe4e4; }
   .schedule-table tr.overdue-row td:first-child { box-shadow: inset 4px 0 0 #c92a2a; }
   .overdue-badge { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 8px; background: #c92a2a; color: #fff; font-size: 10px; font-weight: 700; letter-spacing: .2px; }
+  .schedule-table td.rc-count-pos { color: #c87f00; font-weight: 700; }
+  .schedule-table td.rc-count-zero { color: #aaa; font-weight: 400; }
   .schedule-end-input { width: 130px; padding: 2px 4px; font-size: 11px; border: 1px solid #d9c2dd; border-radius: 4px; background: #fff; margin-left: 2px; }
   .schedule-end-input:focus { outline: none; border-color: #4a7dd6; box-shadow: 0 0 0 2px rgba(74,125,214,0.15); }
   .filter-cleared-toast { position: fixed; top: 18px; left: 50%; transform: translateX(-50%); background: #4a7dd6; color: #fff; padding: 8px 14px; border-radius: 6px; font-size: 12px; box-shadow: 0 4px 14px rgba(0,0,0,0.18); z-index: 100; opacity: 0; transition: opacity 0.18s ease; pointer-events: none; }
@@ -308,10 +327,11 @@
                 <th style="text-align:right;">Balance Qty</th>
                 <th>Blocked Till</th>
                 <th style="text-align:right;">Days</th>
+                <th style="text-align:right;">Overdue</th>
               </tr>
             </thead>
             <tbody id="equipmentBlockBody">
-              <tr><td colspan="4" class="empty">Assign EQPT in drill-down to see blocking status.</td></tr>
+              <tr><td colspan="5" class="empty">Assign EQPT in drill-down to see blocking status.</td></tr>
             </tbody>
           </table>
         </div>
@@ -329,6 +349,25 @@
             </thead>
             <tbody id="hodBalanceBody">
               <tr><td colspan="3" class="empty">Assign HOD in drill-down to see workload distribution.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Balance Quantity by Party</h3>
+        <div class="equipment-block-wrap">
+          <table class="equipment-block-table">
+            <thead>
+              <tr>
+                <th>Party</th>
+                <th style="text-align:right;">Open Lines</th>
+                <th style="text-align:right;">Balance Qty</th>
+                <th>Max End Date</th>
+                <th style="text-align:right;">Overdue</th>
+              </tr>
+            </thead>
+            <tbody id="partyBalanceBody">
+              <tr><td colspan="5" class="empty">No open party balances.</td></tr>
             </tbody>
           </table>
         </div>
@@ -356,6 +395,9 @@
         </label>
         <label>HOD
           <select id="fltHod"><option value="">All</option></select>
+        </label>
+        <label>Party
+          <select id="fltParty"><option value="">All</option></select>
         </label>
         <label>Approve Status
           <select id="fltApprove"><option value="">All</option></select>
@@ -495,11 +537,21 @@
         <button class="modal-close" onclick="closeEqptScheduleModal()">&times;</button>
       </div>
       <div class="modal-body">
+        <div id="eqptScheduleReadonly" style="display:none;margin-bottom:10px;padding:8px 12px;background:#fff8ec;border:1px solid #f3d49a;border-radius:6px;font-size:12px;color:#8a5a00;">
+          <strong>Read-only view.</strong> Only Admin / Super Admin can edit dates and apply schedule changes.
+        </div>
         <div id="eqptScheduleBody"></div>
+        <div id="eqptScheduleReasonBlock" style="margin-top:14px;padding:10px 12px;background:#f4f7ff;border:1px solid #cfd9f5;border-radius:6px;">
+          <label for="eqptScheduleReason" style="display:block;font-size:12px;font-weight:600;color:#2a3b6b;margin-bottom:6px;">
+            Reason for reschedule <span style="color:#c92a2a;">*</span>
+            <span style="font-weight:400;color:#666;font-size:11px;">(mandatory â€" applies to both date increase and interchange)</span>
+          </label>
+          <textarea id="eqptScheduleReason" rows="2" placeholder="e.g. Customer urgency, material delay, machine breakdownâ€¦" style="width:100%;padding:6px 8px;font-size:12px;border:1px solid #cfd9f5;border-radius:4px;font-family:inherit;resize:vertical;"></textarea>
+        </div>
         <div style="display:flex;gap:10px;margin-top:14px;justify-content:flex-end;align-items:center;">
           <span id="eqptScheduleStatus" style="margin-right:auto;font-size:11px;color:#666;"></span>
-          <button class="auth-btn" type="button" onclick="closeEqptScheduleModal()">Cancel</button>
-          <button class="auth-btn auth-btn-primary" type="button" onclick="applyEqptSchedule()">Apply New Schedule</button>
+          <button class="auth-btn" type="button" onclick="closeEqptScheduleModal()">Close</button>
+          <button id="eqptScheduleApplyBtn" class="auth-btn auth-btn-primary" type="button" onclick="applyEqptSchedule()">Apply New Schedule</button>
         </div>
       </div>
     </div>
@@ -523,7 +575,7 @@ let DATA_LOAD_IN_PROGRESS = false;
 // Optional shared manual-input endpoint.
 // Keep blank for browser-only localStorage. Paste the separate Planning Inputs
 // Apps Script Web App URL here to share EQPT/HOD/Done/Production Done across PCs.
-const INPUT_API_URL = "https://script.google.com/macros/s/AKfycbze6Ci_TKuOJm56wdgZUiVDhFeqhiq2JcGVKYh5-yYEIqdNKast6mI1ubZ9Mps837Xc/exec";
+const INPUT_API_URL = "https://script.google.com/macros/s/AKfycbz81eFMPx6E7IOAQv7uOZ8_PE6WiP_0iwK81FxkrOwgqg0P3cDVeqvElRZIwmTEB8c/exec";
 
 // Auto-pull fresh Google Sheet data. Apps Script requests use cache-busting,
 // so edits in the sheet show here without manually pressing Refresh.
@@ -562,17 +614,31 @@ function setLineHod(lk, v) {
 const LINE_CSTART_KEY = "erp_line_commit_start_v1";
 const LINE_CEND_KEY   = "erp_line_commit_end_v1";
 const LINE_CBY_KEY    = "erp_line_commit_by_v1";
+// Per-line reschedule count â€" incremented inside applyEqptSchedule whenever
+// a booking's NEW commit_end is later than its original AND its duration also
+// increased (i.e., the user manually extended the end-date in the modal).
+// Pure reorder of bookings does not bump this counter.
+const LINE_RC_KEY     = "erp_line_reschedule_count_v1";
+// Free-text reason captured at every Reschedule Apply (mandatory) â€" stored
+// per-line, last value wins. Used for an audit trail in the planning sheet.
+const LINE_RR_KEY     = "erp_line_reschedule_reason_v1";
 const LINE_CSTART = (function() { try { return JSON.parse(localStorage.getItem(LINE_CSTART_KEY) || "{}"); } catch(e) { return {}; } })();
 const LINE_CEND   = (function() { try { return JSON.parse(localStorage.getItem(LINE_CEND_KEY)   || "{}"); } catch(e) { return {}; } })();
 const LINE_CBY    = (function() { try { return JSON.parse(localStorage.getItem(LINE_CBY_KEY)    || "{}"); } catch(e) { return {}; } })();
+const LINE_RC     = (function() { try { return JSON.parse(localStorage.getItem(LINE_RC_KEY)     || "{}"); } catch(e) { return {}; } })();
+const LINE_RR     = (function() { try { return JSON.parse(localStorage.getItem(LINE_RR_KEY)     || "{}"); } catch(e) { return {}; } })();
 function saveLineCommit() {
   try { localStorage.setItem(LINE_CSTART_KEY, JSON.stringify(LINE_CSTART)); } catch(e) {}
   try { localStorage.setItem(LINE_CEND_KEY,   JSON.stringify(LINE_CEND));   } catch(e) {}
   try { localStorage.setItem(LINE_CBY_KEY,    JSON.stringify(LINE_CBY));    } catch(e) {}
+  try { localStorage.setItem(LINE_RC_KEY,     JSON.stringify(LINE_RC));     } catch(e) {}
+  try { localStorage.setItem(LINE_RR_KEY,     JSON.stringify(LINE_RR));     } catch(e) {}
 }
 function getLineCStart(lk) { return LINE_CSTART[lk] || ""; }
 function getLineCEnd(lk)   { return LINE_CEND[lk]   || ""; }
 function getLineCBy(lk)    { return LINE_CBY[lk]    || ""; }
+function getLineRC(lk)     { return parseInt(LINE_RC[lk], 10) || 0; }
+function getLineRR(lk)     { return LINE_RR[lk] || ""; }
 function setLineCommit(lk, start, end, by) {
   if (!start) delete LINE_CSTART[lk]; else LINE_CSTART[lk] = start;
   if (!end)   delete LINE_CEND[lk];   else LINE_CEND[lk]   = end;
@@ -621,14 +687,31 @@ function findCommitConflict_(selfLk, eqpt, start, end) {
   }
   return null;
 }
-// True when the current user is allowed to edit commitment dates. Aligned with
-// the back-end rule: user + super_admin yes, admin no, unknown role yes (legacy
-// sessions / first-time login won't get blocked accidentally).
+// True when the current user is allowed to edit commitment dates AT ALL.
+// Role-only check â€" "admin" is blocked, everyone else passes. The per-field
+// "user can set once" rule lives in canEditCommitField_ below.
 function canEditCommitment_() {
   try {
     var s = typeof loadSession === "function" ? loadSession() : null;
     var r = s && s.role ? String(s.role).toLowerCase() : "";
     return r !== "admin";
+  } catch(e) { return true; }
+}
+// Per-line, per-field commit-date editability. Combines the role-level check
+// above with a write-once rule for the "user" role: a regular user can SET a
+// commit_start or commit_end when the field is empty, but cannot EDIT it
+// after it's been saved. Admin/super_admin are unaffected by the lock â€"
+// admin is blocked anyway (no direct drill-down edits), and super_admin can
+// always edit. Admin can still bulk-shift dates via the Reschedule modal.
+function canEditCommitField_(lk, isStart) {
+  try {
+    var s = typeof loadSession === "function" ? loadSession() : null;
+    var r = s && s.role ? String(s.role).toLowerCase() : "";
+    if (r === "admin") return false;
+    if (r === "super_admin") return true;
+    // user / unknown: write-once. Allow only if THIS field is currently empty.
+    var cur = isStart ? (LINE_CSTART[lk] || "") : (LINE_CEND[lk] || "");
+    return !cur;
   } catch(e) { return true; }
 }
 // Reschedule (auto-shift / bulk re-order of an equipment's commit dates) is
@@ -676,10 +759,10 @@ function diffDaysISO_(startISO, endISO) {
 }
 function openEqptScheduleModal(eqpt) {
   if (!eqpt) return;
-  if (!canReschedule_()) {
-    alert("Only Admin / Super Admin can use the Reschedule feature.");
-    return;
-  }
+  // All roles can OPEN the modal to view the equipment's bookings & proposed
+  // schedule. Inputs / Apply are gated separately by canReschedule_() so
+  // "user" role sees a read-only view (and the runtime guard in
+  // applyEqptSchedule rejects any forced submit).
   // Collect bookings: lines with this EQPT, not Done, with BOTH commit dates set.
   var src = (typeof LINES_ALL !== "undefined" && LINES_ALL && LINES_ALL.length) ? LINES_ALL : LINES;
   var bookings = [];
@@ -713,7 +796,19 @@ function openEqptScheduleModal(eqpt) {
       };
     })
   };
-  document.getElementById("eqptScheduleTitle").textContent = "Reschedule: " + eqpt;
+  // Toggle the read-only banner + Apply button visibility per role.
+  var canEdit = (typeof canReschedule_ === "function") ? canReschedule_() : false;
+  var roBanner = document.getElementById("eqptScheduleReadonly");
+  var applyBtn = document.getElementById("eqptScheduleApplyBtn");
+  if (roBanner) roBanner.style.display = canEdit ? "none" : "";
+  if (applyBtn) applyBtn.style.display = canEdit ? "" : "none";
+  // Reset the mandatory reason field on every fresh open. Hidden for the
+  // read-only (user) role since they can't Apply anyway.
+  var reasonBlock = document.getElementById("eqptScheduleReasonBlock");
+  var reasonInp = document.getElementById("eqptScheduleReason");
+  if (reasonBlock) reasonBlock.style.display = canEdit ? "" : "none";
+  if (reasonInp) reasonInp.value = "";
+  document.getElementById("eqptScheduleTitle").textContent = (canEdit ? "Reschedule: " : "View Schedule: ") + eqpt;
   document.getElementById("eqptScheduleStatus").textContent = bookings.length + " booking" + (bookings.length === 1 ? "" : "s") + " sorted by current Commit Start";
   renderEqptScheduleBody_();
   document.getElementById("eqptScheduleModal").classList.add("open");
@@ -757,6 +852,9 @@ function renderEqptScheduleBody_() {
     return;
   }
   var todayISO = todayISOString_();
+  // user role gets a read-only view â€" date inputs disabled, reorder buttons
+  // greyed out, and the down-stream onclick / onchange handlers no-op.
+  var canEdit = (typeof canReschedule_ === "function") ? canReschedule_() : false;
   var rowsHtml = proposed.map(function(p, i){
     var line = p.line || {};
     var label = (line.PORD_NO || "(no PORD)") +
@@ -772,6 +870,11 @@ function renderEqptScheduleBody_() {
     var um = line.SFG_UM || "";
     var balTxt = balQty > 0 ? (fmt(balQty, 3) + (um ? " " + um : "")) : "-";
     var hodName = LINE_HOD[p.lk] || "-";
+    // Reschedule history: how many times this booking has been forward-
+    // pushed in previous Apply rounds. Pulled from LINE_RC (synced with the
+    // sheet's reschedule_count column).
+    var rcCount = getLineRC(p.lk);
+    var rcTxt = rcCount > 0 ? String(rcCount) : "0";
     var sameAsOrig = (p.newStart === p.origStart && p.newEnd === p.origEnd);
     var newCls = sameAsOrig ? "new-date-same" : "new-date-changed";
     // Overdue = original commit_end is already in the past (booking should
@@ -779,10 +882,15 @@ function renderEqptScheduleBody_() {
     var isOverdue = !!(p.origEnd && p.origEnd < todayISO);
     var rowCls = isOverdue ? ' class="overdue-row"' : '';
     var overdueBadge = isOverdue ? '<span class="overdue-badge" title="Original Commit End has passed">OVERDUE</span>' : '';
-    var upDisabled  = i === 0 ? ' disabled' : '';
-    var downDisabled = i === proposed.length - 1 ? ' disabled' : '';
+    var upDisabled  = (!canEdit || i === 0) ? ' disabled' : '';
+    var downDisabled = (!canEdit || i === proposed.length - 1) ? ' disabled' : '';
+    var inputDisabledAttr = canEdit ? '' : ' disabled';
+    var inputTitle = canEdit
+      ? "Change to extend or shrink this booking; downstream rows auto-shift"
+      : "Read-only (only Admin / Super Admin can edit)";
     // End date is the editable handle â€" changing it shrinks/extends this
     // booking's duration, and downstream rows auto-shift on re-render.
+    var rcCellCls = rcCount > 0 ? "num rc-count-pos" : "num rc-count-zero";
     return '<tr data-idx="' + i + '"' + rowCls + '>' +
       '<td><strong>' + (i + 1) + '</strong>' + overdueBadge + '</td>' +
       '<td>' + esc(label) + '</td>' +
@@ -795,11 +903,15 @@ function renderEqptScheduleBody_() {
       '<td class="' + newCls + '" style="white-space:nowrap;">' +
         '<span class="schedule-new-start">' + esc(fmtDateDMY(p.newStart)) + '</span> &rarr; ' +
         '<input type="date" class="schedule-end-input" data-idx="' + i + '" value="' + esc(p.newEnd) +
-          '" min="' + esc(p.newStart) + '" title="Change to extend or shrink this booking; downstream rows auto-shift" />' +
+          '" min="' + esc(p.newStart) + '" title="' + esc(inputTitle) + '"' + inputDisabledAttr + ' />' +
       '</td>' +
+      '<td class="' + rcCellCls + '" title="' +
+          esc("Times this booking has been pushed forward manually" +
+              (getLineRR(p.lk) ? "\nLast reason: " + getLineRR(p.lk) : "")) +
+          '">' + esc(rcTxt) + '</td>' +
       '<td style="text-align:right;white-space:nowrap;">' +
-        '<button class="reorder-btn" data-move="up"   data-idx="' + i + '"' + upDisabled + ' title="Move up">&#9650;</button>' +
-        '<button class="reorder-btn" data-move="down" data-idx="' + i + '"' + downDisabled + ' title="Move down">&#9660;</button>' +
+        '<button class="reorder-btn" data-move="up"   data-idx="' + i + '"' + upDisabled + ' title="' + (canEdit ? "Move up" : "Read-only") + '">&#9650;</button>' +
+        '<button class="reorder-btn" data-move="down" data-idx="' + i + '"' + downDisabled + ' title="' + (canEdit ? "Move down" : "Read-only") + '">&#9660;</button>' +
       '</td>' +
     '</tr>';
   }).join("");
@@ -816,6 +928,7 @@ function renderEqptScheduleBody_() {
         '<th style="text-align:right;">Duration</th>' +
         '<th>Current</th>' +
         '<th>New (start &rarr; end editable)</th>' +
+        '<th style="text-align:right;" title="How many times this booking has been forward-pushed">Reschedule #</th>' +
         '<th style="text-align:right;">Reorder</th>' +
       '</tr></thead>' +
       '<tbody>' + rowsHtml + '</tbody>' +
@@ -877,17 +990,61 @@ function applyEqptSchedule() {
     showFilterToast("No date changes - schedule already optimal");
     return;
   }
+  // MANDATORY: reason must be filled before any reschedule (forward push OR
+  // interchange). We focus the textarea + flash its border so the user can't
+  // miss the requirement.
+  var reasonEl = document.getElementById("eqptScheduleReason");
+  var reasonTxt = reasonEl ? String(reasonEl.value || "").trim() : "";
+  if (!reasonTxt) {
+    alert("Please enter a reason for this reschedule before applying.");
+    if (reasonEl) {
+      reasonEl.style.borderColor = "#c92a2a";
+      reasonEl.style.boxShadow = "0 0 0 2px rgba(201,42,42,0.15)";
+      reasonEl.focus();
+      setTimeout(function(){
+        reasonEl.style.borderColor = "";
+        reasonEl.style.boxShadow = "";
+      }, 2500);
+    }
+    return;
+  }
   if (!confirm("Apply new schedule to " + changed.length + " booking" +
-               (changed.length === 1 ? "" : "s") + " of " + EQPT_SCHEDULE_STATE.eqpt + "?")) return;
+               (changed.length === 1 ? "" : "s") + " of " + EQPT_SCHEDULE_STATE.eqpt +
+               "?\n\nReason: " + reasonTxt)) return;
   var by = "";
   try {
     var s = typeof loadSession === "function" ? loadSession() : null;
     by = s && s.username ? s.username : "";
   } catch(e) {}
+  // Decide whether this Apply is a PURE INTERCHANGE â€" same set of date
+  // ranges, just reassigned to different bookings. We compare the sorted
+  // multiset of (start|end) tuples; if it's identical, no booking has
+  // actually been delayed, so the reschedule counter stays put.
+  function tupleList_(getStart, getEnd) {
+    return proposed.map(function(p){ return getStart(p) + "|" + getEnd(p); }).sort();
+  }
+  var origTuples = tupleList_(function(p){return p.origStart;}, function(p){return p.origEnd;});
+  var newTuples  = tupleList_(function(p){return p.newStart;},  function(p){return p.newEnd;});
+  var pureInterchange = origTuples.length === newTuples.length &&
+                        origTuples.every(function(t, i){ return t === newTuples[i]; });
+  // For non-interchange Applies: bump reschedule_count on every booking
+  // whose new commit_end is later than its original commit_end. This catches:
+  //   â€¢ Manual end-date extension (user typed a later date)
+  //   â€¢ Downstream cascade (an upstream extension pushed this booking back)
+  //   â€¢ Auto-clamp of an overdue booking (origEnd in past â†’ newEnd today+dur)
+  // All of these are real delivery slips the planner should be able to see.
+  var forwardPushed = 0;
   changed.forEach(function(p){
     LINE_CSTART[p.lk] = p.newStart;
     LINE_CEND[p.lk]   = p.newEnd;
     if (by) LINE_CBY[p.lk] = by;
+    // Stamp the reason on EVERY changed line so the audit trail in the sheet
+    // shows why this booking moved (covers both interchange and forward push).
+    LINE_RR[p.lk] = reasonTxt;
+    if (!pureInterchange && p.newEnd > p.origEnd) {
+      LINE_RC[p.lk] = getLineRC(p.lk) + 1;
+      forwardPushed++;
+    }
   });
   saveLineCommit();
   // Stagger remote saves so we don't blast the Apps Script with N parallel
@@ -896,8 +1053,10 @@ function applyEqptSchedule() {
     setTimeout(function(){ saveRemoteLineInput(p.lk); }, i * 100);
   });
   closeEqptScheduleModal();
-  showFilterToast("Rescheduled " + changed.length + " booking" +
-                  (changed.length === 1 ? "" : "s") + " for " + EQPT_SCHEDULE_STATE.eqpt);
+  var toastMsg = "Rescheduled " + changed.length + " booking" +
+                 (changed.length === 1 ? "" : "s") + " for " + EQPT_SCHEDULE_STATE.eqpt;
+  if (forwardPushed > 0) toastMsg += " (" + forwardPushed + " forward push)";
+  showFilterToast(toastMsg);
   renderTable();
 }
 window.applyEqptSchedule = applyEqptSchedule;
@@ -922,6 +1081,11 @@ var APPROVE_BY_BOM = new Map();
 // the selected date (or, when (blank) is picked, no date set).
 var CSTART_BY_BOM = new Map();
 var CEND_BY_BOM = new Map();
+// Per-BOM set of party (ACC_NAME) values. Drives the new Party dropdown
+// filter: a BOM passes when at least one of its lines is for the selected
+// party (or when "(blank)" is selected, has at least one line with empty
+// ACC_NAME).
+var PARTY_BY_BOM = new Map();
 // Index of all SFG_REQ>0 lines grouped by BOM key â€" lets us recompute parent
 // aggregates per-filter without re-scanning all LINES per row.
 var LINES_BY_BOM = new Map();
@@ -931,6 +1095,7 @@ function buildLineAssignmentMaps() {
   APPROVE_BY_BOM = new Map();
   CSTART_BY_BOM = new Map();
   CEND_BY_BOM = new Map();
+  PARTY_BY_BOM = new Map();
   LINES_BY_BOM = new Map();
   if (!Array.isArray(LINES)) return;
   LINES.forEach(function(l){
@@ -948,6 +1113,11 @@ function buildLineAssignmentMaps() {
     if (h) {
       if (!HOD_BY_BOM.has(k)) HOD_BY_BOM.set(k, new Set());
       HOD_BY_BOM.get(k).add(h);
+    }
+    var pty = (l.ACC_NAME && String(l.ACC_NAME).trim()) || "";
+    if (pty) {
+      if (!PARTY_BY_BOM.has(k)) PARTY_BY_BOM.set(k, new Set());
+      PARTY_BY_BOM.get(k).add(pty);
     }
     var ap = l.APPROVE_STATUS;
     if (ap != null) {
@@ -1191,7 +1361,12 @@ function hasInputApi() {
 // doesn't clobber the fresh value. Window kept short so other PCs' updates
 // still flow in within ~15 sec.
 const LOCAL_RECENT = {};
-const LOCAL_RECENT_MS = 15000;
+// Bumped from 15s â†’ 35s so a freshly saved line is protected through ONE
+// full auto-refresh cycle (default 30s). Otherwise the Apps Script GET that
+// fires ~30s after a save can still return the pre-POST snapshot and clobber
+// the user's just-applied value (a recurring "edit disappears after a few
+// seconds" complaint).
+const LOCAL_RECENT_MS = 35000;
 
 // Google Sheets auto-converts cells that look like "YYYY-MM-DD" into Date
 // values. When Apps Script JSON-serializes the row, those become full ISO
@@ -1252,6 +1427,24 @@ function applyRemoteInputRecord(rec) {
   var cb = rec.commit_by == null ? "" : String(rec.commit_by).trim();
   if (cb) LINE_CBY[lk] = cb;
   else delete LINE_CBY[lk];
+  // reschedule_count: how many times the user manually pushed this booking
+  // forward via the Reschedule modal. CRITICAL: only update LINE_RC when the
+  // field is actually present in the response. If the Apps Script hasn't
+  // been redeployed with the new reschedule_count column yet, the field is
+  // simply missing â€" we must NOT delete the local value in that case, or
+  // the count flashes on after Apply and then disappears on next auto-
+  // refresh (exactly the "kuch der ke liya count aya fir o gya" bug).
+  if (Object.prototype.hasOwnProperty.call(rec, "reschedule_count")) {
+    var rc = parseInt(rec.reschedule_count, 10);
+    if (!isNaN(rc) && rc > 0) LINE_RC[lk] = rc;
+    else delete LINE_RC[lk];
+  }
+  // Latest reschedule reason (same missing-field protection as above).
+  if (Object.prototype.hasOwnProperty.call(rec, "reschedule_reason")) {
+    var rr = rec.reschedule_reason == null ? "" : String(rec.reschedule_reason).trim();
+    if (rr) LINE_RR[lk] = rr;
+    else delete LINE_RR[lk];
+  }
 }
 
 function loadRemoteInputs() {
@@ -1340,6 +1533,8 @@ function saveRemoteLineInput(lk) {
   body.set("commit_start", LINE_CSTART[lk] || "");
   body.set("commit_end",   LINE_CEND[lk]   || "");
   body.set("commit_by",    LINE_CBY[lk]    || "");
+  body.set("reschedule_count", String(getLineRC(lk)));
+  body.set("reschedule_reason", LINE_RR[lk] || "");
   body.set("updated_at", new Date().toISOString());
   // Tag the edit with the logged-in username so the sheet shows who changed
   // what (anonymous edits show up as blank).
@@ -1499,7 +1694,11 @@ function buildPivotStatic(rows, netKey) {
       REQ_SUM: Math.round(g.sum * 10000) / 10000,
       NET_SUM: Math.round(g.net_sum * 10000) / 10000,
       UM: g.um, L3: g.l3, L4: g.l4,
-      LINES: g.rows, CUSTOMERS: g.customers.size, MC_COUNT: g.mc_nos.size, PORD_COUNT: g.ports.size
+      LINES: g.rows, CUSTOMERS: g.customers.size, MC_COUNT: g.mc_nos.size, PORD_COUNT: g.ports.size,
+      // Comma-joined list of party names â€" lets the Party-wise balance row
+      // click filter the pivot via fltSearch, and lets the user type a party
+      // name in the search box to filter directly.
+      CUSTOMERS_LIST: Array.from(g.customers).join(" | ")
     };
   });
   pivot.sort(function(a,b){ return ((a.SFG_BOM || "zzz") + a.SFG_CODE).localeCompare((b.SFG_BOM || "zzz") + b.SFG_CODE); });
@@ -1628,6 +1827,7 @@ function renderAll() {
     l4:   document.getElementById("fltL4").value,
     eqpt: document.getElementById("fltEqpt").value,
     hod:  document.getElementById("fltHod").value,
+    party: (function(){ var el = document.getElementById("fltParty"); return el ? el.value : ""; })(),
     approve: document.getElementById("fltApprove").value,
     cstart: (function(){ var el = document.getElementById("fltCStart"); return el ? el.value : ""; })(),
     cend:   (function(){ var el = document.getElementById("fltCEnd");   return el ? el.value : ""; })(),
@@ -1636,37 +1836,7 @@ function renderAll() {
     balanceNonzero: document.getElementById("fltBalanceNonzero").checked
   };
   renderKpis();
-  refreshFilters();
-  // All line-level filter dropdowns (EQPT/HOD/Approve/CStart/CEnd) are now
-  // Excel-style dependent: each one only lists values whose BOMs would
-  // survive the OTHER active filters and checkboxes. So selecting an option
-  // is guaranteed to yield at least one BOM in the pivot â€" no more "(no
-  // matching BOMs)" dead ends. populateLineFilter_ also preserves the
-  // currently selected value even if it would no longer match, so the user
-  // never gets silently reset.
-  populateLineFilter_({
-    selectId: "fltEqpt", excludeKey: "EQPT",
-    valueGetter: function(l){ return LINE_EQPT[lineKey(l)]; }
-  });
-  populateLineFilter_({
-    selectId: "fltHod", excludeKey: "HOD",
-    valueGetter: function(l){ return LINE_HOD[lineKey(l)]; }
-  });
-  populateLineFilter_({
-    selectId: "fltApprove", excludeKey: "APPROVE",
-    valueGetter: function(l){
-      var ap = l.APPROVE_STATUS;
-      return ap == null ? "" : String(ap).trim();
-    }
-  });
-  populateLineFilter_({
-    selectId: "fltCStart", excludeKey: "CSTART", isDate: true,
-    valueGetter: function(l){ return LINE_CSTART[lineKey(l)]; }
-  });
-  populateLineFilter_({
-    selectId: "fltCEnd", excludeKey: "CEND", isDate: true,
-    valueGetter: function(l){ return LINE_CEND[lineKey(l)]; }
-  });
+  refreshAllDependentDropdowns_();
   // Restore saved filter selections. We only set a value if the option still
   // exists (e.g. an EQPT removed from EQPT_MASTER would silently fall back
   // to "All" rather than show a stale invisible selection).
@@ -1681,6 +1851,7 @@ function renderAll() {
   restoreSel("fltL4",   saved.l4);
   restoreSel("fltEqpt", saved.eqpt);
   restoreSel("fltHod",  saved.hod);
+  restoreSel("fltParty", saved.party);
   restoreSel("fltApprove", saved.approve);
   restoreSel("fltCStart",  saved.cstart);
   restoreSel("fltCEnd",    saved.cend);
@@ -1692,6 +1863,7 @@ function renderAll() {
   document.getElementById("fltUm").onchange = onAnyFilterChange;
   document.getElementById("fltEqpt").onchange = onAnyFilterChange;
   document.getElementById("fltHod").onchange = onAnyFilterChange;
+  var _pt = document.getElementById("fltParty"); if (_pt) _pt.onchange = onAnyFilterChange;
   document.getElementById("fltApprove").onchange = onAnyFilterChange;
   var _cs = document.getElementById("fltCStart"); if (_cs) _cs.onchange = onAnyFilterChange;
   var _ce = document.getElementById("fltCEnd");   if (_ce) _ce.onchange = onAnyFilterChange;
@@ -1771,6 +1943,7 @@ function renderEquipmentBlockTable() {
   var body = document.getElementById("equipmentBlockBody");
   if (!body) return;
   var map = new Map();
+  var todayISO = (typeof todayISOString_ === "function") ? todayISOString_() : "";
   // Intentionally use LINES_ALL (the un-view-filtered set) so the blocking
   // status is a GLOBAL shop-floor view that doesn't change per role / user.
   var src = (typeof LINES_ALL !== "undefined" && LINES_ALL && LINES_ALL.length) ? LINES_ALL : LINES;
@@ -1787,13 +1960,15 @@ function renderEquipmentBlockTable() {
       var d = getLineCEnd(lk);
       var balance = Math.max(num(l.SFG_NET_ORD_QTY) - getLineProdDone(l), 0);
       if (!map.has(eqpt)) {
-        map.set(eqpt, { eqpt: eqpt, lines: 0, mcs: new Set(), balance: 0, maxDate: "" });
+        map.set(eqpt, { eqpt: eqpt, lines: 0, mcs: new Set(), balance: 0, maxDate: "", overdue: 0 });
       }
       var g = map.get(eqpt);
       g.lines += 1;
       if (l.MC_NO) g.mcs.add(String(l.MC_NO).trim());
       g.balance += balance;
       if (d && (!g.maxDate || d > g.maxDate)) g.maxDate = d;
+      // Per-line overdue: commit_end exists and is strictly before today.
+      if (d && todayISO && d < todayISO) g.overdue += 1;
     });
   }
   var rows = Array.from(map.values()).sort(function(a,b){
@@ -1803,33 +1978,43 @@ function renderEquipmentBlockTable() {
     return b.balance - a.balance;
   });
   if (!rows.length) {
-    body.innerHTML = '<tr><td colspan="4" class="empty">Assign EQPT in drill-down to see blocking status.</td></tr>';
+    body.innerHTML = '<tr><td colspan="5" class="empty">Assign EQPT in drill-down to see blocking status.</td></tr>';
     return;
   }
-  // Reschedule is an admin/super_admin-only action. Plain "user" role can
-  // edit their own commit dates from the drill-down, but the bulk schedule
-  // shuffle is hidden for them.
+  // Reschedule button is shown to ALL roles so "user" can open the modal to
+  // view the proposed schedule (read-only); only admin/super_admin can
+  // actually edit and apply changes â€" gated inside the modal itself.
   var canSchedule = (typeof canReschedule_ === "function") ? canReschedule_() : false;
   body.innerHTML = rows.map(function(r){
     var days = daysUntilISO(r.maxDate);
     var daysText = days == null ? "-" : (days < 0 ? Math.abs(days) + " overdue" : days);
     var dateCls = isPastISODate(r.maxDate) ? "blocked-date bal-neg" : "blocked-date";
-    var btnHtml = canSchedule
-      ? ' <button class="reschedule-btn" data-eqpt="' + esc(r.eqpt) + '" title="Auto-reschedule bookings for this equipment">Reschedule</button>'
-      : '';
+    var btnTitle = canSchedule
+      ? "Auto-reschedule bookings for this equipment"
+      : "View schedule (read-only)";
+    var btnHtml = ' <button class="reschedule-btn" data-eqpt="' + esc(r.eqpt) + '" title="' + esc(btnTitle) + '">Reschedule</button>';
+    var overdueCls = r.overdue > 0 ? "num overdue-count" : "num overdue-count zero";
     return '<tr class="eqpt-row" data-eqpt="' + esc(r.eqpt) + '" title="Click name to filter pivot by EQPT = ' + esc(r.eqpt) + '">' +
       '<td><strong>' + esc(r.eqpt) + '</strong>' + btnHtml + '</td>' +
       '<td class="num">' + fmt(r.balance, 3) + '</td>' +
       '<td class="' + dateCls + '">' + (r.maxDate ? esc(fmtDateDMY(r.maxDate)) : '-') + '</td>' +
       '<td class="num' + (days != null && days < 0 ? ' bal-neg' : '') + '">' + esc(String(daysText)) + '</td>' +
+      '<td class="' + overdueCls + '">' + esc(String(r.overdue)) + '</td>' +
     '</tr>';
   }).join("");
-  // Wire row clicks â€" each row drills the pivot table down to lines on that EQPT.
+  // Wire row clicks â€" each row drills the pivot table down to lines on that
+  // EQPT. Second click on the SAME equipment toggles the filter back off so
+  // the user can clear without going to the dropdown.
   body.querySelectorAll("tr.eqpt-row").forEach(function(tr){
     tr.onclick = function(){
       var e = tr.getAttribute("data-eqpt");
       if (!e) return;
-      applyFilters({ fltEqpt: e }, { toast: "Filtered: EQPT = " + e });
+      var cur = document.getElementById("fltEqpt").value;
+      if (cur === e) {
+        applyFilters({ fltEqpt: "" }, { toast: "Cleared: EQPT filter" });
+      } else {
+        applyFilters({ fltEqpt: e }, { toast: "Filtered: EQPT = " + e });
+      }
     };
   });
   // Reschedule button opens the auto-schedule modal. stopPropagation so the
@@ -1930,13 +2115,107 @@ function renderHodBalanceTable() {
   }).join("");
   // Wire row clicks: filter pivot by HOD. Uses the BLANK_FILTER sentinel for
   // the "(Not Assigned)" pseudo-row so the existing filter machinery handles
-  // un-assigned lines correctly.
+  // un-assigned lines correctly. Second click on the SAME HOD toggles the
+  // filter off.
   body.querySelectorAll("tr.hod-row").forEach(function(tr){
     tr.onclick = function(){
       var h = tr.getAttribute("data-hod");
       if (!h) return;
       var label = h === BLANK_FILTER ? "(blank)" : h;
-      applyFilters({ fltHod: h }, { toast: "Filtered: HOD = " + label });
+      var cur = document.getElementById("fltHod").value;
+      if (cur === h) {
+        applyFilters({ fltHod: "" }, { toast: "Cleared: HOD filter" });
+      } else {
+        applyFilters({ fltHod: h }, { toast: "Filtered: HOD = " + label });
+      }
+    };
+  });
+}
+
+// Party-wise balance table (sibling to HOD balance).
+// Aggregates per-line balance by ACC_NAME (party) and reports:
+//   - open line count
+//   - sum of remaining SFG balance qty
+//   - max commit_end across all open lines for that party
+//   - count of overdue lines (commit_end strictly before today)
+// Uses LINES (role-filtered set) so each user sees their own data scope, same
+// as the HOD balance table.
+function renderPartyBalanceTable() {
+  var body = document.getElementById("partyBalanceBody");
+  if (!body) return;
+  var map = new Map();
+  var todayISO = (typeof todayISOString_ === "function") ? todayISOString_() : "";
+  if (Array.isArray(LINES)) {
+    LINES.forEach(function(l){
+      if (num(l["SFG_REQUIRED_AG_BAL TO PRD FG"]) <= 0) return;
+      if (isLineDone(l)) return;
+      var lk = lineKey(l);
+      var party = (l.ACC_NAME && String(l.ACC_NAME).trim()) || "(No Party)";
+      var cend = getLineCEnd(lk);
+      var balance = Math.max(num(l.SFG_NET_ORD_QTY) - getLineProdDone(l), 0);
+      if (!map.has(party)) {
+        map.set(party, { party: party, lines: 0, balance: 0, maxDate: "", overdue: 0 });
+      }
+      var g = map.get(party);
+      g.lines += 1;
+      g.balance += balance;
+      if (cend && (!g.maxDate || cend > g.maxDate)) g.maxDate = cend;
+      if (cend && todayISO && cend < todayISO) g.overdue += 1;
+    });
+  }
+  // Sort: overdue parties first (more overdue = higher), then by max end date
+  // desc (soonest deadline at top within same overdue count), then by balance.
+  var rows = Array.from(map.values()).sort(function(a, b){
+    if (a.overdue !== b.overdue) return b.overdue - a.overdue;
+    if (a.maxDate && b.maxDate && a.maxDate !== b.maxDate) return b.maxDate.localeCompare(a.maxDate);
+    if (a.maxDate && !b.maxDate) return -1;
+    if (!a.maxDate && b.maxDate) return 1;
+    return b.balance - a.balance;
+  });
+  if (!rows.length) {
+    body.innerHTML = '<tr><td colspan="5" class="empty">No open party balances.</td></tr>';
+    return;
+  }
+  body.innerHTML = rows.map(function(r){
+    var dateCls = isPastISODate(r.maxDate) ? "blocked-date bal-neg" : "blocked-date";
+    var overdueCls = r.overdue > 0 ? "num overdue-count" : "num overdue-count zero";
+    // "(No Party)" pseudo-row has no real party name to feed into fltSearch,
+    // so it gets a non-clickable variant.
+    var isBlank = (r.party === "(No Party)");
+    var clickable = !isBlank;
+    var rowCls = "party-row" + (clickable ? "" : " hod-blank");
+    var titleTxt = clickable
+      ? ("Click to filter pivot by Party = " + r.party)
+      : "Lines without ACC_NAME assigned";
+    return '<tr class="' + rowCls + '" data-party="' + esc(r.party) + '"' +
+           (clickable ? '' : ' data-noclick="1"') +
+           ' title="' + esc(titleTxt) + '">' +
+      '<td><strong>' + esc(r.party) + '</strong></td>' +
+      '<td class="num">' + esc(String(r.lines)) + '</td>' +
+      '<td class="num">' + fmt(r.balance, 3) + '</td>' +
+      '<td class="' + dateCls + '">' + (r.maxDate ? esc(fmtDateDMY(r.maxDate)) : '-') + '</td>' +
+      '<td class="' + overdueCls + '">' + esc(String(r.overdue)) + '</td>' +
+    '</tr>';
+  }).join("");
+  // Wire row click â€" sets the proper fltParty dropdown filter (which uses
+  // PARTY_BY_BOM line-rollup matching). Second click on the SAME party
+  // clears the filter to toggle the row off. The "(No Party)" pseudo-row is
+  // wired to BLANK_FILTER so it surfaces BOMs with un-assigned ACC_NAME.
+  body.querySelectorAll("tr.party-row").forEach(function(tr){
+    tr.style.cursor = "pointer";
+    tr.onclick = function(){
+      var p = tr.getAttribute("data-party");
+      if (!p) return;
+      var noClick = !!tr.getAttribute("data-noclick");
+      var partyVal = noClick ? BLANK_FILTER : p;
+      var label = noClick ? "(blank)" : p;
+      var ptEl = document.getElementById("fltParty");
+      var cur = ptEl ? ptEl.value : "";
+      if (cur === partyVal) {
+        applyFilters({ fltParty: "" }, { toast: "Cleared: Party filter" });
+      } else {
+        applyFilters({ fltParty: partyVal }, { toast: "Filtered: Party = " + label });
+      }
     };
   });
 }
@@ -1973,6 +2252,43 @@ function renderTable(opts) {
   if (!opts.skipSideTables) {
     renderEquipmentBlockTable();
     renderHodBalanceTable();
+    renderPartyBalanceTable();
+  }
+  // Excel-style cascading: every render rebuilds the OTHER filters' option
+  // lists based on the current selection set, so a toggled filter immediately
+  // shrinks / restores the dropdowns. Cheap because populateLineFilter_
+  // short-circuits via optionsUnchanged_ when nothing changed.
+  //
+  // Defensive snapshot: when the user combines two filter rows (HOD + Party,
+  // etc.) the populate pass for one dropdown can occasionally blank the
+  // already-selected value of another â€" we snapshot every line-level filter
+  // BEFORE the cascade and write the value back if the dropdown lost it.
+  // applyFilters can opt out via skipDependentCascade so its explicit
+  // re-render after a needed restore doesn't trigger the cascade again.
+  if (!opts.skipDependentCascade) {
+    var _filterSnapshot = {};
+    ["fltUm","fltL3","fltL4","fltEqpt","fltHod","fltParty","fltApprove","fltCStart","fltCEnd"].forEach(function(id){
+      var el = document.getElementById(id);
+      _filterSnapshot[id] = el ? el.value : "";
+    });
+    if (typeof refreshAllDependentDropdowns_ === "function") refreshAllDependentDropdowns_();
+    Object.keys(_filterSnapshot).forEach(function(id){
+      var prev = _filterSnapshot[id];
+      if (!prev) return;
+      var el = document.getElementById(id);
+      if (!el || el.value === prev) return;
+      // Either the option is already in the dropdown (preserve it) or it isn't
+      // â€" in which case we re-inject it as a synthetic option so the user's
+      // active filter is never silently dropped during cross-filter cascade.
+      var hasIt = Array.from(el.options).some(function(o){ return o.value === prev; });
+      if (!hasIt) {
+        var opt = document.createElement("option");
+        opt.value = prev;
+        opt.textContent = prev;
+        el.appendChild(opt);
+      }
+      el.value = prev;
+    });
   }
   var head = document.getElementById("pivot-head");
   head.innerHTML = COLS.map(function(c){
@@ -1992,6 +2308,8 @@ function renderTable(opts) {
   var fL4 = document.getElementById("fltL4").value;
   var fEqpt = document.getElementById("fltEqpt").value;
   var fHod = document.getElementById("fltHod").value;
+  var _ptEl = document.getElementById("fltParty");
+  var fParty = _ptEl ? _ptEl.value : "";
   var fApprove = document.getElementById("fltApprove").value;
   var _csEl = document.getElementById("fltCStart");
   var _ceEl = document.getElementById("fltCEnd");
@@ -2019,6 +2337,16 @@ function renderTable(opts) {
     } else if (fHod) {
       var hs = HOD_BY_BOM.get(prodKey(r));
       if (!hs || !hs.has(fHod)) return false;
+    }
+    if (fParty === BLANK_FILTER) {
+      var blinesPP = LINES_BY_BOM.get(prodKey(r)) || [];
+      if (!blinesPP.some(function(l){
+        var pv = (l.ACC_NAME && String(l.ACC_NAME).trim()) || "";
+        return !pv;
+      })) return false;
+    } else if (fParty) {
+      var psp = PARTY_BY_BOM.get(prodKey(r));
+      if (!psp || !psp.has(fParty)) return false;
     }
     // APPROVE_STATUS filter â€" cheap roll-up check first; combined-filter case
     // is handled below via rowAggregates so "match at least one line satisfying
@@ -2063,7 +2391,9 @@ function renderTable(opts) {
       if (Math.abs(balAgg.balance) < 0.0005) return false;
     }
     if (q) {
-      var blob = [r.SFG_BOM, r.SFG_CODE, r.SFG_NAME, r.L3, r.L4].join(" ").toLowerCase();
+      // Party (ACC_NAME) names are included so the Party-wise balance row
+      // click and free-text party searches both match against this BOM.
+      var blob = [r.SFG_BOM, r.SFG_CODE, r.SFG_NAME, r.L3, r.L4, r.CUSTOMERS_LIST || ""].join(" ").toLowerCase();
       if (blob.indexOf(q) < 0) return false;
     }
     // "User's Job Pending" toggle: keep only BOMs with at least one line
@@ -2196,6 +2526,10 @@ function renderTable(opts) {
       '<td class="num"><span class="' + (totalKmBal < 0 ? "bal-neg" : "") + '">KM: ' + fmt(totalKmBal, 3) + '</span><br><span class="' + (totalKgBal < 0 ? "bal-neg" : "") + '">KG: ' + fmt(totalKgBal, 3) + '</span></td>' +
       '<td style="white-space:nowrap;">' + (maxDate ? "Latest: <strong>" + esc(fmtDateDMY(maxDate)) + "</strong>" : "-") + '</td>' +
     '</tr>';
+  // Re-apply row highlight after every full render so the user's selection
+  // survives filter clicks / sort / auto-refresh that rebuild the pivot or
+  // side-table tbodies.
+  if (typeof applyRowSelectionHighlight_ === "function") applyRowSelectionHighlight_();
 }
 function openDrillDown(bom, code, name) {
   function computeMatching() {
@@ -2331,35 +2665,33 @@ function openDrillDown(bom, code, name) {
     });
     wireDoneTicksGlobal();
     // Surface per-EQPT Reschedule buttons in the drill toolbar based on the
-    // distinct EQPTs of the currently-visible lines. Visible only to admin /
-    // super_admin (canReschedule_), since "user" role doesn't get bulk
-    // reschedule access.
+    // distinct EQPTs of the currently-visible lines. Visible to ALL roles â€"
+    // "user" gets a read-only view inside the modal, edit/apply is gated by
+    // canReschedule_ further down.
     var rsHolder = document.getElementById("drillRescheduleBtns");
     if (rsHolder) {
       var canSched = (typeof canReschedule_ === "function") ? canReschedule_() : false;
-      if (canSched) {
-        var eqptSet = new Set();
-        visible.forEach(function(l){
-          var lk = lineKey(l);
-          var e = LINE_EQPT[lk];
-          if (e) eqptSet.add(e);
+      var eqptSet = new Set();
+      visible.forEach(function(l){
+        var lk = lineKey(l);
+        var e = LINE_EQPT[lk];
+        if (e) eqptSet.add(e);
+      });
+      var eqpts = Array.from(eqptSet).sort();
+      if (eqpts.length) {
+        var label = canSched ? "Reschedule:" : "View schedule:";
+        rsHolder.innerHTML = '<span style="font-size:11px;color:#666;margin-right:4px;">' + label + '</span>' +
+          eqpts.map(function(e){
+            var ttl = canSched ? ("Auto-reschedule all bookings of " + e) : ("View schedule for " + e + " (read-only)");
+            return '<button class="reschedule-btn" data-eqpt="' + esc(e) + '" title="' + esc(ttl) + '">' + esc(e) + '</button>';
+          }).join("");
+        rsHolder.querySelectorAll(".reschedule-btn").forEach(function(btn){
+          btn.onclick = function(ev){
+            ev.stopPropagation();
+            var e = btn.getAttribute("data-eqpt");
+            if (e && typeof openEqptScheduleModal === "function") openEqptScheduleModal(e);
+          };
         });
-        var eqpts = Array.from(eqptSet).sort();
-        if (eqpts.length) {
-          rsHolder.innerHTML = '<span style="font-size:11px;color:#666;margin-right:4px;">Reschedule:</span>' +
-            eqpts.map(function(e){
-              return '<button class="reschedule-btn" data-eqpt="' + esc(e) + '" title="Auto-reschedule all bookings of ' + esc(e) + '">' + esc(e) + '</button>';
-            }).join("");
-          rsHolder.querySelectorAll(".reschedule-btn").forEach(function(btn){
-            btn.onclick = function(ev){
-              ev.stopPropagation();
-              var e = btn.getAttribute("data-eqpt");
-              if (e && typeof openEqptScheduleModal === "function") openEqptScheduleModal(e);
-            };
-          });
-        } else {
-          rsHolder.innerHTML = '';
-        }
       } else {
         rsHolder.innerHTML = '';
       }
@@ -2446,19 +2778,34 @@ function renderPordTable(lines, um) {
         var cls = isStart ? "line-cstart-input" : "line-cend-input";
         var disC = "";
         var titleC = "";
+        var fieldEditable = canEditCommitField_(lkC, isStart);
         if (done) {
           disC = ' disabled';
           titleC = ' title="Un-tick Done to change commitment date"';
         } else if (!commitEditable) {
           disC = ' disabled';
-          titleC = ' title="Admin role cannot edit commitment dates"';
+          titleC = ' title="Admin role cannot edit commitment dates â€" use Reschedule instead"';
+        } else if (!fieldEditable) {
+          // Write-once lock for the "user" role â€" the value has already been
+          // saved, only Super Admin can change it now (or use Reschedule for
+          // admin-driven date shifts).
+          disC = ' disabled';
+          titleC = ' title="Locked after first save. Only Super Admin can edit (or use Reschedule)."';
         }
         // min=today blocks past-date selection in the calendar UI. JS change
         // handler (handleCommitChange in wireDoneTicksGlobal) also enforces
         // this for users who type a date manually.
         var minAttr = ' min="' + esc(todayISOString_()) + '"';
+        // "Updated by" stamp shown right under the date input so users can
+        // see at-a-glance who last set this commit_start / commit_end. Both
+        // dates share a single commit_by field (LINE_CBY) â€" if the cell is
+        // empty we render a subtle "â€"" placeholder.
+        var byName = getLineCBy(lkC);
+        var byHtml = byName
+          ? '<div class="commit-by-name" title="Last edited by ' + esc(byName) + '">by ' + esc(byName) + '</div>'
+          : '<div class="commit-by-name commit-by-empty">&mdash;</div>';
         return '<td class="commit-cell"><input type="date" class="' + cls + '"' + disC + titleC + minAttr +
-               ' value="' + esc(val) + '" /></td>';
+               ' value="' + esc(val) + '" />' + byHtml + '</td>';
       }
       var v = l[c.key];
       if (c.num) return '<td class="num">' + (v == null || v === "" ? "-" : fmt(num(v), 3)) + '</td>';
@@ -2546,6 +2893,13 @@ function wireDoneTicksGlobal() {
       if (inp.disabled) return;
       var tr = inp.closest("tr"); if (!tr) return;
       var lk = tr.getAttribute("data-lk") || "";
+      // Runtime guard for the per-field write-once rule â€" defense in depth
+      // against forced edits (e.g., devtools enabling the input).
+      if (!canEditCommitField_(lk, isStart)) {
+        alert("This date has already been saved. Only Super Admin can edit it now (or use Reschedule).");
+        inp.value = (isStart ? getLineCStart(lk) : getLineCEnd(lk)) || "";
+        return;
+      }
       var newVal = inp.value || "";
       var oldVal = isStart ? getLineCStart(lk) : getLineCEnd(lk);
       // Block past-date picks. The input also has min=today, but a user
@@ -2614,6 +2968,86 @@ document.addEventListener("keydown", function(e){
     var sm = document.getElementById("eqptScheduleModal"); if (sm) sm.classList.remove("open");
   }
 });
+
+// ---- Click-to-highlight any data row across the dashboard ----
+// Per-table selection: each <tbody> can hold one highlighted row, and the
+// individual filters (HOD / Equipment / Party â€¦) AND-combine via the existing
+// pivot filter machinery. So a user can click HOD "ABC" and then Equipment
+// "MULTI-1" â€” both rows stay highlighted, and the pivot shrinks to BOMs
+// that satisfy both filters at once.
+//
+// Toggle rules:
+//   â€¢ Same row clicked again â†’ that one row's highlight clears (and the
+//     row's own onclick clears its filter).
+//   â€¢ Different row in the SAME table â†’ replaces this table's selection.
+//   â€¢ Row in a different table â†’ adds to the set without touching others.
+//
+// Implementation: keep selection state as a Map<bodyId, rowSig>. A single
+// source of truth means we can re-apply highlights after every render (state
+// survives table rebuilds) and Clear Filters can wipe everything in one
+// assignment.
+var ROW_SELECTION = new Map(); // bodyId â†’ rowSig
+function rowBodyId_(tr) {
+  if (!tr) return "";
+  var parent = tr.parentElement;
+  if (!parent) return "";
+  if (parent.id) return parent.id;
+  // Modal schedule body has no tbody id â€" fall back to the wrapper id.
+  if (parent.parentElement && parent.parentElement.id) return parent.parentElement.id;
+  return "";
+}
+function rowSignature_(tr) {
+  if (!tr || !tr.dataset) return null;
+  var keys = Object.keys(tr.dataset);
+  if (!keys.length) return null;
+  return keys.sort().map(function(k){ return k + "=" + tr.dataset[k]; }).join("|");
+}
+function applyRowSelectionHighlight_() {
+  // Wipe any existing class first, then re-apply for every (bodyId, rowSig)
+  // entry in the selection map. Re-running this after each table rebuild
+  // restores highlights that would otherwise be lost when the tbody's
+  // innerHTML is rewritten.
+  document.querySelectorAll("tbody tr.row-selected").forEach(function(tr){
+    tr.classList.remove("row-selected");
+  });
+  if (!ROW_SELECTION || !ROW_SELECTION.size) return;
+  ROW_SELECTION.forEach(function(sig, bodyId){
+    var body = bodyId ? document.getElementById(bodyId) : null;
+    var rows = body ? body.querySelectorAll("tr") : [];
+    rows.forEach(function(tr){
+      if (rowSignature_(tr) === sig) tr.classList.add("row-selected");
+    });
+  });
+}
+window.applyRowSelectionHighlight_ = applyRowSelectionHighlight_;
+function clearRowSelection_() {
+  ROW_SELECTION.clear();
+  applyRowSelectionHighlight_();
+}
+window.clearRowSelection_ = clearRowSelection_;
+document.addEventListener("click", function(e) {
+  var t = e.target;
+  if (!t || t.nodeType !== 1) return;
+  // Don't fight interactive controls inside rows.
+  if (t.closest("input, select, textarea, button, a, label")) return;
+  var tr = t.closest("tr");
+  if (!tr) return;
+  var parent = tr.parentElement;
+  if (!parent || parent.tagName !== "TBODY") return;
+  if (tr.querySelector("td.empty")) return;
+  var sig = rowSignature_(tr);
+  if (!sig) return;
+  var bodyId = rowBodyId_(tr) || ("__anon_" + (parent.dataset.__anonId || (parent.dataset.__anonId = String(Date.now()))));
+  var existing = ROW_SELECTION.get(bodyId);
+  if (existing === sig) {
+    // Same row clicked again â€" drop this table's selection.
+    ROW_SELECTION.delete(bodyId);
+  } else {
+    // Different row in same table OR first click in this table.
+    ROW_SELECTION.set(bodyId, sig);
+  }
+  applyRowSelectionHighlight_();
+}, true);
 // Returns true if the existing non-"All" options of `sel` match `vals` in the
 // same order. Lets the caller skip an expensive innerHTML rewrite (which
 // would trigger an unnecessary layout/paint) when nothing has actually
@@ -2636,14 +3070,36 @@ function populateSelect(sel, vals) {
   if (!sel) return;
   var prev = sel.value;
   if (optionsUnchanged_(sel, vals)) {
-    // Fast path: keep existing DOM, just normalize the selection.
-    if (prev && vals.indexOf(prev) >= 0) sel.value = prev;
-    else sel.value = "";
+    // Fast path: keep existing DOM, just normalize the selection. NEVER
+    // silently blank a non-empty prev â€" if the new option list doesn't
+    // contain it (which can happen mid-cascade when an upstream filter is
+    // also active), keep prev as a synthetic option so the user's choice
+    // never disappears.
+    if (prev) {
+      if (vals.indexOf(prev) < 0) {
+        var opt0 = document.createElement("option");
+        opt0.value = prev;
+        opt0.textContent = prev;
+        sel.appendChild(opt0);
+      }
+      sel.value = prev;
+    } else {
+      sel.value = "";
+    }
     return;
   }
   sel.innerHTML = '<option value="">All</option>' + vals.map(function(v){return '<option value="' + esc(v) + '">' + esc(v) + '</option>';}).join("");
-  if (prev && vals.indexOf(prev) >= 0) sel.value = prev;
-  else sel.value = "";
+  if (prev) {
+    if (vals.indexOf(prev) < 0) {
+      var opt1 = document.createElement("option");
+      opt1.value = prev;
+      opt1.textContent = prev;
+      sel.appendChild(opt1);
+    }
+    sel.value = prev;
+  } else {
+    sel.value = "";
+  }
 }
 // Like populateSelect but renders ISO YYYY-MM-DD values as DD-MM-YYYY in the
 // dropdown label, while keeping the ISO value as the underlying option value.
@@ -2654,15 +3110,33 @@ function populateSelectDates(sel, vals) {
   if (!sel) return;
   var prev = sel.value;
   if (optionsUnchanged_(sel, vals)) {
-    if (prev && vals.indexOf(prev) >= 0) sel.value = prev;
-    else sel.value = "";
+    if (prev) {
+      if (vals.indexOf(prev) < 0) {
+        var opt0 = document.createElement("option");
+        opt0.value = prev;
+        opt0.textContent = fmtDateDMY(prev);
+        sel.appendChild(opt0);
+      }
+      sel.value = prev;
+    } else {
+      sel.value = "";
+    }
     return;
   }
   sel.innerHTML = '<option value="">All</option>' + vals.map(function(v){
     return '<option value="' + esc(v) + '">' + esc(fmtDateDMY(v)) + '</option>';
   }).join("");
-  if (prev && vals.indexOf(prev) >= 0) sel.value = prev;
-  else sel.value = "";
+  if (prev) {
+    if (vals.indexOf(prev) < 0) {
+      var opt1 = document.createElement("option");
+      opt1.value = prev;
+      opt1.textContent = fmtDateDMY(prev);
+      sel.appendChild(opt1);
+    }
+    sel.value = prev;
+  } else {
+    sel.value = "";
+  }
 }
 var BLANK_FILTER = "__BLANK__";
 function addBlankOption(sel) {
@@ -2726,6 +3200,8 @@ function applyAllFilters_(opts) {
   var fL4 = ex === "L4" ? "" : document.getElementById("fltL4").value;
   var fEqpt = ex === "EQPT" ? "" : document.getElementById("fltEqpt").value;
   var fHod  = ex === "HOD"  ? "" : document.getElementById("fltHod").value;
+  var fPel = document.getElementById("fltParty");
+  var fParty = (ex === "PARTY" || !fPel) ? "" : fPel.value;
   var fApprove = ex === "APPROVE" ? "" : document.getElementById("fltApprove").value;
   var fCSel = document.getElementById("fltCStart");
   var fCEel = document.getElementById("fltCEnd");
@@ -2753,6 +3229,16 @@ function applyAllFilters_(opts) {
       var hs = HOD_BY_BOM.get(prodKey(r));
       if (!hs || !hs.has(fHod)) return false;
     }
+    if (fParty === BLANK_FILTER) {
+      var blinesP = LINES_BY_BOM.get(prodKey(r)) || [];
+      if (!blinesP.some(function(l){
+        var pv = (l.ACC_NAME && String(l.ACC_NAME).trim()) || "";
+        return !pv;
+      })) return false;
+    } else if (fParty) {
+      var ps = PARTY_BY_BOM.get(prodKey(r));
+      if (!ps || !ps.has(fParty)) return false;
+    }
     if (fApprove === BLANK_FILTER) {
       var blines3 = LINES_BY_BOM.get(prodKey(r)) || [];
       if (!blines3.some(function(l){
@@ -2779,7 +3265,7 @@ function applyAllFilters_(opts) {
     }
     // Combined line-filter check (â‰¥2 line filters active â†’ at least one line
     // must satisfy them all together, not just one filter each).
-    var activeLineFilters = (fEqpt ? 1 : 0) + (fHod ? 1 : 0) + (fApprove ? 1 : 0) +
+    var activeLineFilters = (fEqpt ? 1 : 0) + (fHod ? 1 : 0) + (fParty ? 1 : 0) + (fApprove ? 1 : 0) +
                             (fCS ? 1 : 0) + (fCE ? 1 : 0);
     if (activeLineFilters >= 2) {
       var agg = rowAggregates(r, fEqpt, fHod, fApprove, fCS, fCE);
@@ -2840,12 +3326,50 @@ function refreshFilters() {
   populateSelect(l3Sel, l3Vals);
   populateSelect(l4Sel, l4Vals);
 }
+// Bundle the UM/L3/L4 dependency refresh with all line-level Excel-style
+// dependent populates (EQPT / HOD / Party / Approve / CStart / CEnd). Called
+// from renderTable so every filter toggle â€" including the new "click same
+// row to clear" path â€" rebuilds the other dropdowns to only show values
+// that would actually produce hits. populateLineFilter_ preserves the
+// current selection, so toggling filters never silently drops the user.
+function refreshAllDependentDropdowns_() {
+  refreshFilters();
+  populateLineFilter_({
+    selectId: "fltEqpt", excludeKey: "EQPT",
+    valueGetter: function(l){ return LINE_EQPT[lineKey(l)]; }
+  });
+  populateLineFilter_({
+    selectId: "fltHod", excludeKey: "HOD",
+    valueGetter: function(l){ return LINE_HOD[lineKey(l)]; }
+  });
+  populateLineFilter_({
+    selectId: "fltParty", excludeKey: "PARTY",
+    valueGetter: function(l){ return (l.ACC_NAME && String(l.ACC_NAME).trim()) || ""; }
+  });
+  populateLineFilter_({
+    selectId: "fltApprove", excludeKey: "APPROVE",
+    valueGetter: function(l){
+      var ap = l.APPROVE_STATUS;
+      return ap == null ? "" : String(ap).trim();
+    }
+  });
+  populateLineFilter_({
+    selectId: "fltCStart", excludeKey: "CSTART", isDate: true,
+    valueGetter: function(l){ return LINE_CSTART[lineKey(l)]; }
+  });
+  populateLineFilter_({
+    selectId: "fltCEnd", excludeKey: "CEND", isDate: true,
+    valueGetter: function(l){ return LINE_CEND[lineKey(l)]; }
+  });
+}
+window.refreshAllDependentDropdowns_ = refreshAllDependentDropdowns_;
 function clearFilters() {
   document.getElementById("fltUm").value = "";
   document.getElementById("fltL3").value = "";
   document.getElementById("fltL4").value = "";
   document.getElementById("fltEqpt").value = "";
   document.getElementById("fltHod").value = "";
+  var fp = document.getElementById("fltParty"); if (fp) fp.value = "";
   var fa = document.getElementById("fltApprove"); if (fa) fa.value = "";
   var fcs = document.getElementById("fltCStart"); if (fcs) fcs.value = "";
   var fce = document.getElementById("fltCEnd");   if (fce) fce.value = "";
@@ -2860,6 +3384,9 @@ function clearFilters() {
   // refreshFilters() is invoked inside renderTable, so calling it twice in
   // a row just doubles the L3/L4 dropdown DOM rewrite â€" skip the extra
   // call. Same applies to onAnyFilterChange and applyFilters below.
+  // Wipe any row-click highlight at the same time so Clear Filters truly
+  // resets the dashboard to neutral.
+  if (typeof clearRowSelection_ === "function") clearRowSelection_();
   renderTable({ skipSideTables: true });
 }
 window.clearFilters = clearFilters;
@@ -2870,10 +3397,64 @@ function applyFilters(overrides, opts) {
   Object.keys(overrides).forEach(function(id){
     var el = document.getElementById(id); if (!el) return;
     var v = overrides[id];
-    if (el.type === "checkbox") el.checked = !!v;
-    else el.value = (v == null ? "" : String(v));
+    if (el.type === "checkbox") { el.checked = !!v; return; }
+    var want = (v == null ? "" : String(v));
+    // Inject a synthetic option if the cascade has already pruned this value
+    // out of the dropdown â€" otherwise `el.value = want` silently no-ops and
+    // the filter never actually applies. This is the root cause of the
+    // "second filter click sometimes doesn't work with large data" bug:
+    // clicking Party while a HOD filter is active narrows the Party dropdown
+    // to HOD-relevant parties, so any other party click can't set the value.
+    if (want && want !== BLANK_FILTER && !Array.from(el.options).some(function(o){ return o.value === want; })) {
+      var opt = document.createElement("option");
+      opt.value = want;
+      opt.textContent = want;
+      el.appendChild(opt);
+    }
+    el.value = want;
+  });
+  // Build the FULL intended state from the current dropdown values â€" this is
+  // the source of truth after the override merge. We force-rewrite each
+  // filter once renderTable finishes so the dependent-dropdown cascade can't
+  // silently drop any value (a recurring multi-filter combo bug).
+  var _intended = {};
+  ["fltUm","fltL3","fltL4","fltEqpt","fltHod","fltParty","fltApprove","fltCStart","fltCEnd"].forEach(function(id){
+    var el = document.getElementById(id);
+    if (el) _intended[id] = el.value;
   });
   renderTable({ skipSideTables: true });
+  var needsRerender = false;
+  Object.keys(_intended).forEach(function(id){
+    var want = _intended[id];
+    var el = document.getElementById(id);
+    if (!el) return;
+    if (el.value === want) return;
+    // Inject a synthetic option if the cascade pruned the wanted value out.
+    if (want && !Array.from(el.options).some(function(o){ return o.value === want; })) {
+      var opt = document.createElement("option");
+      opt.value = want;
+      opt.textContent = want;
+      el.appendChild(opt);
+    }
+    el.value = want;
+    needsRerender = true;
+  });
+  // If any restore actually changed something, render once more so the pivot
+  // reflects the full intended filter set (the first render filtered the
+  // pivot with the cascade-pruned values, which dropped at least one filter).
+  // Skip the dependent cascade this second time â€" we already have the right
+  // dropdown values and don't want the cascade to re-clear them.
+  if (needsRerender) renderTable({ skipSideTables: true, skipDependentCascade: true });
+  // Diagnostic: log the final filter state. Open browser console (F12) to
+  // verify all clicked filters actually stuck after the cascade.
+  try {
+    var _finalState = {};
+    Object.keys(_intended).forEach(function(id){
+      var el = document.getElementById(id);
+      _finalState[id] = el ? el.value : "";
+    });
+    console.log("[applyFilters] overrides:", overrides, "intended:", _intended, "final:", _finalState, "needsRerender:", needsRerender);
+  } catch(_) {}
   if (opts.toast) showFilterToast(opts.toast);
   if (opts.scroll !== false) {
     var p = document.querySelector(".table-wrap");
