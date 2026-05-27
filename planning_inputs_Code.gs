@@ -575,6 +575,10 @@ function doGet(e) {
       payload = authUser_(params.username, params.password_hash);
     } else if (action === 'list_users') {
       payload = { status: 'ok', users: listUsersPublic_() };
+    } else if (action === 'upsert_user') {
+      payload = upsertUser_(params);
+    } else if (action === 'delete_user') {
+      payload = deleteUser_(String(params.username || ''));
     } else {
       payload = {
         status: 'ok',

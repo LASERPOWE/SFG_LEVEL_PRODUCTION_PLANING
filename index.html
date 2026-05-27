@@ -4504,13 +4504,26 @@ function listUsersCall() {
 }
 function postUserAction(params) {
   if (!hasInputApi()) return Promise.reject(new Error("API not configured"));
-  var body = new URLSearchParams();
-  Object.keys(params).forEach(function(k){ body.set(k, params[k] == null ? "" : String(params[k])); });
-  return fetch(INPUT_API_URL, {
-    method: "POST",
-    mode: "no-cors",
-    headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
-    body: body
+  return new Promise(function(resolve, reject){
+    var cb = "__userActionCb_" + Date.now() + "_" + Math.floor(Math.random() * 100000);
+    var script = document.createElement("script");
+    var done = false;
+    function finish(payload, err) {
+      if (done) return; done = true;
+      try { delete window[cb]; } catch(e) { window[cb] = undefined; }
+      if (script.parentNode) script.parentNode.removeChild(script);
+      if (err) reject(err);
+      else resolve(payload || null);
+    }
+    window[cb] = function(payload) { finish(payload); };
+    script.onerror = function(){ finish(null, new Error("User save API failed")); };
+    var qs = new URLSearchParams();
+    Object.keys(params).forEach(function(k){ qs.set(k, params[k] == null ? "" : String(params[k])); });
+    qs.set("callback", cb);
+    qs.set("_", String(Date.now()));
+    script.src = INPUT_API_URL + (INPUT_API_URL.indexOf("?") >= 0 ? "&" : "?") + qs.toString();
+    document.head.appendChild(script);
+    setTimeout(function(){ finish(null, new Error("User save API timeout")); }, 15000);
   });
 }
 function formatTs(s) {
@@ -4593,7 +4606,7 @@ async function submitAddUser() {
   if (!u || !p) { status.textContent = "Username and password required"; return; }
   status.textContent = "Adding " + u + "...";
   var hash = await sha256Hex(p);
-  await postUserAction({
+  var addResp = await postUserAction({
     action: "upsert_user",
     username: u,
     password_plain: p,
@@ -4602,6 +4615,7 @@ async function submitAddUser() {
     view_filter: "",
     input_rights: JSON.stringify(defaultInputRights_(r))
   });
+  if (!addResp || addResp.status !== "ok") throw new Error(addResp && addResp.message ? addResp.message : "User add failed");
   document.getElementById("newUserName").value = "";
   document.getElementById("newUserPass").value = "";
   document.getElementById("newUserRole").value = "user";
@@ -4621,7 +4635,8 @@ async function saveUserRow(btn) {
   var rightsJson = readRightsFromRow_(tr, role);
   var params = { action: "upsert_user", username: username, role: role, view_filter: newViewFilter, input_rights: rightsJson };
   if (newPlain) { params.password_plain = newPlain; params.password_hash = await sha256Hex(newPlain); }
-  await postUserAction(params);
+  var resp = await postUserAction(params);
+  if (!resp || resp.status !== "ok") throw new Error(resp && resp.message ? resp.message : "User save failed");
   if (username && currentUsername() && username.toLowerCase() === currentUsername().toLowerCase()) {
     saveSession(currentUsername(), role, newViewFilter, rightsJson);
     applyRoleUI();
@@ -4637,7 +4652,8 @@ async function deleteUserRow(btn) {
   if (!confirm("Delete user '" + username + "'? This cannot be undone.")) return;
   var status = document.getElementById("userPanelStatus");
   status.textContent = "Deleting " + username + "...";
-  await postUserAction({ action: "delete_user", username: username });
+  var resp = await postUserAction({ action: "delete_user", username: username });
+  if (!resp || resp.status !== "ok") throw new Error(resp && resp.message ? resp.message : "User delete failed");
   setTimeout(function(){ status.textContent = "Deleted " + username; refreshUserPanel(); }, 800);
 }
 window.deleteUserRow = deleteUserRow;
