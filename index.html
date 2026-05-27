@@ -115,7 +115,7 @@
   body.role-anonymous .line-pd-input,
   body.role-anonymous .line-eqpt-select,
   body.role-anonymous .line-hod-select { pointer-events: none; opacity: 0.55; background: #f0f0f0 !important; }
-  body.role-user .line-hod-select { pointer-events: none; opacity: 0.55; background: #f0f0f0 !important; }
+  .input-no-view { color: #999; font-style: italic; }
   body:not(.role-super_admin) .super-only { display: none !important; }
   /* =============================================================
      FULL-SCREEN LOGIN GATE â€" shown until the user has a valid session.
@@ -1029,10 +1029,8 @@ function findCommitConflict_(selfLk, eqpt, start, end) {
 function canEditCommitment_() {
   try {
     var s = typeof loadSession === "function" ? loadSession() : null;
-    // We keep the helper for backwards-compat callers, but it now returns
-    // true for every authenticated role. The granular rules are enforced in
-    // canEditCommitField_.
-    return !!(s && s.role);
+    return !!(s && s.role) && hasInputRight_("view") &&
+      (hasInputRight_("entry") || hasInputRight_("edit") || hasInputRight_("delete"));
   } catch(e) { return true; }
 }
 // Per-line, per-field commit-date editability:
@@ -1043,13 +1041,9 @@ function canEditCommitment_() {
 //     super_admin only) or via a Super Admin override.
 function canEditCommitField_(lk, isStart) {
   try {
-    var s = typeof loadSession === "function" ? loadSession() : null;
-    var r = s && s.role ? String(s.role).toLowerCase() : "";
-    if (r === "admin" && !hasRemoteInputRecord_(lk)) return false;
-    if (r === "super_admin" || r === "admin") return true;
-    // user / unknown: write-once. Allow only if THIS field is currently empty.
     var cur = isStart ? (LINE_CSTART[lk] || "") : (LINE_CEND[lk] || "");
-    return !cur;
+    if (!cur) return hasInputRight_("entry");
+    return hasInputRight_("edit") || hasInputRight_("delete");
   } catch(e) { return true; }
 }
 // Reschedule (auto-shift / bulk re-order of an equipment's commit dates) is
@@ -1993,8 +1987,8 @@ function saveRemoteLineInput(lk, opts) {
   // Always POST every manual edit â€" we no longer gate on REMOTE_INPUTS_LOADING
   // so that user input typed during an auto-refresh window is never dropped.
   if (!hasInputApi() || !lk) return;
-  if (isAdminRole_() && !hasRemoteInputRecord_(lk)) {
-    console.warn("[Planning sync] Admin cannot create a fresh planning entry", { line_id: lk });
+  if (!hasRemoteInputRecord_(lk) && !hasInputRight_("entry")) {
+    console.warn("[Planning sync] Entry access is required to create a fresh planning entry", { line_id: lk });
     return;
   }
   // Mark line as just-edited locally so the next remote GET (which may still
@@ -3296,13 +3290,15 @@ function renderPordTable(lines, um) {
     var pct = net > 0 ? Math.min(100, prod/net*100) : 0;
     var done = isLineDone(l);
     var lkRaw = lineKey(l);
-    var adminFreshLocked = isAdminRole_() && !hasRemoteInputRecord_(lkRaw);
+    var adminFreshLocked = !hasRemoteInputRecord_(lkRaw);
     var lk = esc(lkRaw);
     var sfgNet = num(l.SFG_NET_ORD_QTY);
     var manualPD = getLinePDManual(lkRaw);
     return '<tr class="' + (done ? "line-done" : "") + '" data-lk="' + lk + '" data-sfgnet="' + sfgNet + '">' + cols.map(function(c){
       if (c.key === "_done") {
-        var disDone = adminFreshLocked ? ' disabled title="Admin cannot create a fresh planning entry"' : '';
+        var stDone = inputControlState_(done ? "1" : "", false, adminFreshLocked, "Done");
+        if (stDone.hidden) return '<td class="input-no-view">-</td>';
+        var disDone = stDone.disabled ? ' disabled title="' + esc(stDone.title) + '"' : '';
         return '<td class="line-done-cell"><input type="checkbox" class="line-done-chk"' + (done ? ' checked' : '') + disDone + ' /></td>';
       }
       if (c.key === "_status") return '<td>' + (open ? '<span class="pill pill-open">Open</span>' : '<span class="pill pill-closed">Done</span>') + '</td>';
@@ -3312,7 +3308,9 @@ function renderPordTable(lines, um) {
       }
       if (c.key === "_line_pd") {
         var dispVal = done ? sfgNet : (manualPD > 0 ? manualPD : "");
-        var readonly = done ? ' readonly' : (adminFreshLocked ? ' readonly title="Admin cannot create a fresh planning entry"' : '');
+        var stPD = inputControlState_(dispVal, done, adminFreshLocked, "Production Done Qty");
+        if (stPD.hidden) return '<td class="input-no-view">-</td>';
+        var readonly = stPD.disabled ? ' readonly title="' + esc(stPD.title) + '"' : '';
         var extraCls = done ? ' line-pd-locked' : '';
         // Cap Production Done at SFG Net Qty â€" can't have produced more than
         // ordered. JS handler in wireDoneTicksGlobal enforces this too with
@@ -3328,36 +3326,41 @@ function renderPordTable(lines, um) {
       }
       if (c.key === "_eqpt") {
         var selE = getLineEqpt(lkRaw);
+        var stE = inputControlState_(selE, done, adminFreshLocked, "EQPT");
+        if (stE.hidden) return '<td class="input-no-view">-</td>';
         var optsE = '<option value="">-- select --</option>' + EQPT_MASTER.map(function(e){ return '<option value="' + esc(e) + '"' + (selE === e ? ' selected' : '') + '>' + esc(e) + '</option>'; }).join("");
-        var disE = done ? ' disabled title="Un-tick Done to change EQPT"' : (adminFreshLocked ? ' disabled title="Admin cannot create a fresh planning entry"' : '');
+        var disE = stE.disabled ? ' disabled title="' + esc(stE.title) + '"' : '';
         return '<td class="eqpt-cell"><select class="line-eqpt-select"' + disE + '>' + optsE + '</select></td>';
       }
       if (c.key === "_hod") {
         var selH = getLineHod(lkRaw);
+        var stH = inputControlState_(selH, done, adminFreshLocked, "HOD");
+        if (stH.hidden) return '<td class="input-no-view">-</td>';
         var optsH = '<option value="">-- select --</option>' + HOD_MASTER.map(function(h){ return '<option value="' + esc(h) + '"' + (selH === h ? ' selected' : '') + '>' + esc(h) + '</option>'; }).join("");
-        var disH = done ? ' disabled title="Un-tick Done to change HOD"' : (adminFreshLocked ? ' disabled title="Admin cannot create a fresh planning entry"' : '');
+        var disH = stH.disabled ? ' disabled title="' + esc(stH.title) + '"' : '';
         return '<td class="hod-cell"><select class="line-hod-select"' + disH + '>' + optsH + '</select></td>';
       }
       if (c.key === "_consume") {
         var selC = getLineConsume(lkRaw);
+        var stConsume = inputControlState_(selC, done, adminFreshLocked, "Consume from");
+        if (stConsume.hidden) return '<td class="input-no-view">-</td>';
         var optsC = '<option value="">-- select --</option>' + CONSUME_FROM_OPTIONS.map(function(v){ return '<option value="' + esc(v) + '"' + (selC === v ? ' selected' : '') + '>' + esc(v) + '</option>'; }).join("");
-        var disConsume = done ? ' disabled title="Un-tick Done to change Consume from"' : (adminFreshLocked ? ' disabled title="Admin cannot create a fresh planning entry"' : '');
+        var disConsume = stConsume.disabled ? ' disabled title="' + esc(stConsume.title) + '"' : '';
         return '<td class="consume-cell"><select class="line-consume-select"' + disConsume + '>' + optsC + '</select></td>';
       }
       if (c.key === "_cstart" || c.key === "_cend") {
         var lkC = lkRaw;
         var isStart = c.key === "_cstart";
         var val = isStart ? getLineCStart(lkC) : getLineCEnd(lkC);
+        var stDate = inputControlState_(val, done, adminFreshLocked, isStart ? "Commit Start" : "Commit End");
+        if (stDate.hidden) return '<td class="input-no-view">-</td>';
         var cls = isStart ? "line-cstart-input" : "line-cend-input";
         var disC = "";
         var titleC = "";
         var fieldEditable = canEditCommitField_(lkC, isStart);
-        if (done) {
+        if (stDate.disabled) {
           disC = ' disabled';
-          titleC = ' title="Un-tick Done to change commitment date"';
-        } else if (adminFreshLocked) {
-          disC = ' disabled';
-          titleC = ' title="Admin cannot create a fresh planning entry"';
+          titleC = ' title="' + esc(stDate.title) + '"';
         } else if (!commitEditable) {
           disC = ' disabled';
           titleC = ' title="Sign in to edit commitment dates"';
@@ -3399,6 +3402,12 @@ function wireDoneTicksGlobal() {
     chk.onchange = function(){
       var tr = chk.closest("tr"); if (!tr) return;
       var lk = tr.getAttribute("data-lk") || "";
+      var oldVal = chk.checked ? "" : "1";
+      var newVal = chk.checked ? "1" : "";
+      if (!canInputChange_(oldVal, newVal, "Done")) {
+        chk.checked = !chk.checked;
+        return;
+      }
       if (chk.checked) LINE_DONE[lk] = 1;
       else delete LINE_DONE[lk];
       saveLineDone();
@@ -3422,10 +3431,16 @@ function wireDoneTicksGlobal() {
       var sfgNetVal = num(tr.getAttribute("data-sfgnet"));
       var v = inp.value.trim();
       var nv = v === "" ? null : parseFloat(v);
+      var prev = getLinePDManual(lk);
+      var oldPermissionVal = prev > 0 ? String(prev) : "";
+      var newPermissionVal = (nv != null && !isNaN(nv) && nv > 0) ? String(nv) : "";
+      if (!canInputChange_(oldPermissionVal, newPermissionVal, "Production Done Qty")) {
+        inp.value = prev > 0 ? String(prev) : "";
+        return;
+      }
       if (nv != null && !isNaN(nv) && sfgNetVal > 0 && nv > sfgNetVal + 0.0005) {
         if (showAlert) {
           alert("Production Done Qty (" + fmt(nv, 3) + ") cannot be greater than SFG Net Qty (" + fmt(sfgNetVal, 3) + ").");
-          var prev = getLinePDManual(lk);
           inp.value = prev > 0 ? String(prev) : "";
         }
         return; // do not save the over-cap value
@@ -3442,6 +3457,11 @@ function wireDoneTicksGlobal() {
     sel.onchange = function(){
       var tr = sel.closest("tr"); if (!tr) return;
       var lk = tr.getAttribute("data-lk") || "";
+      var oldVal = getLineEqpt(lk) || "";
+      if (!canInputChange_(oldVal, sel.value || "", "EQPT")) {
+        sel.value = oldVal;
+        return;
+      }
       setLineEqpt(lk, sel.value);
       if (typeof window.__currentDrillRecompute === "function") window.__currentDrillRecompute();
       if (typeof window.__drillRenderBody === "function") window.__drillRenderBody();
@@ -3453,6 +3473,11 @@ function wireDoneTicksGlobal() {
     sel.onchange = function(){
       var tr = sel.closest("tr"); if (!tr) return;
       var lk = tr.getAttribute("data-lk") || "";
+      var oldVal = getLineHod(lk) || "";
+      if (!canInputChange_(oldVal, sel.value || "", "HOD")) {
+        sel.value = oldVal;
+        return;
+      }
       setLineHod(lk, sel.value);
       if (typeof window.__currentDrillRecompute === "function") window.__currentDrillRecompute();
       if (typeof window.__drillRenderBody === "function") window.__drillRenderBody();
@@ -3464,6 +3489,11 @@ function wireDoneTicksGlobal() {
     sel.onchange = function(){
       var tr = sel.closest("tr"); if (!tr) return;
       var lk = tr.getAttribute("data-lk") || "";
+      var oldVal = getLineConsume(lk) || "";
+      if (!canInputChange_(oldVal, sel.value || "", "Consume from")) {
+        sel.value = oldVal;
+        return;
+      }
       setLineConsume(lk, sel.value);
       if (typeof window.__currentDrillRecompute === "function") window.__currentDrillRecompute();
       if (typeof window.__drillRenderBody === "function") window.__drillRenderBody();
@@ -3493,6 +3523,10 @@ function wireDoneTicksGlobal() {
       }
       var newVal = inp.value || "";
       var oldVal = isStart ? getLineCStart(lk) : getLineCEnd(lk);
+      if (!canInputChange_(oldVal || "", newVal || "", isStart ? "Commit Start" : "Commit End")) {
+        inp.value = oldVal || "";
+        return;
+      }
       // Block past-date picks. The input also has min=today, but a user
       // typing the date manually can still slip a past date through, so
       // double-check here.
@@ -4083,8 +4117,14 @@ function loadSession() {
     return s;
   } catch(e) { return null; }
 }
-function saveSession(username, role, view_filter) {
-  var s = { username: username, role: role, view_filter: view_filter || "", expires_at: Date.now() + SESSION_TTL_MS };
+function saveSession(username, role, view_filter, input_rights) {
+  var s = {
+    username: username,
+    role: role,
+    view_filter: view_filter || "",
+    input_rights: normalizeInputRights_(input_rights, role),
+    expires_at: Date.now() + SESSION_TTL_MS
+  };
   try { localStorage.setItem(SESSION_KEY, JSON.stringify(s)); } catch(e) {}
   return s;
 }
@@ -4093,6 +4133,73 @@ function currentRole() { var s = loadSession(); return s ? s.role : "anonymous";
 function currentUsername() { var s = loadSession(); return s ? s.username : ""; }
 function isAdmin() { return currentRole() === "admin" || currentRole() === "super_admin"; }
 function isSuperAdmin() { return currentRole() === "super_admin"; }
+function defaultInputRights_(role) {
+  role = String(role || "user").toLowerCase();
+  if (role === "super_admin") return { view: true, entry: true, edit: true, delete: true };
+  if (role === "admin") return { view: true, entry: true, edit: true, delete: false };
+  return { view: true, entry: true, edit: false, delete: false };
+}
+function normalizeInputRights_(raw, role) {
+  var base = defaultInputRights_(role);
+  var obj = null;
+  if (raw && typeof raw === "object") obj = raw;
+  else if (raw) {
+    try { obj = JSON.parse(String(raw)); } catch(e) { obj = null; }
+  }
+  if (!obj) return base;
+  return {
+    view: obj.view !== false && obj.view !== "false" && obj.view !== 0 && obj.view !== "0",
+    entry: obj.entry === true || obj.entry === "true" || obj.entry === 1 || obj.entry === "1",
+    edit: obj.edit === true || obj.edit === "true" || obj.edit === 1 || obj.edit === "1",
+    delete: obj.delete === true || obj.delete === "true" || obj.delete === 1 || obj.delete === "1"
+  };
+}
+function inputRightsToJson_(rights) {
+  var r = normalizeInputRights_(rights, currentRole());
+  return JSON.stringify({ view: !!r.view, entry: !!r.entry, edit: !!r.edit, delete: !!r.delete });
+}
+function currentInputRights() {
+  if (isSuperAdmin()) return defaultInputRights_("super_admin");
+  var s = loadSession();
+  return normalizeInputRights_(s && s.input_rights, s && s.role);
+}
+function hasInputRight_(name) {
+  var r = currentInputRights();
+  return !!(r && r[name]);
+}
+function isBlankInputValue_(v) {
+  return v == null || String(v).trim() === "" || String(v).trim() === "0";
+}
+function canInputChange_(oldVal, newVal, label) {
+  if (isSuperAdmin()) return true;
+  if (!hasInputRight_("view")) {
+    alert("You do not have view access for input columns.");
+    return false;
+  }
+  var oldBlank = isBlankInputValue_(oldVal);
+  var newBlank = isBlankInputValue_(newVal);
+  if (oldBlank && !newBlank && !hasInputRight_("entry")) {
+    alert("Entry access is not allowed for " + label + ".");
+    return false;
+  }
+  if (!oldBlank && newBlank && !hasInputRight_("delete")) {
+    alert("Delete access is not allowed for " + label + ".");
+    return false;
+  }
+  if (!oldBlank && !newBlank && String(oldVal) !== String(newVal) && !hasInputRight_("edit")) {
+    alert("Edit access is not allowed for " + label + ".");
+    return false;
+  }
+  return true;
+}
+function inputControlState_(currentVal, done, adminFreshLocked, label) {
+  if (!hasInputRight_("view")) return { hidden: true, disabled: true, title: "No view access" };
+  if (done) return { hidden: false, disabled: true, title: "Un-tick Done to change " + label };
+  if (adminFreshLocked && !hasInputRight_("entry")) return { hidden: false, disabled: true, title: "Entry access required to create planning input" };
+  var hasAnyWrite = hasInputRight_("entry") || hasInputRight_("edit") || hasInputRight_("delete");
+  if (!hasAnyWrite) return { hidden: false, disabled: true, title: "No input write access" };
+  return { hidden: false, disabled: false, title: "" };
+}
 // view_filter is now stored as a JSON object mapping column-name -> allowed
 // values array, e.g. {"APPROVE_STATUS":["APPROVED","PENDING"],"SFG_LEVEL_3_NAME":["CONDUCTOR"]}.
 // Empty {} or blank string means NO data access for users (Super Admin must
@@ -4260,7 +4367,7 @@ async function submitGateLogin() {
     var resp = await authCall(u, hash);
     if (!resp) throw new Error("Login API not responding. Apps Script doGet may be missing or not deployed.");
     if (resp.status !== "ok") throw new Error(resp.message ? resp.message : "Login failed");
-    saveSession(resp.username || u, resp.role || "user", resp.view_filter || "");
+    saveSession(resp.username || u, resp.role || "user", resp.view_filter || "", resp.input_rights || "");
     applyRoleUI();
     showFilterToast("Welcome, " + (resp.username || u) + " (" + (resp.role || "user").replace("_", " ") + ")");
     loadData(false);
@@ -4296,7 +4403,7 @@ async function submitLogin() {
     var resp = await authCall(u, hash);
     if (!resp) throw new Error("Login API not responding. Apps Script doGet may be missing or not deployed.");
     if (resp.status !== "ok") throw new Error(resp.message ? resp.message : "Login failed");
-    saveSession(resp.username || u, resp.role || "user", resp.view_filter || "");
+    saveSession(resp.username || u, resp.role || "user", resp.view_filter || "", resp.input_rights || "");
     applyRoleUI();
     closeLoginModal();
     showFilterToast("Welcome, " + (resp.username || u));
@@ -4363,6 +4470,31 @@ function formatTs(s) {
   if (isNaN(d.getTime())) return String(s);
   return d.toISOString().slice(0,16).replace("T", " ");
 }
+function renderRightsEditor_(raw, role) {
+  var r = normalizeInputRights_(raw, role);
+  function cb(k, label) {
+    return '<label style="display:inline-flex;align-items:center;gap:3px;margin-right:7px;white-space:nowrap;">' +
+      '<input type="checkbox" class="row-input-right row-input-' + k + '"' + (r[k] ? ' checked' : '') + ' /> ' + label + '</label>';
+  }
+  return '<div class="row-rights" style="font-size:11px;">' +
+    cb("view", "View") + cb("entry", "Entry") + cb("edit", "Edit") + cb("delete", "Delete") +
+    '</div>';
+}
+function readRightsFromRow_(tr, role) {
+  function checked(cls) {
+    var el = tr.querySelector(cls);
+    return !!(el && el.checked);
+  }
+  if (String(role || "").toLowerCase() === "super_admin") {
+    return inputRightsToJson_({ view: true, entry: true, edit: true, delete: true });
+  }
+  return inputRightsToJson_({
+    view: checked(".row-input-view"),
+    entry: checked(".row-input-entry"),
+    edit: checked(".row-input-edit"),
+    delete: checked(".row-input-delete")
+  });
+}
 async function refreshUserPanel() {
   var body = document.getElementById("userPanelBody");
   body.innerHTML = '<div class="empty">Loading users...</div>';
@@ -4377,15 +4509,17 @@ async function refreshUserPanel() {
   });
   var statusHint = availableStatuses.size ? Array.from(availableStatuses).sort().join(", ") : "(no APPROVE_STATUS values found in current data)";
   body.innerHTML =
-    '<table class="user-table"><thead><tr><th>Username</th><th>Password</th><th>Role</th><th>View Filter<br><span style="font-weight:400;color:#888;font-size:10px;">APPROVE_STATUS, comma-sep</span></th><th>Created</th><th>Last Login</th><th>Actions</th></tr></thead><tbody>' +
+    '<table class="user-table"><thead><tr><th>Username</th><th>Password</th><th>Role</th><th>Input Rights</th><th>View Filter<br><span style="font-weight:400;color:#888;font-size:10px;">APPROVE_STATUS, comma-sep</span></th><th>Created</th><th>Last Login</th><th>Actions</th></tr></thead><tbody>' +
     users.map(function(u){
       var role = String(u.role || "user").toLowerCase();
       var plain = u.password_plain == null ? "" : String(u.password_plain);
       var vf = u.view_filter == null ? "" : String(u.view_filter);
+      var rights = u.input_rights == null ? "" : String(u.input_rights);
       return '<tr data-username="' + esc(u.username) + '">' +
         '<td><strong>' + esc(u.username) + '</strong></td>' +
         '<td><input type="text" class="row-plain-pw" value="' + esc(plain) + '" placeholder="(set new)" style="padding:3px 6px;font-size:12px;border:1px solid #d6d8db;border-radius:4px;width:130px;font-family:ui-monospace,Menlo,Consolas,monospace;" /></td>' +
         '<td><select class="row-role"><option value="user"' + (role === "user" ? " selected" : "") + '>User</option><option value="admin"' + (role === "admin" ? " selected" : "") + '>Admin</option><option value="super_admin"' + (role === "super_admin" ? " selected" : "") + '>Super Admin</option></select></td>' +
+        '<td>' + renderRightsEditor_(rights, role) + '</td>' +
         '<td>' +
           '<input type="hidden" class="row-view-filter" value="' + esc(vf) + '" />' +
           '<button class="auth-btn" onclick="openFilterEditor(this)" style="padding:4px 10px;font-size:11px;">' + esc(viewFilterSummary(vf)) + ' &nbsp;&#9881;</button>' +
@@ -4396,7 +4530,7 @@ async function refreshUserPanel() {
       '</tr>';
     }).join("") +
     '</tbody></table>' +
-    '<div style="margin-top:10px;font-size:11px;color:#2a52a8;background:#eef4ff;border:1px solid #c6d4ee;padding:7px 10px;border-radius:6px;"><strong>View Filter:</strong> applies ONLY to role=user. Comma-separated APPROVE_STATUS values. Available now: <em>' + esc(statusHint) + '</em>. Admins / Super Admins see all data regardless.</div>' +
+    '<div style="margin-top:10px;font-size:11px;color:#2a52a8;background:#eef4ff;border:1px solid #c6d4ee;padding:7px 10px;border-radius:6px;"><strong>Input Rights:</strong> View shows manual input columns, Entry fills blank cells, Edit changes existing values, Delete clears existing values. <strong>View Filter:</strong> applies ONLY to role=user. Available APPROVE_STATUS: <em>' + esc(statusHint) + '</em>.</div>' +
     '<div style="margin-top:6px;font-size:11px;color:#8a5a00;background:#fff7e6;border:1px solid #e8c986;padding:6px 10px;border-radius:6px;">Note: passwords are stored in plain text in the sheet for easy reset. Anyone with sheet access can see them.</div>';
 }
 async function submitAddUser() {
@@ -4407,7 +4541,15 @@ async function submitAddUser() {
   if (!u || !p) { status.textContent = "Username and password required"; return; }
   status.textContent = "Adding " + u + "...";
   var hash = await sha256Hex(p);
-  await postUserAction({ action: "upsert_user", username: u, password_plain: p, password_hash: hash, role: r, view_filter: "" });
+  await postUserAction({
+    action: "upsert_user",
+    username: u,
+    password_plain: p,
+    password_hash: hash,
+    role: r,
+    view_filter: "",
+    input_rights: JSON.stringify(defaultInputRights_(r))
+  });
   document.getElementById("newUserName").value = "";
   document.getElementById("newUserPass").value = "";
   document.getElementById("newUserRole").value = "user";
@@ -4424,11 +4566,12 @@ async function saveUserRow(btn) {
   var newViewFilter = viewFilterInput ? String(viewFilterInput.value || "").trim() : "";
   var status = document.getElementById("userPanelStatus");
   status.textContent = "Saving " + username + "...";
-  var params = { action: "upsert_user", username: username, role: role, view_filter: newViewFilter };
+  var rightsJson = readRightsFromRow_(tr, role);
+  var params = { action: "upsert_user", username: username, role: role, view_filter: newViewFilter, input_rights: rightsJson };
   if (newPlain) { params.password_plain = newPlain; params.password_hash = await sha256Hex(newPlain); }
   await postUserAction(params);
   if (username && currentUsername() && username.toLowerCase() === currentUsername().toLowerCase()) {
-    saveSession(currentUsername(), role, newViewFilter);
+    saveSession(currentUsername(), role, newViewFilter, rightsJson);
     applyRoleUI();
     if (typeof loadData === "function") loadData(false);
   }

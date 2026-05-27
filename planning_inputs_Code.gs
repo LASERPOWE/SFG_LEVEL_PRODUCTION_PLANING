@@ -9,7 +9,7 @@
  * Sheets used (auto-created on first run):
  *   PLANNING_INPUTS  - line_id, done, prod_done, eqpt, hod, consume_from,
  *                      updated_at, updated_by, commit_start, commit_end, commit_by
- *   USERS            - username, password_plain, password_hash, role, created_at, last_login, view_filter
+ *   USERS            - username, password_plain, password_hash, role, created_at, last_login, view_filter, input_rights
  *
  *   commit_start / commit_end are YYYY-MM-DD strings entered from the drill-down
  *   table by the "user" or "super_admin" role. commit_by stamps the username who
@@ -336,15 +336,37 @@ function doPlanningUpsert_(p) {
 }
 
 // ---------- USERS sheet ----------
-// New schema: username | password_plain | password_hash | role | created_at | last_login
+// New schema: username | password_plain | password_hash | role | created_at | last_login | view_filter | input_rights
 // Old schema: username | password_hash | role | created_at | last_login
 // On first call after upgrade, we migrate the old schema in place.
+function defaultInputRights_(role) {
+  role = String(role || 'user').toLowerCase();
+  if (role === 'super_admin') return { view: true, entry: true, edit: true, delete: true };
+  if (role === 'admin') return { view: true, entry: true, edit: true, delete: false };
+  return { view: true, entry: true, edit: false, delete: false };
+}
+
+function normalizeInputRights_(raw, role) {
+  var obj = null;
+  if (raw && typeof raw === 'object') obj = raw;
+  else if (raw) {
+    try { obj = JSON.parse(String(raw)); } catch(e) { obj = null; }
+  }
+  if (!obj) obj = defaultInputRights_(role);
+  return JSON.stringify({
+    view: obj.view !== false && obj.view !== 'false' && obj.view !== 0 && obj.view !== '0',
+    entry: obj.entry === true || obj.entry === 'true' || obj.entry === 1 || obj.entry === '1',
+    edit: obj.edit === true || obj.edit === 'true' || obj.edit === 1 || obj.edit === '1',
+    delete: obj.delete === true || obj.delete === 'true' || obj.delete === 1 || obj.delete === '1'
+  });
+}
+
 function getUsersSheet_() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ss.getSheetByName(USERS_SHEET_NAME);
   if (!sh) {
     sh = ss.insertSheet(USERS_SHEET_NAME);
-    sh.appendRow(['username', 'password_plain', 'password_hash', 'role', 'created_at', 'last_login', 'view_filter']);
+    sh.appendRow(['username', 'password_plain', 'password_hash', 'role', 'created_at', 'last_login', 'view_filter', 'input_rights']);
     sh.appendRow([
       DEFAULT_USERNAME,
       DEFAULT_PASSWORD_PLAIN,
@@ -352,7 +374,8 @@ function getUsersSheet_() {
       'super_admin',
       new Date().toISOString(),
       '',
-      ''
+      '',
+      JSON.stringify(defaultInputRights_('super_admin'))
     ]);
     return sh;
   }
@@ -368,9 +391,14 @@ function getUsersSheet_() {
   if (hdr.indexOf('view_filter') < 0) {
     sh.getRange(1, 7).setValue('view_filter');
   }
+  // Ensure input_rights column exists at position 8.
+  hdr = sh.getRange(1, 1, 1, Math.max(sh.getLastColumn(), 1)).getValues()[0].map(String);
+  if (hdr.indexOf('input_rights') < 0) {
+    sh.getRange(1, 8).setValue('input_rights');
+  }
   // Ensure all expected headers exist in canonical order.
   hdr = sh.getRange(1, 1, 1, Math.max(sh.getLastColumn(), 1)).getValues()[0].map(String);
-  var want = ['username', 'password_plain', 'password_hash', 'role', 'created_at', 'last_login', 'view_filter'];
+  var want = ['username', 'password_plain', 'password_hash', 'role', 'created_at', 'last_login', 'view_filter', 'input_rights'];
   want.forEach(function(name, i){
     if (hdr[i] !== name) sh.getRange(1, i + 1).setValue(name);
   });
@@ -395,7 +423,7 @@ function findUserRow_(username) {
   var sh = getUsersSheet_();
   var last = sh.getLastRow();
   if (last < 2) return { sheet: sh, row: 0, user: null };
-  var data = sh.getRange(2, 1, last - 1, 7).getValues();
+  var data = sh.getRange(2, 1, last - 1, 8).getValues();
   var needle = String(username || '').toLowerCase().trim();
   if (!needle) return { sheet: sh, row: 0, user: null };
   for (var i = 0; i < data.length; i++) {
@@ -409,7 +437,8 @@ function findUserRow_(username) {
           role: data[i][3],
           created_at: data[i][4],
           last_login: data[i][5],
-          view_filter: data[i][6] || ''
+          view_filter: data[i][6] || '',
+          input_rights: data[i][7] || ''
         }
       };
     }
@@ -429,7 +458,8 @@ function authUser_(username, password_hash) {
     status: 'ok',
     username: String(found.user.username),
     role: String(found.user.role || 'user'),
-    view_filter: String(found.user.view_filter || '')
+    view_filter: String(found.user.view_filter || ''),
+    input_rights: normalizeInputRights_(found.user.input_rights, found.user.role)
   };
 }
 
@@ -449,6 +479,7 @@ function upsertUser_(p) {
   // view_filter is always overwritten (even if empty) on every save, because
   // empty intentionally means "no view access" for users.
   var viewFilter = (p.view_filter == null) ? '' : String(p.view_filter).trim();
+  var inputRights = normalizeInputRights_(p.input_rights, role);
   var found = findUserRow_(username);
   if (found.user) {
     if (newPlain) {
@@ -457,11 +488,12 @@ function upsertUser_(p) {
     }
     found.sheet.getRange(found.row, 4).setValue(role);
     found.sheet.getRange(found.row, 7).setValue(viewFilter);
+    found.sheet.getRange(found.row, 8).setValue(inputRights);
     return { status: 'ok', updated: username };
   }
   if (!newPlain || !newHash) return { status: 'error', message: 'password required for new user' };
   var sh = getUsersSheet_();
-  sh.appendRow([username, newPlain, newHash, role, new Date().toISOString(), '', viewFilter]);
+  sh.appendRow([username, newPlain, newHash, role, new Date().toISOString(), '', viewFilter, inputRights]);
   return { status: 'ok', created: username };
 }
 
@@ -489,7 +521,8 @@ function listUsersPublic_() {
       role: u.role,
       created_at: u.created_at,
       last_login: u.last_login,
-      view_filter: u.view_filter || ''
+      view_filter: u.view_filter || '',
+      input_rights: normalizeInputRights_(u.input_rights, u.role)
     };
   });
 }
