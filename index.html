@@ -643,6 +643,7 @@
             <tbody id="equipmentBlockBody">
               <tr><td colspan="6" class="empty">Assign EQPT in drill-down to see blocking status.</td></tr>
             </tbody>
+            <tfoot id="equipmentBlockFoot"></tfoot>
           </table>
         </div>
       </div>
@@ -1497,13 +1498,13 @@ function buildLineAssignmentMaps() {
 // reflect only the child lines matching those filters; otherwise they fall back
 // to the server-computed totals.
 var AGG_CACHE = new Map();
-function rowAggregates(r, fEqpt, fHod, fParty, fApprove, fCStart, fCEnd, rangeStart, rangeEnd) {
+function rowAggregates(r, fEqpt, fHod, fParty, fApprove, fCStart, fCEnd, rangeStart, rangeEnd, userPendingOnly, adminPendingOnly) {
   var ck = prodKey(r) + "||" + (fEqpt || "") + "||" + (fHod || "") + "||" +
            (fParty || "") + "||" + (fApprove || "") + "||" + (fCStart || "") + "||" + (fCEnd || "") + "||" +
-           (rangeStart || "") + "||" + (rangeEnd || "");
+           (rangeStart || "") + "||" + (rangeEnd || "") + "||" + (userPendingOnly ? "1" : "0") + "||" + (adminPendingOnly ? "1" : "0");
   if (AGG_CACHE.has(ck)) return AGG_CACHE.get(ck);
   var out;
-  if (!fEqpt && !fHod && !fParty && !fApprove && !fCStart && !fCEnd && !rangeStart && !rangeEnd) {
+  if (!fEqpt && !fHod && !fParty && !fApprove && !fCStart && !fCEnd && !rangeStart && !rangeEnd && !userPendingOnly && !adminPendingOnly) {
     out = {
       lines: r.LINES, mc_count: r.MC_COUNT,
       net_sum: r.NET_SUM || 0, req_sum: r.REQ_SUM,
@@ -1511,7 +1512,11 @@ function rowAggregates(r, fEqpt, fHod, fParty, fApprove, fCStart, fCEnd, rangeSt
       target_date: getTargetCloseDate(r)
     };
   } else {
-    var filters = { fEqpt: fEqpt, fHod: fHod, fParty: fParty, fApprove: fApprove, fCStart: fCStart, fCEnd: fCEnd, rangeStart: rangeStart, rangeEnd: rangeEnd };
+    var filters = {
+      fEqpt: fEqpt, fHod: fHod, fParty: fParty, fApprove: fApprove,
+      fCStart: fCStart, fCEnd: fCEnd, rangeStart: rangeStart, rangeEnd: rangeEnd,
+      userPendingOnly: !!userPendingOnly, adminPendingOnly: !!adminPendingOnly
+    };
     var matching = (LINES_BY_BOM.get(prodKey(r)) || []).filter(function(l){ return lineMatchesActiveFilters_(l, filters); });
     var net = 0, req = 0, pd = 0, td = "";
     var mcs = new Set();
@@ -2434,6 +2439,7 @@ function countFreeDaysForEqpt_(ranges, todayIso, maxIso) {
 
 function renderEquipmentBlockTable(filteredRows, filterCtx) {
   var body = document.getElementById("equipmentBlockBody");
+  var foot = document.getElementById("equipmentBlockFoot");
   if (!body) return;
   var map = new Map();
   var todayISO = (typeof todayISOString_ === "function") ? todayISOString_() : "";
@@ -2484,16 +2490,25 @@ function renderEquipmentBlockTable(filteredRows, filterCtx) {
   });
   if (!rows.length) {
     body.innerHTML = '<tr><td colspan="6" class="empty">Assign EQPT in drill-down to see blocking status.</td></tr>';
+    if (foot) foot.innerHTML = "";
     return;
   }
   // Reschedule button is shown to ALL roles so "user" can open the modal to
   // view the proposed schedule (read-only); only admin/super_admin can
   // actually edit and apply changes â€" gated inside the modal itself.
   var canSchedule = (typeof canReschedule_ === "function") ? canReschedule_() : false;
+  var totalBalance = 0;
+  var totalFreeDays = 0;
+  var totalOverdue = 0;
+  var latestBlockedTill = "";
   body.innerHTML = rows.map(function(r){
     var days = daysUntilISO(r.maxDate);
     var daysText = days == null ? "-" : (days < 0 ? Math.abs(days) + " overdue" : days);
     var freeDays = r.maxDate ? countFreeDaysForEqpt_(r.bookedRanges, todayISO, r.maxDate) : 0;
+    totalBalance += r.balance;
+    totalFreeDays += freeDays;
+    totalOverdue += r.overdue;
+    if (r.maxDate && (!latestBlockedTill || r.maxDate > latestBlockedTill)) latestBlockedTill = r.maxDate;
     var dateCls = isPastISODate(r.maxDate) ? "blocked-date bal-neg" : "blocked-date";
     var btnTitle = canSchedule
       ? "Auto-reschedule bookings for this equipment"
@@ -2509,6 +2524,18 @@ function renderEquipmentBlockTable(filteredRows, filterCtx) {
       '<td class="' + overdueCls + '">' + esc(String(r.overdue)) + '</td>' +
     '</tr>';
   }).join("");
+  if (foot) {
+    var latestDays = daysUntilISO(latestBlockedTill);
+    foot.innerHTML =
+      '<tr>' +
+        '<td><strong>Grand Total (' + esc(String(rows.length)) + ' EQPT)</strong></td>' +
+        '<td class="num"><strong>' + fmt(totalBalance, 3) + '</strong></td>' +
+        '<td><strong>' + (latestBlockedTill ? esc(fmtDateDMY(latestBlockedTill)) : "-") + '</strong></td>' +
+        '<td class="num' + (latestDays != null && latestDays < 0 ? ' bal-neg' : '') + '"><strong>' + esc(String(latestDays == null ? "-" : latestDays)) + '</strong></td>' +
+        '<td class="num"><strong>' + esc(String(totalFreeDays)) + '</strong></td>' +
+        '<td class="num"><strong>' + esc(String(totalOverdue)) + '</strong></td>' +
+      '</tr>';
+  }
   // Wire row clicks â€" each row drills the pivot table down to lines on that
   // EQPT. Second click on the SAME equipment toggles the filter back off so
   // the user can clear without going to the dropdown.
@@ -2597,13 +2624,23 @@ function makeChart(id, type, labels, data, opts) {
 // their own data scope) and aggregates per-line balance by assigned HOD.
 // Skipped: ticked-Done lines, lines with SFG_REQ <= 0. Lines without an HOD
 // assigned roll up into a single "(Not Assigned)" row at the bottom.
-function renderHodBalanceTable() {
+function renderHodBalanceTable(filteredRows, filterCtx) {
   var body = document.getElementById("hodBalanceBody");
   if (!body) return;
   var map = new Map();
-  if (Array.isArray(LINES)) {
-    LINES.forEach(function(l){
+  var useFiltered = Array.isArray(filteredRows);
+  var src = [];
+  if (useFiltered) {
+    filteredRows.forEach(function(r){
+      (LINES_BY_BOM.get(prodKey(r)) || []).forEach(function(l){ src.push(l); });
+    });
+  } else {
+    src = Array.isArray(LINES) ? LINES.slice() : [];
+  }
+  if (Array.isArray(src)) {
+    src.forEach(function(l){
       if (num(l["SFG_REQUIRED_AG_BAL TO PRD FG"]) <= 0) return;
+      if (useFiltered && filterCtx && !lineMatchesActiveFilters_(l, filterCtx)) return;
       if (isLineDone(l)) return;
       var lk = lineKey(l);
       var hod = getLineHod(lk) || "(Not Assigned)";
@@ -2669,14 +2706,24 @@ function renderHodBalanceTable() {
 //   - count of overdue lines (commit_end strictly before today)
 // Uses LINES (role-filtered set) so each user sees their own data scope, same
 // as the HOD balance table.
-function renderPartyBalanceTable() {
+function renderPartyBalanceTable(filteredRows, filterCtx) {
   var body = document.getElementById("partyBalanceBody");
   if (!body) return;
   var map = new Map();
   var todayISO = (typeof todayISOString_ === "function") ? todayISOString_() : "";
-  if (Array.isArray(LINES)) {
-    LINES.forEach(function(l){
+  var useFiltered = Array.isArray(filteredRows);
+  var src = [];
+  if (useFiltered) {
+    filteredRows.forEach(function(r){
+      (LINES_BY_BOM.get(prodKey(r)) || []).forEach(function(l){ src.push(l); });
+    });
+  } else {
+    src = Array.isArray(LINES) ? LINES.slice() : [];
+  }
+  if (Array.isArray(src)) {
+    src.forEach(function(l){
       if (num(l["SFG_REQUIRED_AG_BAL TO PRD FG"]) <= 0) return;
+      if (useFiltered && filterCtx && !lineMatchesActiveFilters_(l, filterCtx)) return;
       if (isLineDone(l)) return;
       var lk = lineKey(l);
       var party = (l.ACC_NAME && String(l.ACC_NAME).trim()) || "(No Party)";
@@ -2774,12 +2821,9 @@ function renderTable(opts) {
   LINE_DATE_BY_BOM = buildLineDateMap();
   buildLineAssignmentMaps();
   AGG_CACHE = new Map();
-  // HOD / Party side tables still follow the old cheap-refresh path. The
-  // equipment table now tracks active filters, so it is rebuilt later from
-  // the already-filtered BOM slice.
+  // Side tables are rebuilt later from the already-filtered BOM slice so the
+  // pivot and all summary tables stay in sync under every filter mode.
   if (!opts.skipSideTables) {
-    renderHodBalanceTable();
-    renderPartyBalanceTable();
   }
   // Excel-style cascading: every render rebuilds the OTHER filters' option
   // lists based on the current selection set, so a toggled filter immediately
@@ -2870,11 +2914,11 @@ function renderTable(opts) {
     var hasLineFilters = !!(fEqpt || fHod || fParty || fApprove || fCStart || fCEnd || rangeStart || rangeEnd || USER_PENDING_MODE || ADMIN_PENDING_MODE);
     var agg = null;
     if (hasLineFilters) {
-      agg = rowAggregates(r, fEqpt, fHod, fParty, fApprove, fCStart, fCEnd, rangeStart, rangeEnd);
+      agg = rowAggregates(r, fEqpt, fHod, fParty, fApprove, fCStart, fCEnd, rangeStart, rangeEnd, USER_PENDING_MODE, ADMIN_PENDING_MODE);
       if (agg.lines === 0) return false;
     }
     if (balanceNzOnly) {
-      var balAgg = agg || rowAggregates(r, fEqpt, fHod, fParty, fApprove, fCStart, fCEnd, rangeStart, rangeEnd);
+      var balAgg = agg || rowAggregates(r, fEqpt, fHod, fParty, fApprove, fCStart, fCEnd, rangeStart, rangeEnd, USER_PENDING_MODE, ADMIN_PENDING_MODE);
       if (Math.abs(balAgg.balance) < 0.0005) return false;
     }
     if (q) {
@@ -2889,12 +2933,16 @@ function renderTable(opts) {
     nzOnly: nzOnly,
     balanceNzOnly: balanceNzOnly
   });
-  renderEquipmentBlockTable(LAST_FILTERED_BOMS, filterCtx);
+  if (!opts.skipSideTables) {
+    renderEquipmentBlockTable(LAST_FILTERED_BOMS, filterCtx);
+    renderHodBalanceTable(LAST_FILTERED_BOMS, filterCtx);
+    renderPartyBalanceTable(LAST_FILTERED_BOMS, filterCtx);
+  }
 
   filtered = filtered.slice().sort(function(a,b){
     var av, bv;
-    var aA = rowAggregates(a, fEqpt, fHod, fParty, fApprove, fCStart, fCEnd, rangeStart, rangeEnd);
-    var bA = rowAggregates(b, fEqpt, fHod, fParty, fApprove, fCStart, fCEnd, rangeStart, rangeEnd);
+    var aA = rowAggregates(a, fEqpt, fHod, fParty, fApprove, fCStart, fCEnd, rangeStart, rangeEnd, USER_PENDING_MODE, ADMIN_PENDING_MODE);
+    var bA = rowAggregates(b, fEqpt, fHod, fParty, fApprove, fCStart, fCEnd, rangeStart, rangeEnd, USER_PENDING_MODE, ADMIN_PENDING_MODE);
     if (SORT.key === "PROD_DONE") { av = aA.prod_done; bv = bA.prod_done; }
     else if (SORT.key === "BALANCE") { av = aA.balance; bv = bA.balance; }
     else if (SORT.key === "TARGET_DATE") { av = aA.target_date; bv = bA.target_date; }
@@ -2925,7 +2973,7 @@ function renderTable(opts) {
   }
 
   body.innerHTML = filtered.map(function(r){
-    var agg = rowAggregates(r, fEqpt, fHod, fParty, fApprove, fCStart, fCEnd, rangeStart, rangeEnd);
+    var agg = rowAggregates(r, fEqpt, fHod, fParty, fApprove, fCStart, fCEnd, rangeStart, rangeEnd, USER_PENDING_MODE, ADMIN_PENDING_MODE);
     var zero = agg.req_sum <= 0;
     var done = agg.prod_done;
     var bal = agg.balance;
@@ -2969,7 +3017,7 @@ function renderTable(opts) {
   var mcSet = new Set();
   var maxDate = "";
   filtered.forEach(function(r){
-    var a = rowAggregates(r, fEqpt, fHod, fParty, fApprove, fCStart, fCEnd, rangeStart, rangeEnd);
+    var a = rowAggregates(r, fEqpt, fHod, fParty, fApprove, fCStart, fCEnd, rangeStart, rangeEnd, USER_PENDING_MODE, ADMIN_PENDING_MODE);
     totalLines += a.lines;
     if (r.UM === "KM") { totalKmReq += a.req_sum; totalKmNet += a.net_sum; totalKmDone += a.prod_done; }
     else if (r.UM === "KG") { totalKgReq += a.req_sum; totalKgNet += a.net_sum; totalKgDone += a.prod_done; }
@@ -3668,12 +3716,13 @@ function isLineUserPending(l) {
   if (!l) return false;
   if (isLineDone(l)) return false;
   var lk = lineKey(l);
-  if (!LINE_HOD[lk]) return false;
+  var hod = (LINE_HOD[lk] || "").trim();
+  if (!hod) return false;
   var ap = l.APPROVE_STATUS == null ? "" : String(l.APPROVE_STATUS).trim().toUpperCase();
   if (ap !== "APPROVED") return false;
-  var missingEqpt = !LINE_EQPT[lk];
-  var missingCS   = !LINE_CSTART[lk];
-  var missingCE   = !LINE_CEND[lk];
+  var missingEqpt = !(LINE_EQPT[lk] || "").trim();
+  var missingCS   = !(LINE_CSTART[lk] || "").trim();
+  var missingCE   = !(LINE_CEND[lk] || "").trim();
   return missingEqpt || missingCS || missingCE;
 }
 function bomHasUserPending(r) {
@@ -3765,11 +3814,11 @@ function applyAllFilters_(opts) {
     var hasLineFilters = !!(fEqpt || fHod || fParty || fApprove || fCS || fCE || fRS || fRE || USER_PENDING_MODE || ADMIN_PENDING_MODE);
     var agg = null;
     if (hasLineFilters) {
-      agg = rowAggregates(r, fEqpt, fHod, fParty, fApprove, fCS, fCE, fRS, fRE);
+      agg = rowAggregates(r, fEqpt, fHod, fParty, fApprove, fCS, fCE, fRS, fRE, USER_PENDING_MODE, ADMIN_PENDING_MODE);
       if (agg.lines === 0) return false;
     }
     if (balanceNzOnly) {
-      var balAgg = agg || rowAggregates(r, fEqpt, fHod, fParty, fApprove, fCS, fCE, fRS, fRE);
+      var balAgg = agg || rowAggregates(r, fEqpt, fHod, fParty, fApprove, fCS, fCE, fRS, fRE, USER_PENDING_MODE, ADMIN_PENDING_MODE);
       if (Math.abs(balAgg.balance) < 0.0005) return false;
     }
     return true;
