@@ -1,5 +1,4 @@
 ﻿<!doctype html>
-<!-- Deploy refresh: 2026-05-27 -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -2316,7 +2315,7 @@ function renderAll() {
   var _re2 = document.getElementById("fltRangeEnd");   if (_re2) _re2.onchange = onAnyFilterChange;
   document.getElementById("fltNonzero").onchange = onAnyFilterChange;
   document.getElementById("fltBalanceNonzero").onchange = onAnyFilterChange;
-  document.getElementById("fltSearch").oninput = function(){ renderTable({ skipSideTables: true }); };
+  document.getElementById("fltSearch").oninput = function(){ renderTable(); };
   renderTable();
 }
 
@@ -2433,17 +2432,27 @@ function countFreeDaysForEqpt_(ranges, todayIso, maxIso) {
   return Math.max(totalSpan - booked, 0);
 }
 
-function renderEquipmentBlockTable() {
+function renderEquipmentBlockTable(filteredRows, filterCtx) {
   var body = document.getElementById("equipmentBlockBody");
   if (!body) return;
   var map = new Map();
   var todayISO = (typeof todayISOString_ === "function") ? todayISOString_() : "";
-  // Intentionally use LINES_ALL (the un-view-filtered set) so the blocking
-  // status is a GLOBAL shop-floor view that doesn't change per role / user.
-  var src = (typeof LINES_ALL !== "undefined" && LINES_ALL && LINES_ALL.length) ? LINES_ALL : LINES;
+  var useFiltered = Array.isArray(filteredRows);
+  // Default behaviour stays available for initial load / fallback, but when
+  // the pivot has active filters we rebuild this table from the SAME filtered
+  // BOM slice so both surfaces stay in sync.
+  var src = [];
+  if (useFiltered) {
+    filteredRows.forEach(function(r){
+      (LINES_BY_BOM.get(prodKey(r)) || []).forEach(function(l){ src.push(l); });
+    });
+  } else {
+    src = (typeof LINES_ALL !== "undefined" && LINES_ALL && LINES_ALL.length) ? LINES_ALL.slice() : (Array.isArray(LINES) ? LINES.slice() : []);
+  }
   if (Array.isArray(src)) {
     src.forEach(function(l){
       if (num(l["SFG_REQUIRED_AG_BAL TO PRD FG"]) <= 0) return;
+      if (useFiltered && filterCtx && !lineMatchesActiveFilters_(l, filterCtx)) return;
       if (isLineDone(l)) return;
       var lk = lineKey(l);
       var eqpt = getLineEqpt(lk);
@@ -2765,12 +2774,10 @@ function renderTable(opts) {
   LINE_DATE_BY_BOM = buildLineDateMap();
   buildLineAssignmentMaps();
   AGG_CACHE = new Map();
-  // Equipment Blocking + HOD Balance tables don't depend on filter state â€"
-  // they're computed off raw LINES/LINES_ALL. Filter-only callers (dropdown
-  // change, Clear Filters, etc.) pass { skipSideTables: true } so we avoid
-  // the ~17-line iteration + DOM rewrite on every keystroke.
+  // HOD / Party side tables still follow the old cheap-refresh path. The
+  // equipment table now tracks active filters, so it is rebuilt later from
+  // the already-filtered BOM slice.
   if (!opts.skipSideTables) {
-    renderEquipmentBlockTable();
     renderHodBalanceTable();
     renderPartyBalanceTable();
   }
@@ -2819,7 +2826,7 @@ function renderTable(opts) {
       var k = th.dataset.k;
       if (SORT.key === k) SORT.asc = !SORT.asc;
       else { SORT.key = k; SORT.asc = (k === "SFG_BOM" || k === "SFG_CODE" || k === "SFG_NAME" || k === "L3" || k === "L4" || k === "UM"); }
-      renderTable({ skipSideTables: true });
+      renderTable();
     };
   });
 
@@ -2882,6 +2889,7 @@ function renderTable(opts) {
     nzOnly: nzOnly,
     balanceNzOnly: balanceNzOnly
   });
+  renderEquipmentBlockTable(LAST_FILTERED_BOMS, filterCtx);
 
   filtered = filtered.slice().sort(function(a,b){
     var av, bv;
@@ -3692,7 +3700,7 @@ function toggleUserPendingMode() {
   if (typeof showFilterToast === "function") {
     showFilterToast(USER_PENDING_MODE ? "Showing User's Job Pending only" : "User's Job Pending cleared");
   }
-  renderTable({ skipSideTables: true });
+  renderTable();
 }
 window.toggleUserPendingMode = toggleUserPendingMode;
 function toggleAdminPendingMode() {
@@ -3705,7 +3713,7 @@ function toggleAdminPendingMode() {
   if (typeof showFilterToast === "function") {
     showFilterToast(ADMIN_PENDING_MODE ? "Showing Admin's Job Pending only" : "Admin's Job Pending cleared");
   }
-  renderTable({ skipSideTables: true });
+  renderTable();
 }
 window.toggleAdminPendingMode = toggleAdminPendingMode;
 // Excel-style dependent filter: returns the BOMs that pass every currently
@@ -3883,10 +3891,10 @@ function clearFilters() {
   // resets the dashboard to neutral.
   if (typeof clearRowSelection_ === "function") clearRowSelection_();
   if (typeof refreshAllDependentDropdowns_ === "function") refreshAllDependentDropdowns_();
-  renderTable({ skipSideTables: true, skipDependentCascade: true });
+  renderTable({ skipDependentCascade: true });
 }
 window.clearFilters = clearFilters;
-function onAnyFilterChange() { renderTable({ skipSideTables: true }); }
+function onAnyFilterChange() { renderTable(); }
 function applyFilters(overrides, opts) {
   opts = opts || {};
   if (!overrides) return;
@@ -3918,7 +3926,7 @@ function applyFilters(overrides, opts) {
     var el = document.getElementById(id);
     if (el) _intended[id] = el.value;
   });
-  renderTable({ skipSideTables: true });
+  renderTable();
   var needsRerender = false;
   Object.keys(_intended).forEach(function(id){
     var want = _intended[id];
@@ -3940,7 +3948,7 @@ function applyFilters(overrides, opts) {
   // pivot with the cascade-pruned values, which dropped at least one filter).
   // Skip the dependent cascade this second time â€" we already have the right
   // dropdown values and don't want the cascade to re-clear them.
-  if (needsRerender) renderTable({ skipSideTables: true, skipDependentCascade: true });
+  if (needsRerender) renderTable({ skipDependentCascade: true });
   // Diagnostic: log the final filter state. Open browser console (F12) to
   // verify all clicked filters actually stuck after the cascade.
   try {
