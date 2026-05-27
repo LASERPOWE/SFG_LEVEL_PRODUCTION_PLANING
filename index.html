@@ -897,7 +897,7 @@ let LAST_FILTER_CONTEXT = null;
 // Optional shared manual-input endpoint.
 // Keep blank for browser-only localStorage. Paste the separate Planning Inputs
 // Apps Script Web App URL here to share EQPT/HOD/Done/Production Done across PCs.
-const INPUT_API_URL = "https://script.google.com/macros/s/AKfycbwN-BcVbFWM_Z_xu545LQby0Xh6gGIzZtod7yWEm6hc5K7CmF2hqBgt3tTywMBDc5Ik/exec";
+const INPUT_API_URL = "https://script.google.com/macros/s/AKfycbzgZ2Otix4KQXY1qwo44qm43BnO_L0Ewv8RfPD150DW9AAIZJxc9hvGVH5fmvmI17H-/exec";
 
 // Auto-pull fresh Google Sheet data. Apps Script requests use cache-busting,
 // so edits in the sheet show here without manually pressing Refresh.
@@ -924,6 +924,19 @@ function setLineHod(lk, v) {
   if (!v) delete LINE_HOD[lk];
   else LINE_HOD[lk] = v;
   saveLineHod();
+  saveRemoteLineInput(lk);
+}
+
+// ---- Per-line Consume From selection (drill-down dropdown) ----
+const CONSUME_FROM_OPTIONS = ["KHP", "PP-U1", "PP-U2"];
+const LINE_CONSUME_KEY = "erp_line_consume_from_v1";
+const LINE_CONSUME = (function() { try { return JSON.parse(localStorage.getItem(LINE_CONSUME_KEY) || "{}"); } catch(e) { return {}; } })();
+function saveLineConsume() { try { localStorage.setItem(LINE_CONSUME_KEY, JSON.stringify(LINE_CONSUME)); } catch(e) {} }
+function getLineConsume(lk) { return LINE_CONSUME[lk] || ""; }
+function setLineConsume(lk, v) {
+  if (!v) delete LINE_CONSUME[lk];
+  else LINE_CONSUME[lk] = v;
+  saveLineConsume();
   saveRemoteLineInput(lk);
 }
 
@@ -1403,7 +1416,7 @@ function applyEqptSchedule() {
   // Stagger remote saves so we don't blast the Apps Script with N parallel
   // POSTs in the same ms (Google's quota likes them spaced out).
   changed.forEach(function(p, i){
-    setTimeout(function(){ saveRemoteLineInput(p.lk); }, i * 100);
+    setTimeout(function(){ saveRemoteLineInput(p.lk, { includeRescheduleAudit: true }); }, i * 100);
   });
   closeEqptScheduleModal();
   var toastMsg = "Rescheduled " + changed.length + " booking" +
@@ -1583,7 +1596,7 @@ function buildSearchBlobForBom_(r) {
       bits.push(String(v));
     });
     var lk = lineKey(l);
-    bits.push(LINE_EQPT[lk] || "", LINE_HOD[lk] || "", LINE_CSTART[lk] || "", LINE_CEND[lk] || "");
+    bits.push(LINE_EQPT[lk] || "", LINE_HOD[lk] || "", LINE_CONSUME[lk] || "", LINE_CSTART[lk] || "", LINE_CEND[lk] || "");
   });
   return bits.join(" ").toLowerCase();
 }
@@ -1609,6 +1622,7 @@ function exportFilteredData() {
       var row = Object.assign({}, l);
       row.LINE_EQPT = LINE_EQPT[lk] || "";
       row.LINE_HOD = LINE_HOD[lk] || "";
+      row.LINE_CONSUME_FROM = LINE_CONSUME[lk] || "";
       row.LINE_COMMIT_START = LINE_CSTART[lk] || "";
       row.LINE_COMMIT_END = LINE_CEND[lk] || "";
       row.LINE_PROD_DONE_QTY = getLineProdDone(l);
@@ -1625,7 +1639,7 @@ function exportFilteredData() {
     return;
   }
   var extraCols = [
-    "LINE_EQPT","LINE_HOD","LINE_COMMIT_START","LINE_COMMIT_END",
+    "LINE_EQPT","LINE_HOD","LINE_CONSUME_FROM","LINE_COMMIT_START","LINE_COMMIT_END",
     "LINE_PROD_DONE_QTY","LINE_DONE_FLAG","LINE_CURRENT_BALANCE",
     "PARENT_UNIT","PARENT_LEVEL_3","PARENT_LEVEL_4"
   ];
@@ -1892,6 +1906,9 @@ function applyRemoteInputRecord(rec) {
   var hod = rec.hod == null ? "" : String(rec.hod).trim();
   if (hod) LINE_HOD[lk] = hod;
   else delete LINE_HOD[lk];
+  var consumeFrom = rec.consume_from == null ? "" : String(rec.consume_from).trim();
+  if (consumeFrom) LINE_CONSUME[lk] = consumeFrom;
+  else delete LINE_CONSUME[lk];
   // Commitment dates: Google Sheets converts YYYY-MM-DD cells into Date
   // objects, so the Apps Script JSON contains a full ISO timestamp. Strip it
   // back down to YYYY-MM-DD before storing â€" otherwise the <input type=
@@ -1950,6 +1967,7 @@ function loadRemoteInputs() {
         saveLinePD();
         saveLineEqpt();
         saveLineHod();
+        saveLineConsume();
         saveLineCommit();
       } catch(e) {
         console.warn("Planning inputs parse failed", e);
@@ -1970,7 +1988,8 @@ function pushLocalOnlyToRemote(serverRecords) {
   return;
 }
 
-function saveRemoteLineInput(lk) {
+function saveRemoteLineInput(lk, opts) {
+  opts = opts || {};
   // Always POST every manual edit â€" we no longer gate on REMOTE_INPUTS_LOADING
   // so that user input typed during an auto-refresh window is never dropped.
   if (!hasInputApi() || !lk) return;
@@ -1988,11 +2007,14 @@ function saveRemoteLineInput(lk) {
   body.set("prod_done", LINE_PD[lk] == null ? "" : String(LINE_PD[lk]));
   body.set("eqpt", LINE_EQPT[lk] || "");
   body.set("hod", LINE_HOD[lk] || "");
+  body.set("consume_from", LINE_CONSUME[lk] || "");
   body.set("commit_start", LINE_CSTART[lk] || "");
   body.set("commit_end",   LINE_CEND[lk]   || "");
   body.set("commit_by",    LINE_CBY[lk]    || "");
-  body.set("reschedule_count", String(getLineRC(lk)));
-  body.set("reschedule_reason", LINE_RR[lk] || "");
+  if (opts.includeRescheduleAudit) {
+    body.set("reschedule_count", String(getLineRC(lk)));
+    body.set("reschedule_reason", LINE_RR[lk] || "");
+  }
   body.set("updated_at", new Date().toISOString());
   // Tag the edit with the logged-in username so the sheet shows who changed
   // what (anonymous edits show up as blank).
@@ -3262,6 +3284,7 @@ function renderPordTable(lines, um) {
     { key: "_cstart", label: "Commit Start" },
     { key: "_cend", label: "Commit End" },
     { key: "_hod", label: "HOD" },
+    { key: "_consume", label: "Consume from" },
     { key: "_status", label: "Status" }
   ];
   var commitEditable = canEditCommitment_();
@@ -3314,6 +3337,12 @@ function renderPordTable(lines, um) {
         var optsH = '<option value="">-- select --</option>' + HOD_MASTER.map(function(h){ return '<option value="' + esc(h) + '"' + (selH === h ? ' selected' : '') + '>' + esc(h) + '</option>'; }).join("");
         var disH = done ? ' disabled title="Un-tick Done to change HOD"' : (adminFreshLocked ? ' disabled title="Admin cannot create a fresh planning entry"' : '');
         return '<td class="hod-cell"><select class="line-hod-select"' + disH + '>' + optsH + '</select></td>';
+      }
+      if (c.key === "_consume") {
+        var selC = getLineConsume(lkRaw);
+        var optsC = '<option value="">-- select --</option>' + CONSUME_FROM_OPTIONS.map(function(v){ return '<option value="' + esc(v) + '"' + (selC === v ? ' selected' : '') + '>' + esc(v) + '</option>'; }).join("");
+        var disConsume = done ? ' disabled title="Un-tick Done to change Consume from"' : (adminFreshLocked ? ' disabled title="Admin cannot create a fresh planning entry"' : '');
+        return '<td class="consume-cell"><select class="line-consume-select"' + disConsume + '>' + optsC + '</select></td>';
       }
       if (c.key === "_cstart" || c.key === "_cend") {
         var lkC = lkRaw;
@@ -3425,6 +3454,17 @@ function wireDoneTicksGlobal() {
       var tr = sel.closest("tr"); if (!tr) return;
       var lk = tr.getAttribute("data-lk") || "";
       setLineHod(lk, sel.value);
+      if (typeof window.__currentDrillRecompute === "function") window.__currentDrillRecompute();
+      if (typeof window.__drillRenderBody === "function") window.__drillRenderBody();
+      if (typeof renderTable === "function") renderTable();
+    };
+  });
+  content.querySelectorAll(".line-consume-select").forEach(function(sel){
+    sel.onclick = function(e){ e.stopPropagation(); };
+    sel.onchange = function(){
+      var tr = sel.closest("tr"); if (!tr) return;
+      var lk = tr.getAttribute("data-lk") || "";
+      setLineConsume(lk, sel.value);
       if (typeof window.__currentDrillRecompute === "function") window.__currentDrillRecompute();
       if (typeof window.__drillRenderBody === "function") window.__drillRenderBody();
       if (typeof renderTable === "function") renderTable();

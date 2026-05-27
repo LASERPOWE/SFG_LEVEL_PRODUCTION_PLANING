@@ -1,13 +1,14 @@
 /**
  * Planning Inputs + Users Sync API
+ * Version: 2026-05-27 duplicate-header cleanup + consume_from
  * --------------------------------
  * Single Apps Script Web App for:
  *   - Per-line planning inputs (EQPT, HOD, Done, Production Done)
  *   - User accounts + role-based login (User / Admin / Super Admin)
  *
  * Sheets used (auto-created on first run):
- *   PLANNING_INPUTS  - line_id, done, prod_done, eqpt, hod, updated_at, updated_by,
- *                      commit_start, commit_end, commit_by
+ *   PLANNING_INPUTS  - line_id, done, prod_done, eqpt, hod, consume_from,
+ *                      updated_at, updated_by, commit_start, commit_end, commit_by
  *   USERS            - username, password_plain, password_hash, role, created_at, last_login, view_filter
  *
  *   commit_start / commit_end are YYYY-MM-DD strings entered from the drill-down
@@ -50,9 +51,9 @@ function sha256_(text) {
 
 // ---------- PLANNING_INPUTS sheet ----------
 // Canonical column order (1-indexed):
-//   1 line_id | 2 done | 3 prod_done | 4 eqpt | 5 hod | 6 updated_at |
-//   7 updated_by | 8 commit_start | 9 commit_end | 10 commit_by |
-//   11 reschedule_count | 12 reschedule_reason
+//   1 line_id | 2 done | 3 prod_done | 4 eqpt | 5 hod | 6 consume_from |
+//   7 updated_at | 8 updated_by | 9 commit_start | 10 commit_end |
+//   11 commit_by | 12 reschedule_count | 13 reschedule_reason
 //
 // reschedule_count tracks how many times this line's commit_end has been
 // pushed FORWARD via the Reschedule modal. Pure reorder doesn't increment.
@@ -60,11 +61,149 @@ function sha256_(text) {
 // New Schedule was clicked (mandatory for every reschedule â€" forward push
 // or interchange).
 var PLANNING_HEADERS = [
-  'line_id', 'done', 'prod_done', 'eqpt', 'hod',
+  'line_id', 'done', 'prod_done', 'eqpt', 'hod', 'consume_from',
   'updated_at', 'updated_by',
   'commit_start', 'commit_end', 'commit_by',
   'reschedule_count', 'reschedule_reason'
 ];
+
+function isConsumeFromValue_(v) {
+  var s = String(v == null ? '' : v).trim();
+  return !s || s === 'KHP' || s === 'PP-U1' || s === 'PP-U2';
+}
+
+function looksIsoDateOnly_(v) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(v == null ? '' : v).trim());
+}
+
+function looksIsoDateTime_(v) {
+  return /^\d{4}-\d{2}-\d{2}T/.test(String(v == null ? '' : v).trim());
+}
+
+function maybeRepairShiftedPlanningData_(sh) {
+  var lastRow = sh.getLastRow();
+  var lastCol = Math.max(sh.getLastColumn(), PLANNING_HEADERS.length);
+  if (lastRow < 2) return;
+  var hdr = sh.getRange(1, 1, 1, lastCol).getValues()[0].map(String);
+  var canonical = PLANNING_HEADERS.every(function(name, i){ return hdr[i] === name; });
+  if (!canonical) return;
+  var sampleCount = Math.min(lastRow - 1, 8);
+  if (sampleCount <= 0) return;
+  var rows = sh.getRange(2, 1, sampleCount, PLANNING_HEADERS.length).getValues();
+  var shiftedVotes = 0;
+  rows.forEach(function(r){
+    var consume = r[5];
+    var updatedAt = r[6];
+    var updatedBy = r[7];
+    var commitStart = r[8];
+    var commitEnd = r[9];
+    if (!consume && !updatedAt && !updatedBy && !commitStart && !commitEnd) return;
+    if (!isConsumeFromValue_(consume) && (looksIsoDateTime_(consume) || looksIsoDateOnly_(updatedBy))) shiftedVotes++;
+  });
+  if (!shiftedVotes) return;
+  var all = sh.getRange(2, 1, lastRow - 1, PLANNING_HEADERS.length).getValues();
+  var fixed = all.map(function(r){
+    var out = r.slice();
+    for (var i = PLANNING_HEADERS.length - 1; i >= 6; i--) out[i] = out[i - 1];
+    out[5] = '';
+    return out;
+  });
+  sh.getRange(2, 1, fixed.length, PLANNING_HEADERS.length).setValues(fixed);
+}
+
+function normalizePlanningHeaderName_(name) {
+  var s = String(name == null ? '' : name).trim();
+  if (PLANNING_HEADERS.indexOf(s) >= 0) return s;
+  if (s.indexOf('reschedule_reas') === 0) return 'reschedule_reason';
+  if (s.indexOf('reschedule_cou') === 0) return 'reschedule_count';
+  if (s.indexOf('commit_start') === 0) return 'commit_start';
+  if (s.indexOf('commit_end') === 0) return 'commit_end';
+  if (s.indexOf('commit_by') === 0) return 'commit_by';
+  if (s.indexOf('updated_at') === 0) return 'updated_at';
+  if (s.indexOf('updated_by') === 0) return 'updated_by';
+  if (s.indexOf('consume_from') === 0) return 'consume_from';
+  return '';
+}
+
+function isBlankCell_(v) {
+  return String(v == null ? '' : v).trim() === '';
+}
+
+function recoverExtraPlanningData_(sh) {
+  var lastRow = sh.getLastRow();
+  var lastCol = sh.getLastColumn();
+  if (lastRow < 2 || lastCol <= PLANNING_HEADERS.length) return;
+  var data = sh.getRange(2, 1, lastRow - 1, lastCol).getValues();
+  var changed = false;
+  data.forEach(function(row){
+    var extra = row.slice(PLANNING_HEADERS.length);
+    for (var j = 0; j < extra.length; j++) {
+      var v = extra[j];
+      var next = extra[j + 1];
+      var next2 = extra[j + 2];
+      if (isBlankCell_(v)) continue;
+      if (isBlankCell_(row[6]) && looksIsoDateTime_(v)) {
+        row[6] = v;
+        changed = true;
+        if (isBlankCell_(row[7]) && !isBlankCell_(next) && !looksIsoDateOnly_(next) && !looksIsoDateTime_(next)) {
+          row[7] = next;
+          changed = true;
+        }
+        continue;
+      }
+      if (looksIsoDateOnly_(v)) {
+        if (isBlankCell_(row[8])) {
+          row[8] = v;
+          changed = true;
+          if (!isBlankCell_(next) && looksIsoDateOnly_(next) && isBlankCell_(row[9])) {
+            row[9] = next;
+            changed = true;
+            if (!isBlankCell_(next2) && !looksIsoDateOnly_(next2) && !looksIsoDateTime_(next2) && isBlankCell_(row[10])) {
+              row[10] = next2;
+              changed = true;
+            }
+          }
+        } else if (isBlankCell_(row[9])) {
+          row[9] = v;
+          changed = true;
+        }
+      }
+    }
+  });
+  if (changed) {
+    var fixed = data.map(function(row){ return row.slice(0, PLANNING_HEADERS.length); });
+    sh.getRange(2, 1, fixed.length, PLANNING_HEADERS.length).setValues(fixed);
+  }
+}
+
+function cleanupDuplicatePlanningHeaderColumns_(sh) {
+  var lastCol = sh.getLastColumn();
+  var lastRow = sh.getLastRow();
+  if (lastCol <= PLANNING_HEADERS.length) return;
+  var hdr = sh.getRange(1, 1, 1, lastCol).getValues()[0].map(String);
+  for (var c = lastCol; c > PLANNING_HEADERS.length; c--) {
+    var name = normalizePlanningHeaderName_(hdr[c - 1]);
+    if (!name) continue;
+    var targetCol = PLANNING_HEADERS.indexOf(name) + 1;
+    if (targetCol <= 0 || targetCol === c) continue;
+    if (lastRow >= 2) {
+      var dupVals = sh.getRange(2, c, lastRow - 1, 1).getValues();
+      var targetVals = sh.getRange(2, targetCol, lastRow - 1, 1).getValues();
+      var changed = false;
+      for (var i = 0; i < dupVals.length; i++) {
+        var dup = dupVals[i][0];
+        var cur = targetVals[i][0];
+        if (String(cur == null ? '' : cur).trim() === '' &&
+            String(dup == null ? '' : dup).trim() !== '') {
+          targetVals[i][0] = dup;
+          changed = true;
+        }
+      }
+      if (changed) sh.getRange(2, targetCol, targetVals.length, 1).setValues(targetVals);
+    }
+    sh.deleteColumn(c);
+  }
+}
 
 function getInputSheet_() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -74,11 +213,22 @@ function getInputSheet_() {
     sh.appendRow(PLANNING_HEADERS.slice());
     return sh;
   }
-  // Auto-migrate: append any missing canonical column at its expected index.
+  // Safe migration from the old 12-column schema:
+  // insert consume_from before updated_at so existing commit dates do not shift.
   var hdr = sh.getRange(1, 1, 1, Math.max(sh.getLastColumn(), 1)).getValues()[0].map(String);
+  if (hdr[0] === 'line_id' && hdr[1] === 'done' && hdr[2] === 'prod_done' &&
+      hdr[3] === 'eqpt' && hdr[4] === 'hod' && hdr[5] === 'updated_at' &&
+      hdr.indexOf('consume_from') < 0) {
+    sh.insertColumnBefore(6);
+  }
+  // Auto-migrate / normalize headers to the canonical order.
+  hdr = sh.getRange(1, 1, 1, Math.max(sh.getLastColumn(), PLANNING_HEADERS.length)).getValues()[0].map(String);
   PLANNING_HEADERS.forEach(function(name, i){
     if (hdr[i] !== name) sh.getRange(1, i + 1).setValue(name);
   });
+  maybeRepairShiftedPlanningData_(sh);
+  recoverExtraPlanningData_(sh);
+  cleanupDuplicatePlanningHeaderColumns_(sh);
   return sh;
 }
 
@@ -149,32 +299,35 @@ function doPlanningUpsert_(p) {
   var hodVal = Object.prototype.hasOwnProperty.call(p, 'hod')
     ? (p.hod || '')
     : (existing ? existing[4] : '');
+  var consumeFromVal = Object.prototype.hasOwnProperty.call(p, 'consume_from')
+    ? (p.consume_from || '')
+    : (existing ? existing[5] : '');
   var updatedAt = p.updated_at || new Date().toISOString();
   var updatedBy = Object.prototype.hasOwnProperty.call(p, 'updated_by')
     ? (p.updated_by || '')
-    : (existing ? existing[6] : '');
+    : (existing ? existing[7] : '');
   var commitStart = Object.prototype.hasOwnProperty.call(p, 'commit_start')
     ? (p.commit_start || '')
-    : (existing ? existing[7] : '');
+    : (existing ? existing[8] : '');
   var commitEnd = Object.prototype.hasOwnProperty.call(p, 'commit_end')
     ? (p.commit_end || '')
-    : (existing ? existing[8] : '');
+    : (existing ? existing[9] : '');
   var commitBy = Object.prototype.hasOwnProperty.call(p, 'commit_by')
     ? (p.commit_by || '')
-    : (existing ? existing[9] : '');
+    : (existing ? existing[10] : '');
   var rescheduleCount;
   if (Object.prototype.hasOwnProperty.call(p, 'reschedule_count')) {
     var rcRaw = parseInt(p.reschedule_count, 10);
     rescheduleCount = isNaN(rcRaw) ? 0 : rcRaw;
   } else {
-    rescheduleCount = existing ? (parseInt(existing[10], 10) || 0) : 0;
+    rescheduleCount = existing ? (parseInt(existing[11], 10) || 0) : 0;
   }
   var rescheduleReason = Object.prototype.hasOwnProperty.call(p, 'reschedule_reason')
     ? (p.reschedule_reason || '')
-    : (existing ? (existing[11] || '') : '');
+    : (existing ? (existing[12] || '') : '');
 
   sh.getRange(targetRow, 1, 1, PLANNING_HEADERS.length).setValues([[
-    lineId, doneVal, prodDone, eqptVal, hodVal,
+    lineId, doneVal, prodDone, eqptVal, hodVal, consumeFromVal,
     updatedAt, updatedBy,
     commitStart, commitEnd, commitBy,
     rescheduleCount, rescheduleReason
