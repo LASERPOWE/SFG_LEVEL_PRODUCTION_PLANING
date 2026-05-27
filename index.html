@@ -1,4 +1,5 @@
 ﻿<!doctype html>
+<!-- Deploy refresh: 2026-05-27 -->
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -72,6 +73,11 @@
   .user-pending-btn:active { transform: translateY(0); }
   .user-pending-btn.active { background: #3aa7b3; border-color: #1f7984; color: #fff; box-shadow: 0 2px 10px rgba(31,121,132,0.35); }
   .user-pending-btn.active:hover { background: #2a7f87; color: #fff; }
+  .admin-pending-btn { padding: 5px 14px; font-size: 11px; font-weight: 600; border: 1.5px solid #d46a2c; border-radius: 6px; background: #fff1e8; color: #7a3a14; cursor: pointer; letter-spacing: 0.02em; text-transform: uppercase; box-shadow: 0 1px 3px rgba(212,106,44,0.18); transition: background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease, transform 0.08s ease; }
+  .admin-pending-btn:hover { background: #ffd8c2; border-color: #b9541c; color: #5a2508; box-shadow: 0 2px 8px rgba(185,84,28,0.28); transform: translateY(-1px); }
+  .admin-pending-btn:active { transform: translateY(0); }
+  .admin-pending-btn.active { background: #d46a2c; border-color: #a94f1b; color: #fff; box-shadow: 0 2px 10px rgba(169,79,27,0.35); }
+  .admin-pending-btn.active:hover { background: #b9541c; color: #fff; }
   /* Auth header bar (top-right of h1) + login modal + user control panel. */
   .auth-bar { display: inline-flex; align-items: center; gap: 8px; margin-left: 14px; vertical-align: middle; font-size: 12px; }
   .auth-badge { padding: 4px 10px; border-radius: 999px; background: #eef4ff; color: #2a52a8; font-weight: 600; font-size: 11px; border: 1px solid #c6d4ee; }
@@ -260,6 +266,7 @@
   .overdue-badge { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 8px; background: #c92a2a; color: #fff; font-size: 10px; font-weight: 700; letter-spacing: .2px; }
   .schedule-table td.rc-count-pos { color: #c87f00; font-weight: 700; }
   .schedule-table td.rc-count-zero { color: #aaa; font-weight: 400; }
+  .schedule-table td.free-before-gap { background: #fff2cc; color: #8a5a00; font-weight: 700; }
   /* Last Reason column â€" wrap long text but cap width so the table doesn't
      blow out horizontally on screens where two-line reasons exist. */
   .schedule-table td.rc-reason { max-width: 220px; min-width: 140px; white-space: normal; word-break: break-word; font-size: 11px; color: #2a3b6b; }
@@ -630,11 +637,12 @@
                 <th style="text-align:right;">Balance Qty</th>
                 <th>Blocked Till</th>
                 <th style="text-align:right;">Days</th>
+                <th style="text-align:right;">Free Days</th>
                 <th style="text-align:right;">Overdue</th>
               </tr>
             </thead>
             <tbody id="equipmentBlockBody">
-              <tr><td colspan="5" class="empty">Assign EQPT in drill-down to see blocking status.</td></tr>
+              <tr><td colspan="6" class="empty">Assign EQPT in drill-down to see blocking status.</td></tr>
             </tbody>
           </table>
         </div>
@@ -711,13 +719,21 @@
         <label>Commit End
           <select id="fltCEnd"><option value="">All</option></select>
         </label>
+        <label>Date From
+          <input id="fltRangeStart" type="date" />
+        </label>
+        <label>Date To
+          <input id="fltRangeEnd" type="date" />
+        </label>
         <label>Search
-          <input id="fltSearch" type="text" placeholder="BOM, code, name..." />
+          <input id="fltSearch" type="text" placeholder="Search all text columns..." />
         </label>
         <label class="check"><input type="checkbox" id="fltNonzero" checked /> Non-zero only</label>
         <label class="check"><input type="checkbox" id="fltBalanceNonzero" checked /> Balance non-zero only</label>
         <button class="clear-filter-btn" type="button" onclick="clearFilters()">Clear Filters</button>
+        <button class="clear-btn" type="button" onclick="exportFilteredData()">Export Data</button>
         <button class="user-pending-btn" id="userPendingBtn" type="button" onclick="toggleUserPendingMode()" title="Show lines where HOD assigned + APPROVED but EQPT / Commit Start / Commit End is missing">User's Job Pending</button>
+        <button class="admin-pending-btn" id="adminPendingBtn" type="button" onclick="toggleAdminPendingMode()" title="Show lines where HOD is not assigned and APPROVE_STATUS is APPROVED">Admin's Job Pending</button>
         <button class="clear-btn super-only" onclick="clearAllProdDone()">Clear Production Done</button>
         <span id="rowCount" style="margin-left:auto;font-size:11px;color:#666;"></span>
       </div>
@@ -875,6 +891,8 @@ let META = {};
 let REMOTE_INPUTS_LOADING = false;
 let DATA_LOAD_IN_PROGRESS = false;
 let REMOTE_INPUT_KEYS = new Set();
+let LAST_FILTERED_BOMS = [];
+let LAST_FILTER_CONTEXT = null;
 
 // Optional shared manual-input endpoint.
 // Keep blank for browser-only localStorage. Paste the separate Planning Inputs
@@ -1213,6 +1231,9 @@ function renderEqptScheduleBody_() {
     var inputTitle = canEdit
       ? "Change to extend or shrink this booking; downstream rows auto-shift"
       : "Read-only (only Admin / Super Admin can edit)";
+    var prevEnd = i === 0 ? todayISO : (proposed[i - 1].origEnd || "");
+    var freeBefore = 0;
+    if (prevEnd && p.origStart) freeBefore = Math.max(dateDiffDaysInclusive_(prevEnd, p.origStart) - 2, 0);
     // End date is the editable handle â€" changing it shrinks/extends this
     // booking's duration, and downstream rows auto-shift on re-render.
     var rcCellCls = rcCount > 0 ? "num rc-count-pos" : "num rc-count-zero";
@@ -1236,6 +1257,7 @@ function renderEqptScheduleBody_() {
         '<input type="date" class="schedule-end-input" data-idx="' + i + '" value="' + esc(p.newEnd) +
           '" min="' + esc(p.newStart) + '" title="' + esc(inputTitle) + '"' + inputDisabledAttr + ' />' +
       '</td>' +
+      '<td class="' + (freeBefore > 0 ? 'num free-before-gap' : 'num') + '" title="Blank days before this booking in the current schedule">' + esc(String(freeBefore)) + '</td>' +
       '<td class="' + rcCellCls + '" title="Times this booking has been pushed forward manually">' + esc(rcTxt) + '</td>' +
       reasonCell +
       '<td style="text-align:right;white-space:nowrap;">' +
@@ -1257,6 +1279,7 @@ function renderEqptScheduleBody_() {
         '<th style="text-align:right;">Duration</th>' +
         '<th>Current</th>' +
         '<th>New (start &rarr; end editable)</th>' +
+        '<th style="text-align:right;">Free Before</th>' +
         '<th style="text-align:right;" title="How many times this booking has been forward-pushed">Reschedule #</th>' +
         '<th>Last Reason</th>' +
         '<th style="text-align:right;">Reorder</th>' +
@@ -1475,12 +1498,13 @@ function buildLineAssignmentMaps() {
 // reflect only the child lines matching those filters; otherwise they fall back
 // to the server-computed totals.
 var AGG_CACHE = new Map();
-function rowAggregates(r, fEqpt, fHod, fApprove, fCStart, fCEnd) {
+function rowAggregates(r, fEqpt, fHod, fParty, fApprove, fCStart, fCEnd, rangeStart, rangeEnd) {
   var ck = prodKey(r) + "||" + (fEqpt || "") + "||" + (fHod || "") + "||" +
-           (fApprove || "") + "||" + (fCStart || "") + "||" + (fCEnd || "");
+           (fParty || "") + "||" + (fApprove || "") + "||" + (fCStart || "") + "||" + (fCEnd || "") + "||" +
+           (rangeStart || "") + "||" + (rangeEnd || "");
   if (AGG_CACHE.has(ck)) return AGG_CACHE.get(ck);
   var out;
-  if (!fEqpt && !fHod && !fApprove && !fCStart && !fCEnd) {
+  if (!fEqpt && !fHod && !fParty && !fApprove && !fCStart && !fCEnd && !rangeStart && !rangeEnd) {
     out = {
       lines: r.LINES, mc_count: r.MC_COUNT,
       net_sum: r.NET_SUM || 0, req_sum: r.REQ_SUM,
@@ -1488,24 +1512,8 @@ function rowAggregates(r, fEqpt, fHod, fApprove, fCStart, fCEnd) {
       target_date: getTargetCloseDate(r)
     };
   } else {
-    var matching = (LINES_BY_BOM.get(prodKey(r)) || []).filter(function(l){
-      var lk = lineKey(l);
-      if (fEqpt === BLANK_FILTER) { if (LINE_EQPT[lk]) return false; }
-      else if (fEqpt && getLineEqpt(lk) !== fEqpt) return false;
-      if (fHod === BLANK_FILTER) { if (LINE_HOD[lk]) return false; }
-      else if (fHod && getLineHod(lk) !== fHod) return false;
-      // APPROVE_STATUS filter (line-level value from the ERP sheet).
-      var apv = l.APPROVE_STATUS == null ? "" : String(l.APPROVE_STATUS).trim();
-      if (fApprove === BLANK_FILTER) { if (apv) return false; }
-      else if (fApprove && apv !== fApprove) return false;
-      // Commit Start / Commit End filters â€" blank sentinel matches lines
-      // where the date is not set yet.
-      if (fCStart === BLANK_FILTER) { if (LINE_CSTART[lk]) return false; }
-      else if (fCStart && (LINE_CSTART[lk] || "") !== fCStart) return false;
-      if (fCEnd === BLANK_FILTER) { if (LINE_CEND[lk]) return false; }
-      else if (fCEnd && (LINE_CEND[lk] || "") !== fCEnd) return false;
-      return true;
-    });
+    var filters = { fEqpt: fEqpt, fHod: fHod, fParty: fParty, fApprove: fApprove, fCStart: fCStart, fCEnd: fCEnd, rangeStart: rangeStart, rangeEnd: rangeEnd };
+    var matching = (LINES_BY_BOM.get(prodKey(r)) || []).filter(function(l){ return lineMatchesActiveFilters_(l, filters); });
     var net = 0, req = 0, pd = 0, td = "";
     var mcs = new Set();
     matching.forEach(function(l){
@@ -1528,6 +1536,131 @@ function rowAggregates(r, fEqpt, fHod, fApprove, fCStart, fCEnd) {
   AGG_CACHE.set(ck, out);
   return out;
 }
+
+function lineMatchesActiveFilters_(l, filters) {
+  if (!l) return false;
+  var lk = lineKey(l);
+  if (filters.fEqpt === BLANK_FILTER) { if (LINE_EQPT[lk]) return false; }
+  else if (filters.fEqpt && getLineEqpt(lk) !== filters.fEqpt) return false;
+  if (filters.fHod === BLANK_FILTER) { if (LINE_HOD[lk]) return false; }
+  else if (filters.fHod && getLineHod(lk) !== filters.fHod) return false;
+  if (filters.fParty === BLANK_FILTER) {
+    var pvBlank = (l.ACC_NAME && String(l.ACC_NAME).trim()) || "";
+    if (pvBlank) return false;
+  } else if (filters.fParty) {
+    var pv = (l.ACC_NAME && String(l.ACC_NAME).trim()) || "";
+    if (pv !== filters.fParty) return false;
+  }
+  var apv = l.APPROVE_STATUS == null ? "" : String(l.APPROVE_STATUS).trim();
+  if (filters.fApprove === BLANK_FILTER) { if (apv) return false; }
+  else if (filters.fApprove && apv !== filters.fApprove) return false;
+  var cs = LINE_CSTART[lk] || "";
+  var ce = LINE_CEND[lk] || "";
+  if (filters.fCStart === BLANK_FILTER) { if (cs) return false; }
+  else if (filters.fCStart && cs !== filters.fCStart) return false;
+  if (filters.fCEnd === BLANK_FILTER) { if (ce) return false; }
+  else if (filters.fCEnd && ce !== filters.fCEnd) return false;
+  if (filters.rangeStart || filters.rangeEnd) {
+    if (!cs) return false;
+    if (filters.rangeStart && cs < filters.rangeStart) return false;
+    if (filters.rangeEnd && cs > filters.rangeEnd) return false;
+  }
+  if (filters.userPendingOnly && !isLineUserPending(l)) return false;
+  if (filters.adminPendingOnly && !isLineAdminPending(l)) return false;
+  return true;
+}
+
+function buildSearchBlobForBom_(r) {
+  var bits = [r.SFG_BOM, r.SFG_CODE, r.SFG_NAME, r.UM, r.L3, r.L4, r.CUSTOMERS_LIST || ""];
+  (LINES_BY_BOM.get(prodKey(r)) || []).forEach(function(l){
+    Object.keys(l || {}).forEach(function(k){
+      var v = l[k];
+      if (v == null || v === "") return;
+      bits.push(String(v));
+    });
+    var lk = lineKey(l);
+    bits.push(LINE_EQPT[lk] || "", LINE_HOD[lk] || "", LINE_CSTART[lk] || "", LINE_CEND[lk] || "");
+  });
+  return bits.join(" ").toLowerCase();
+}
+function csvEscape_(v) {
+  var s = v == null ? "" : String(v);
+  if (/[",\r\n]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+  return s;
+}
+function exportFilteredData() {
+  var rows = LAST_FILTERED_BOMS || [];
+  var ctx = LAST_FILTER_CONTEXT || {};
+  if (!rows.length) {
+    alert("No filtered data available to export.");
+    return;
+  }
+  var exportRows = [];
+  rows.forEach(function(r){
+    var baseLines = LINES_BY_BOM.get(prodKey(r)) || [];
+    baseLines.forEach(function(l){
+      if (num(l["SFG_REQUIRED_AG_BAL TO PRD FG"]) <= 0) return;
+      if (!lineMatchesActiveFilters_(l, ctx)) return;
+      var lk = lineKey(l);
+      var row = Object.assign({}, l);
+      row.LINE_EQPT = LINE_EQPT[lk] || "";
+      row.LINE_HOD = LINE_HOD[lk] || "";
+      row.LINE_COMMIT_START = LINE_CSTART[lk] || "";
+      row.LINE_COMMIT_END = LINE_CEND[lk] || "";
+      row.LINE_PROD_DONE_QTY = getLineProdDone(l);
+      row.LINE_DONE_FLAG = isLineDone(l) ? "DONE" : "";
+      row.LINE_CURRENT_BALANCE = num(l.SFG_NET_ORD_QTY) - getLineProdDone(l);
+      row.PARENT_UNIT = r.UM || "";
+      row.PARENT_LEVEL_3 = r.L3 || "";
+      row.PARENT_LEVEL_4 = r.L4 || "";
+      exportRows.push(row);
+    });
+  });
+  if (!exportRows.length) {
+    alert("No line data matched the current filters.");
+    return;
+  }
+  var extraCols = [
+    "LINE_EQPT","LINE_HOD","LINE_COMMIT_START","LINE_COMMIT_END",
+    "LINE_PROD_DONE_QTY","LINE_DONE_FLAG","LINE_CURRENT_BALANCE",
+    "PARENT_UNIT","PARENT_LEVEL_3","PARENT_LEVEL_4"
+  ];
+  var seen = new Set();
+  var cols = [];
+  exportRows.forEach(function(r){
+    Object.keys(r).forEach(function(k){
+      if (seen.has(k)) return;
+      seen.add(k);
+      cols.push(k);
+    });
+  });
+  extraCols.forEach(function(k){
+    if (seen.has(k)) return;
+    seen.add(k);
+    cols.push(k);
+  });
+  var lines = [];
+  lines.push(cols.map(csvEscape_).join(","));
+  exportRows.forEach(function(r){
+    lines.push(cols.map(function(k){ return csvEscape_(r[k]); }).join(","));
+  });
+  var blob = new Blob([lines.join("\r\n")], { type: "text/csv;charset=utf-8;" });
+  var a = document.createElement("a");
+  var dt = new Date();
+  var stamp = dt.getFullYear() +
+    String(dt.getMonth() + 1).padStart(2, "0") +
+    String(dt.getDate()).padStart(2, "0") + "_" +
+    String(dt.getHours()).padStart(2, "0") +
+    String(dt.getMinutes()).padStart(2, "0") +
+    String(dt.getSeconds()).padStart(2, "0");
+  a.href = URL.createObjectURL(blob);
+  a.download = "sfg_filtered_export_" + stamp + ".csv";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
+}
+window.exportFilteredData = exportFilteredData;
 const COLORS = ["#4a7dd6","#5ab17a","#e09b3d","#c95d5d","#8a6fd0","#3aa7b3","#d9748c","#7a8b9b","#b78bd9","#5a9b6b","#d68a4a","#4a6fb5"];
 let CHARTS = {};
 
@@ -2139,6 +2272,8 @@ function renderAll() {
     approve: document.getElementById("fltApprove").value,
     cstart: (function(){ var el = document.getElementById("fltCStart"); return el ? el.value : ""; })(),
     cend:   (function(){ var el = document.getElementById("fltCEnd");   return el ? el.value : ""; })(),
+    rangeStart: (function(){ var el = document.getElementById("fltRangeStart"); return el ? el.value : ""; })(),
+    rangeEnd:   (function(){ var el = document.getElementById("fltRangeEnd");   return el ? el.value : ""; })(),
     search: document.getElementById("fltSearch").value,
     nonzero: document.getElementById("fltNonzero").checked,
     balanceNonzero: document.getElementById("fltBalanceNonzero").checked
@@ -2163,6 +2298,8 @@ function renderAll() {
   restoreSel("fltApprove", saved.approve);
   restoreSel("fltCStart",  saved.cstart);
   restoreSel("fltCEnd",    saved.cend);
+  var _rs = document.getElementById("fltRangeStart"); if (_rs) _rs.value = saved.rangeStart || "";
+  var _re = document.getElementById("fltRangeEnd");   if (_re) _re.value = saved.rangeEnd || "";
   document.getElementById("fltSearch").value = saved.search || "";
   document.getElementById("fltNonzero").checked = !!saved.nonzero;
   document.getElementById("fltBalanceNonzero").checked = !!saved.balanceNonzero;
@@ -2175,6 +2312,8 @@ function renderAll() {
   document.getElementById("fltApprove").onchange = onAnyFilterChange;
   var _cs = document.getElementById("fltCStart"); if (_cs) _cs.onchange = onAnyFilterChange;
   var _ce = document.getElementById("fltCEnd");   if (_ce) _ce.onchange = onAnyFilterChange;
+  var _rs2 = document.getElementById("fltRangeStart"); if (_rs2) _rs2.onchange = onAnyFilterChange;
+  var _re2 = document.getElementById("fltRangeEnd");   if (_re2) _re2.onchange = onAnyFilterChange;
   document.getElementById("fltNonzero").onchange = onAnyFilterChange;
   document.getElementById("fltBalanceNonzero").onchange = onAnyFilterChange;
   document.getElementById("fltSearch").oninput = function(){ renderTable({ skipSideTables: true }); };
@@ -2247,6 +2386,53 @@ function daysUntilISO(s) {
   return Math.round((target - start) / 86400000);
 }
 
+function dateDiffDaysInclusive_(startIso, endIso) {
+  if (!startIso || !endIso) return 0;
+  var a = String(startIso).split("-");
+  var b = String(endIso).split("-");
+  if (a.length !== 3 || b.length !== 3) return 0;
+  var start = new Date(Number(a[0]), Number(a[1]) - 1, Number(a[2]));
+  var end = new Date(Number(b[0]), Number(b[1]) - 1, Number(b[2]));
+  if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) return 0;
+  return Math.round((end - start) / 86400000) + 1;
+}
+
+function countFreeDaysForEqpt_(ranges, todayIso, maxIso) {
+  if (!todayIso || !maxIso) return 0;
+  var totalSpan = Math.max(dateDiffDaysInclusive_(todayIso, maxIso) - 1, 0);
+  if (totalSpan <= 0) return 0;
+  var merged = [];
+  (ranges || []).forEach(function(r){
+    if (!r || !r.start || !r.end) return;
+    var start = r.start <= todayIso ? addDaysISO_(todayIso, 1) : r.start;
+    var end = r.end > maxIso ? maxIso : r.end;
+    if (!start || !end || end < start) return;
+    merged.push({ start: start, end: end });
+  });
+  merged.sort(function(a,b){
+    if (a.start !== b.start) return a.start.localeCompare(b.start);
+    return a.end.localeCompare(b.end);
+  });
+  var collapsed = [];
+  merged.forEach(function(r){
+    if (!collapsed.length) {
+      collapsed.push({ start: r.start, end: r.end });
+      return;
+    }
+    var last = collapsed[collapsed.length - 1];
+    var gapDays = dateDiffDaysInclusive_(last.end, r.start) - 1;
+    if (gapDays <= 0) {
+      if (r.end > last.end) last.end = r.end;
+    } else {
+      collapsed.push({ start: r.start, end: r.end });
+    }
+  });
+  var booked = collapsed.reduce(function(sum, r){
+    return sum + dateDiffDaysInclusive_(r.start, r.end);
+  }, 0);
+  return Math.max(totalSpan - booked, 0);
+}
+
 function renderEquipmentBlockTable() {
   var body = document.getElementById("equipmentBlockBody");
   if (!body) return;
@@ -2268,13 +2454,15 @@ function renderEquipmentBlockTable() {
       var d = getLineCEnd(lk);
       var balance = Math.max(num(l.SFG_NET_ORD_QTY) - getLineProdDone(l), 0);
       if (!map.has(eqpt)) {
-        map.set(eqpt, { eqpt: eqpt, lines: 0, mcs: new Set(), balance: 0, maxDate: "", overdue: 0 });
+        map.set(eqpt, { eqpt: eqpt, lines: 0, mcs: new Set(), balance: 0, maxDate: "", overdue: 0, bookedRanges: [] });
       }
       var g = map.get(eqpt);
       g.lines += 1;
       if (l.MC_NO) g.mcs.add(String(l.MC_NO).trim());
       g.balance += balance;
       if (d && (!g.maxDate || d > g.maxDate)) g.maxDate = d;
+      var cs = getLineCStart(lk);
+      if (cs && d) g.bookedRanges.push({ start: cs, end: d });
       // Per-line overdue: commit_end exists and is strictly before today.
       if (d && todayISO && d < todayISO) g.overdue += 1;
     });
@@ -2286,7 +2474,7 @@ function renderEquipmentBlockTable() {
     return b.balance - a.balance;
   });
   if (!rows.length) {
-    body.innerHTML = '<tr><td colspan="5" class="empty">Assign EQPT in drill-down to see blocking status.</td></tr>';
+    body.innerHTML = '<tr><td colspan="6" class="empty">Assign EQPT in drill-down to see blocking status.</td></tr>';
     return;
   }
   // Reschedule button is shown to ALL roles so "user" can open the modal to
@@ -2296,6 +2484,7 @@ function renderEquipmentBlockTable() {
   body.innerHTML = rows.map(function(r){
     var days = daysUntilISO(r.maxDate);
     var daysText = days == null ? "-" : (days < 0 ? Math.abs(days) + " overdue" : days);
+    var freeDays = r.maxDate ? countFreeDaysForEqpt_(r.bookedRanges, todayISO, r.maxDate) : 0;
     var dateCls = isPastISODate(r.maxDate) ? "blocked-date bal-neg" : "blocked-date";
     var btnTitle = canSchedule
       ? "Auto-reschedule bookings for this equipment"
@@ -2307,6 +2496,7 @@ function renderEquipmentBlockTable() {
       '<td class="num">' + fmt(r.balance, 3) + '</td>' +
       '<td class="' + dateCls + '">' + (r.maxDate ? esc(fmtDateDMY(r.maxDate)) : '-') + '</td>' +
       '<td class="num' + (days != null && days < 0 ? ' bal-neg' : '') + '">' + esc(String(daysText)) + '</td>' +
+      '<td class="num">' + esc(String(freeDays)) + '</td>' +
       '<td class="' + overdueCls + '">' + esc(String(r.overdue)) + '</td>' +
     '</tr>';
   }).join("");
@@ -2597,7 +2787,7 @@ function renderTable(opts) {
   // re-render after a needed restore doesn't trigger the cascade again.
   if (!opts.skipDependentCascade) {
     var _filterSnapshot = {};
-    ["fltUm","fltL3","fltL4","fltEqpt","fltHod","fltParty","fltApprove","fltCStart","fltCEnd"].forEach(function(id){
+    ["fltUm","fltL3","fltL4","fltEqpt","fltHod","fltParty","fltApprove","fltCStart","fltCEnd","fltRangeStart","fltRangeEnd"].forEach(function(id){
       var el = document.getElementById(id);
       _filterSnapshot[id] = el ? el.value : "";
     });
@@ -2643,100 +2833,60 @@ function renderTable(opts) {
   var fApprove = document.getElementById("fltApprove").value;
   var _csEl = document.getElementById("fltCStart");
   var _ceEl = document.getElementById("fltCEnd");
+  var _rsEl = document.getElementById("fltRangeStart");
+  var _reEl = document.getElementById("fltRangeEnd");
   var fCStart = _csEl ? _csEl.value : "";
   var fCEnd   = _ceEl ? _ceEl.value : "";
+  var rangeStart = _rsEl ? _rsEl.value : "";
+  var rangeEnd   = _reEl ? _reEl.value : "";
   var q = document.getElementById("fltSearch").value.toLowerCase().trim();
   var nzOnly = document.getElementById("fltNonzero").checked;
   var balanceNzOnly = document.getElementById("fltBalanceNonzero").checked;
+  var filterCtx = {
+    fEqpt: fEqpt,
+    fHod: fHod,
+    fParty: fParty,
+    fApprove: fApprove,
+    fCStart: fCStart,
+    fCEnd: fCEnd,
+    rangeStart: rangeStart,
+    rangeEnd: rangeEnd,
+    userPendingOnly: USER_PENDING_MODE,
+    adminPendingOnly: ADMIN_PENDING_MODE
+  };
 
   var filtered = ROWS.filter(function(r){
     if (fUm && r.UM !== fUm) return false;
     if (fL3 && r.L3 !== fL3) return false;
     if (fL4 && r.L4 !== fL4) return false;
     if (nzOnly && r.REQ_SUM <= 0) return false;
-    if (fEqpt === BLANK_FILTER) {
-      var blines = LINES_BY_BOM.get(prodKey(r)) || [];
-      if (!blines.some(function(l){ return !LINE_EQPT[lineKey(l)]; })) return false;
-    } else if (fEqpt) {
-      var es = EQPT_BY_BOM.get(prodKey(r));
-      if (!es || !es.has(fEqpt)) return false;
-    }
-    if (fHod === BLANK_FILTER) {
-      var blines2 = LINES_BY_BOM.get(prodKey(r)) || [];
-      if (!blines2.some(function(l){ return !LINE_HOD[lineKey(l)]; })) return false;
-    } else if (fHod) {
-      var hs = HOD_BY_BOM.get(prodKey(r));
-      if (!hs || !hs.has(fHod)) return false;
-    }
-    if (fParty === BLANK_FILTER) {
-      var blinesPP = LINES_BY_BOM.get(prodKey(r)) || [];
-      if (!blinesPP.some(function(l){
-        var pv = (l.ACC_NAME && String(l.ACC_NAME).trim()) || "";
-        return !pv;
-      })) return false;
-    } else if (fParty) {
-      var psp = PARTY_BY_BOM.get(prodKey(r));
-      if (!psp || !psp.has(fParty)) return false;
-    }
-    // APPROVE_STATUS filter â€" cheap roll-up check first; combined-filter case
-    // is handled below via rowAggregates so "match at least one line satisfying
-    // ALL line-level filters" semantics holds.
-    if (fApprove === BLANK_FILTER) {
-      var blines3 = LINES_BY_BOM.get(prodKey(r)) || [];
-      if (!blines3.some(function(l){
-        var apv = l.APPROVE_STATUS == null ? "" : String(l.APPROVE_STATUS).trim();
-        return !apv;
-      })) return false;
-    } else if (fApprove) {
-      var aps = APPROVE_BY_BOM.get(prodKey(r));
-      if (!aps || !aps.has(fApprove)) return false;
-    }
-    // Commit Start / Commit End roll-up checks. Same shape as EQPT/HOD:
-    // BLANK_FILTER passes BOMs that have at least one line WITHOUT a date set.
-    if (fCStart === BLANK_FILTER) {
-      var blinesCS = LINES_BY_BOM.get(prodKey(r)) || [];
-      if (!blinesCS.some(function(l){ return !LINE_CSTART[lineKey(l)]; })) return false;
-    } else if (fCStart) {
-      var css = CSTART_BY_BOM.get(prodKey(r));
-      if (!css || !css.has(fCStart)) return false;
-    }
-    if (fCEnd === BLANK_FILTER) {
-      var blinesCE = LINES_BY_BOM.get(prodKey(r)) || [];
-      if (!blinesCE.some(function(l){ return !LINE_CEND[lineKey(l)]; })) return false;
-    } else if (fCEnd) {
-      var ces = CEND_BY_BOM.get(prodKey(r));
-      if (!ces || !ces.has(fCEnd)) return false;
-    }
-    // If two or more line-level filters are active simultaneously, require at
-    // least one line that satisfies ALL of them together (not just the BOM
-    // having SOME line per individual filter).
-    var activeLineFilters = (fEqpt ? 1 : 0) + (fHod ? 1 : 0) + (fApprove ? 1 : 0) +
-                            (fCStart ? 1 : 0) + (fCEnd ? 1 : 0);
-    if (activeLineFilters >= 2) {
-      var agg = rowAggregates(r, fEqpt, fHod, fApprove, fCStart, fCEnd);
+    var hasLineFilters = !!(fEqpt || fHod || fParty || fApprove || fCStart || fCEnd || rangeStart || rangeEnd || USER_PENDING_MODE || ADMIN_PENDING_MODE);
+    var agg = null;
+    if (hasLineFilters) {
+      agg = rowAggregates(r, fEqpt, fHod, fParty, fApprove, fCStart, fCEnd, rangeStart, rangeEnd);
       if (agg.lines === 0) return false;
     }
     if (balanceNzOnly) {
-      var balAgg = rowAggregates(r, fEqpt, fHod, fApprove, fCStart, fCEnd);
+      var balAgg = agg || rowAggregates(r, fEqpt, fHod, fParty, fApprove, fCStart, fCEnd, rangeStart, rangeEnd);
       if (Math.abs(balAgg.balance) < 0.0005) return false;
     }
     if (q) {
-      // Party (ACC_NAME) names are included so the Party-wise balance row
-      // click and free-text party searches both match against this BOM.
-      var blob = [r.SFG_BOM, r.SFG_CODE, r.SFG_NAME, r.L3, r.L4, r.CUSTOMERS_LIST || ""].join(" ").toLowerCase();
+      var blob = buildSearchBlobForBom_(r);
       if (blob.indexOf(q) < 0) return false;
     }
-    // "User's Job Pending" toggle: keep only BOMs with at least one line
-    // where HOD assigned + APPROVED + not Done, but EQPT / Commit Start /
-    // Commit End is missing.
-    if (USER_PENDING_MODE && !bomHasUserPending(r)) return false;
     return true;
+  });
+  LAST_FILTERED_BOMS = filtered.slice();
+  LAST_FILTER_CONTEXT = Object.assign({}, filterCtx, {
+    q: q,
+    nzOnly: nzOnly,
+    balanceNzOnly: balanceNzOnly
   });
 
   filtered = filtered.slice().sort(function(a,b){
     var av, bv;
-    var aA = rowAggregates(a, fEqpt, fHod, fApprove, fCStart, fCEnd);
-    var bA = rowAggregates(b, fEqpt, fHod, fApprove, fCStart, fCEnd);
+    var aA = rowAggregates(a, fEqpt, fHod, fParty, fApprove, fCStart, fCEnd, rangeStart, rangeEnd);
+    var bA = rowAggregates(b, fEqpt, fHod, fParty, fApprove, fCStart, fCEnd, rangeStart, rangeEnd);
     if (SORT.key === "PROD_DONE") { av = aA.prod_done; bv = bA.prod_done; }
     else if (SORT.key === "BALANCE") { av = aA.balance; bv = bA.balance; }
     else if (SORT.key === "TARGET_DATE") { av = aA.target_date; bv = bA.target_date; }
@@ -2767,7 +2917,7 @@ function renderTable(opts) {
   }
 
   body.innerHTML = filtered.map(function(r){
-    var agg = rowAggregates(r, fEqpt, fHod, fApprove, fCStart, fCEnd);
+    var agg = rowAggregates(r, fEqpt, fHod, fParty, fApprove, fCStart, fCEnd, rangeStart, rangeEnd);
     var zero = agg.req_sum <= 0;
     var done = agg.prod_done;
     var bal = agg.balance;
@@ -2811,27 +2961,17 @@ function renderTable(opts) {
   var mcSet = new Set();
   var maxDate = "";
   filtered.forEach(function(r){
-    var a = rowAggregates(r, fEqpt, fHod, fApprove, fCStart, fCEnd);
+    var a = rowAggregates(r, fEqpt, fHod, fParty, fApprove, fCStart, fCEnd, rangeStart, rangeEnd);
     totalLines += a.lines;
     if (r.UM === "KM") { totalKmReq += a.req_sum; totalKmNet += a.net_sum; totalKmDone += a.prod_done; }
     else if (r.UM === "KG") { totalKgReq += a.req_sum; totalKgNet += a.net_sum; totalKgDone += a.prod_done; }
     if (a.target_date && (!maxDate || a.target_date > maxDate)) maxDate = a.target_date;
   });
-  if (fEqpt || fHod || fApprove || fCStart || fCEnd) {
+  if (filterCtx.fEqpt || filterCtx.fHod || filterCtx.fParty || filterCtx.fApprove || filterCtx.fCStart || filterCtx.fCEnd || filterCtx.rangeStart || filterCtx.rangeEnd || filterCtx.userPendingOnly || filterCtx.adminPendingOnly) {
     filtered.forEach(function(r){
       (LINES_BY_BOM.get(prodKey(r)) || []).forEach(function(l){
-        var lkF = lineKey(l);
-        if (fEqpt === BLANK_FILTER) { if (LINE_EQPT[lkF]) return; }
-        else if (fEqpt && getLineEqpt(lkF) !== fEqpt) return;
-        if (fHod === BLANK_FILTER) { if (LINE_HOD[lkF]) return; }
-        else if (fHod && getLineHod(lkF) !== fHod) return;
-        var apv = l.APPROVE_STATUS == null ? "" : String(l.APPROVE_STATUS).trim();
-        if (fApprove === BLANK_FILTER) { if (apv) return; }
-        else if (fApprove && apv !== fApprove) return;
-        if (fCStart === BLANK_FILTER) { if (LINE_CSTART[lkF]) return; }
-        else if (fCStart && (LINE_CSTART[lkF] || "") !== fCStart) return;
-        if (fCEnd === BLANK_FILTER) { if (LINE_CEND[lkF]) return; }
-        else if (fCEnd && (LINE_CEND[lkF] || "") !== fCEnd) return;
+        if (num(l["SFG_REQUIRED_AG_BAL TO PRD FG"]) <= 0) return;
+        if (!lineMatchesActiveFilters_(l, filterCtx)) return;
         if (l.MC_NO) mcSet.add(String(l.MC_NO).trim());
       });
     });
@@ -2865,28 +3005,32 @@ function openDrillDown(bom, code, name) {
   function computeMatching() {
     var fE = document.getElementById("fltEqpt").value;
     var fH = document.getElementById("fltHod").value;
+    var fP = (function(){ var el = document.getElementById("fltParty"); return el ? el.value : ""; })();
     var fA = document.getElementById("fltApprove").value;
     var fCSEl = document.getElementById("fltCStart");
     var fCEEl = document.getElementById("fltCEnd");
+    var fRSEl = document.getElementById("fltRangeStart");
+    var fREEl = document.getElementById("fltRangeEnd");
     var fCS = fCSEl ? fCSEl.value : "";
     var fCE = fCEEl ? fCEEl.value : "";
+    var fRS = fRSEl ? fRSEl.value : "";
+    var fRE = fREEl ? fREEl.value : "";
+    var filters = {
+      fEqpt: fE,
+      fHod: fH,
+      fParty: fP,
+      fApprove: fA,
+      fCStart: fCS,
+      fCEnd: fCE,
+      rangeStart: fRS,
+      rangeEnd: fRE,
+      userPendingOnly: USER_PENDING_MODE,
+      adminPendingOnly: ADMIN_PENDING_MODE
+    };
     return LINES.filter(function(l){
       if ((l.SFG_BOM || "") !== (bom || "") || (l.SFG_CODE || "") !== (code || "")) return false;
       if (num(l["SFG_REQUIRED_AG_BAL TO PRD FG"]) <= 0) return false;
-      var lk = lineKey(l);
-      if (fE === BLANK_FILTER) { if (LINE_EQPT[lk]) return false; }
-      else if (fE && getLineEqpt(lk) !== fE) return false;
-      if (fH === BLANK_FILTER) { if (LINE_HOD[lk]) return false; }
-      else if (fH && getLineHod(lk) !== fH) return false;
-      var apv = l.APPROVE_STATUS == null ? "" : String(l.APPROVE_STATUS).trim();
-      if (fA === BLANK_FILTER) { if (apv) return false; }
-      else if (fA && apv !== fA) return false;
-      if (fCS === BLANK_FILTER) { if (LINE_CSTART[lk]) return false; }
-      else if (fCS && (LINE_CSTART[lk] || "") !== fCS) return false;
-      if (fCE === BLANK_FILTER) { if (LINE_CEND[lk]) return false; }
-      else if (fCE && (LINE_CEND[lk] || "") !== fCE) return false;
-      if (USER_PENDING_MODE && !isLineUserPending(l)) return false;
-      return true;
+      return lineMatchesActiveFilters_(l, filters);
     });
   }
   var firstAny = LINES.find(function(l){
@@ -2896,23 +3040,32 @@ function openDrillDown(bom, code, name) {
   document.getElementById("drillTitle").textContent = name || code || bom;
   var _fE = document.getElementById("fltEqpt").value;
   var _fH = document.getElementById("fltHod").value;
+  var _fP = (function(){ var el = document.getElementById("fltParty"); return el ? el.value : ""; })();
   var _fA = document.getElementById("fltApprove").value;
   var _fCSel = document.getElementById("fltCStart");
   var _fCEsel = document.getElementById("fltCEnd");
+  var _fRSel = document.getElementById("fltRangeStart");
+  var _fREsel = document.getElementById("fltRangeEnd");
   var _fCS = _fCSel ? _fCSel.value : "";
   var _fCE = _fCEsel ? _fCEsel.value : "";
+  var _fRS = _fRSel ? _fRSel.value : "";
+  var _fRE = _fREsel ? _fREsel.value : "";
   var filterBits = [];
   if (_fE === BLANK_FILTER) filterBits.push("EQPT = (blank)");
   else if (_fE) filterBits.push("EQPT = " + _fE);
   if (_fH === BLANK_FILTER) filterBits.push("HOD = (blank)");
   else if (_fH) filterBits.push("HOD = " + _fH);
+  if (_fP === BLANK_FILTER) filterBits.push("Party = (blank)");
+  else if (_fP) filterBits.push("Party = " + _fP);
   if (_fA === BLANK_FILTER) filterBits.push("Approve = (blank)");
   else if (_fA) filterBits.push("Approve = " + _fA);
   if (_fCS === BLANK_FILTER) filterBits.push("Commit Start = (blank)");
   else if (_fCS) filterBits.push("Commit Start = " + fmtDateDMY(_fCS));
   if (_fCE === BLANK_FILTER) filterBits.push("Commit End = (blank)");
   else if (_fCE) filterBits.push("Commit End = " + fmtDateDMY(_fCE));
+  if (_fRS || _fRE) filterBits.push("Date Range = " + (_fRS ? fmtDateDMY(_fRS) : "...") + " to " + (_fRE ? fmtDateDMY(_fRE) : "..."));
   if (USER_PENDING_MODE) filterBits.push("User's Job Pending");
+  if (ADMIN_PENDING_MODE) filterBits.push("Admin's Job Pending");
   var filterDesc = filterBits.length
     ? ' &nbsp; / &nbsp; <span style="color:#a85;font-weight:600;">Filtered: ' + esc(filterBits.join(", ")) + '</span>'
     : '';
@@ -3502,6 +3655,7 @@ function addBlankOption(sel) {
 // The drill-down child table filters identically, so the user immediately
 // sees only the lines they still need to fill in.
 var USER_PENDING_MODE = false;
+var ADMIN_PENDING_MODE = false;
 function isLineUserPending(l) {
   if (!l) return false;
   if (isLineDone(l)) return false;
@@ -3517,21 +3671,48 @@ function isLineUserPending(l) {
 function bomHasUserPending(r) {
   return (LINES_BY_BOM.get(prodKey(r)) || []).some(isLineUserPending);
 }
+function isLineAdminPending(l) {
+  if (!l) return false;
+  if (isLineDone(l)) return false;
+  var lk = lineKey(l);
+  if (LINE_HOD[lk]) return false;
+  var ap = l.APPROVE_STATUS == null ? "" : String(l.APPROVE_STATUS).trim().toUpperCase();
+  return ap === "APPROVED";
+}
+function bomHasAdminPending(r) {
+  return (LINES_BY_BOM.get(prodKey(r)) || []).some(isLineAdminPending);
+}
 function toggleUserPendingMode() {
   USER_PENDING_MODE = !USER_PENDING_MODE;
+  if (USER_PENDING_MODE) ADMIN_PENDING_MODE = false;
   var btn = document.getElementById("userPendingBtn");
   if (btn) btn.classList.toggle("active", USER_PENDING_MODE);
+  var adminBtn = document.getElementById("adminPendingBtn");
+  if (adminBtn) adminBtn.classList.remove("active");
   if (typeof showFilterToast === "function") {
     showFilterToast(USER_PENDING_MODE ? "Showing User's Job Pending only" : "User's Job Pending cleared");
   }
   renderTable({ skipSideTables: true });
 }
 window.toggleUserPendingMode = toggleUserPendingMode;
+function toggleAdminPendingMode() {
+  ADMIN_PENDING_MODE = !ADMIN_PENDING_MODE;
+  if (ADMIN_PENDING_MODE) USER_PENDING_MODE = false;
+  var btn = document.getElementById("adminPendingBtn");
+  if (btn) btn.classList.toggle("active", ADMIN_PENDING_MODE);
+  var userBtn = document.getElementById("userPendingBtn");
+  if (userBtn) userBtn.classList.remove("active");
+  if (typeof showFilterToast === "function") {
+    showFilterToast(ADMIN_PENDING_MODE ? "Showing Admin's Job Pending only" : "Admin's Job Pending cleared");
+  }
+  renderTable({ skipSideTables: true });
+}
+window.toggleAdminPendingMode = toggleAdminPendingMode;
 // Excel-style dependent filter: returns the BOMs that pass every currently
 // active filter, with the option to silence ONE filter for the call. Used by
 // dropdown population so each filter only lists values that would still yield
 // results given the rest of the current selection. opts.exclude can be:
-//   "UM" | "L3" | "L4" | "EQPT" | "HOD" | "APPROVE" | "CSTART" | "CEND"
+//   "UM" | "L3" | "L4" | "EQPT" | "HOD" | "APPROVE" | "CSTART" | "CEND" | "RSTART" | "REND"
 // Behavior must stay in sync with the inline filter logic inside
 // renderTable() â€" any tweak there needs the matching tweak here.
 function applyAllFilters_(opts) {
@@ -3547,77 +3728,42 @@ function applyAllFilters_(opts) {
   var fApprove = ex === "APPROVE" ? "" : document.getElementById("fltApprove").value;
   var fCSel = document.getElementById("fltCStart");
   var fCEel = document.getElementById("fltCEnd");
+  var fRSEl = document.getElementById("fltRangeStart");
+  var fREEl = document.getElementById("fltRangeEnd");
   var fCS = (ex === "CSTART" || !fCSel) ? "" : fCSel.value;
   var fCE = (ex === "CEND"   || !fCEel) ? "" : fCEel.value;
+  var fRS = (ex === "RSTART" || !fRSEl) ? "" : fRSEl.value;
+  var fRE = (ex === "REND"   || !fREEl) ? "" : fREEl.value;
   var nzOnly = document.getElementById("fltNonzero").checked;
   var balanceNzOnly = document.getElementById("fltBalanceNonzero").checked;
+  var filterCtx = {
+    fEqpt: fEqpt,
+    fHod: fHod,
+    fParty: fParty,
+    fApprove: fApprove,
+    fCStart: fCS,
+    fCEnd: fCE,
+    rangeStart: fRS,
+    rangeEnd: fRE,
+    userPendingOnly: USER_PENDING_MODE,
+    adminPendingOnly: ADMIN_PENDING_MODE
+  };
 
   return ROWS.filter(function(r){
     if (fUm && r.UM !== fUm) return false;
     if (fL3 && r.L3 !== fL3) return false;
     if (fL4 && r.L4 !== fL4) return false;
     if (nzOnly && r.REQ_SUM <= 0) return false;
-    if (fEqpt === BLANK_FILTER) {
-      var blines = LINES_BY_BOM.get(prodKey(r)) || [];
-      if (!blines.some(function(l){ return !LINE_EQPT[lineKey(l)]; })) return false;
-    } else if (fEqpt) {
-      var es = EQPT_BY_BOM.get(prodKey(r));
-      if (!es || !es.has(fEqpt)) return false;
-    }
-    if (fHod === BLANK_FILTER) {
-      var blines2 = LINES_BY_BOM.get(prodKey(r)) || [];
-      if (!blines2.some(function(l){ return !LINE_HOD[lineKey(l)]; })) return false;
-    } else if (fHod) {
-      var hs = HOD_BY_BOM.get(prodKey(r));
-      if (!hs || !hs.has(fHod)) return false;
-    }
-    if (fParty === BLANK_FILTER) {
-      var blinesP = LINES_BY_BOM.get(prodKey(r)) || [];
-      if (!blinesP.some(function(l){
-        var pv = (l.ACC_NAME && String(l.ACC_NAME).trim()) || "";
-        return !pv;
-      })) return false;
-    } else if (fParty) {
-      var ps = PARTY_BY_BOM.get(prodKey(r));
-      if (!ps || !ps.has(fParty)) return false;
-    }
-    if (fApprove === BLANK_FILTER) {
-      var blines3 = LINES_BY_BOM.get(prodKey(r)) || [];
-      if (!blines3.some(function(l){
-        var apv = l.APPROVE_STATUS == null ? "" : String(l.APPROVE_STATUS).trim();
-        return !apv;
-      })) return false;
-    } else if (fApprove) {
-      var aps = APPROVE_BY_BOM.get(prodKey(r));
-      if (!aps || !aps.has(fApprove)) return false;
-    }
-    if (fCS === BLANK_FILTER) {
-      var blinesCS = LINES_BY_BOM.get(prodKey(r)) || [];
-      if (!blinesCS.some(function(l){ return !LINE_CSTART[lineKey(l)]; })) return false;
-    } else if (fCS) {
-      var css = CSTART_BY_BOM.get(prodKey(r));
-      if (!css || !css.has(fCS)) return false;
-    }
-    if (fCE === BLANK_FILTER) {
-      var blinesCE = LINES_BY_BOM.get(prodKey(r)) || [];
-      if (!blinesCE.some(function(l){ return !LINE_CEND[lineKey(l)]; })) return false;
-    } else if (fCE) {
-      var ces = CEND_BY_BOM.get(prodKey(r));
-      if (!ces || !ces.has(fCE)) return false;
-    }
-    // Combined line-filter check (â‰¥2 line filters active â†’ at least one line
-    // must satisfy them all together, not just one filter each).
-    var activeLineFilters = (fEqpt ? 1 : 0) + (fHod ? 1 : 0) + (fParty ? 1 : 0) + (fApprove ? 1 : 0) +
-                            (fCS ? 1 : 0) + (fCE ? 1 : 0);
-    if (activeLineFilters >= 2) {
-      var agg = rowAggregates(r, fEqpt, fHod, fApprove, fCS, fCE);
+    var hasLineFilters = !!(fEqpt || fHod || fParty || fApprove || fCS || fCE || fRS || fRE || USER_PENDING_MODE || ADMIN_PENDING_MODE);
+    var agg = null;
+    if (hasLineFilters) {
+      agg = rowAggregates(r, fEqpt, fHod, fParty, fApprove, fCS, fCE, fRS, fRE);
       if (agg.lines === 0) return false;
     }
     if (balanceNzOnly) {
-      var balAgg = rowAggregates(r, fEqpt, fHod, fApprove, fCS, fCE);
+      var balAgg = agg || rowAggregates(r, fEqpt, fHod, fParty, fApprove, fCS, fCE, fRS, fRE);
       if (Math.abs(balAgg.balance) < 0.0005) return false;
     }
-    if (USER_PENDING_MODE && !bomHasUserPending(r)) return false;
     return true;
   });
 }
@@ -3706,30 +3852,38 @@ function refreshAllDependentDropdowns_() {
 }
 window.refreshAllDependentDropdowns_ = refreshAllDependentDropdowns_;
 function clearFilters() {
-  document.getElementById("fltUm").value = "";
-  document.getElementById("fltL3").value = "";
-  document.getElementById("fltL4").value = "";
-  document.getElementById("fltEqpt").value = "";
-  document.getElementById("fltHod").value = "";
-  var fp = document.getElementById("fltParty"); if (fp) fp.value = "";
-  var fa = document.getElementById("fltApprove"); if (fa) fa.value = "";
-  var fcs = document.getElementById("fltCStart"); if (fcs) fcs.value = "";
-  var fce = document.getElementById("fltCEnd");   if (fce) fce.value = "";
-  document.getElementById("fltSearch").value = "";
-  document.getElementById("fltNonzero").checked = true;
-  document.getElementById("fltBalanceNonzero").checked = true;
+  [
+    "fltUm","fltL3","fltL4","fltEqpt","fltHod",
+    "fltParty","fltApprove","fltCStart","fltCEnd",
+    "fltRangeStart","fltRangeEnd","fltSearch"
+  ].forEach(function(id){
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.value = "";
+  });
+  var nz = document.getElementById("fltNonzero");
+  var bnz = document.getElementById("fltBalanceNonzero");
+  if (nz) nz.checked = true;
+  if (bnz) bnz.checked = true;
   // Also reset the "User's Job Pending" toggle so Clear Filters returns the
   // dashboard to its default view.
   USER_PENDING_MODE = false;
+  ADMIN_PENDING_MODE = false;
   var upBtn = document.getElementById("userPendingBtn");
   if (upBtn) upBtn.classList.remove("active");
+  var apBtn = document.getElementById("adminPendingBtn");
+  if (apBtn) apBtn.classList.remove("active");
+  AGG_CACHE = new Map();
+  LAST_FILTERED_BOMS = [];
+  LAST_FILTER_CONTEXT = null;
   // refreshFilters() is invoked inside renderTable, so calling it twice in
   // a row just doubles the L3/L4 dropdown DOM rewrite â€" skip the extra
   // call. Same applies to onAnyFilterChange and applyFilters below.
   // Wipe any row-click highlight at the same time so Clear Filters truly
   // resets the dashboard to neutral.
   if (typeof clearRowSelection_ === "function") clearRowSelection_();
-  renderTable({ skipSideTables: true });
+  if (typeof refreshAllDependentDropdowns_ === "function") refreshAllDependentDropdowns_();
+  renderTable({ skipSideTables: true, skipDependentCascade: true });
 }
 window.clearFilters = clearFilters;
 function onAnyFilterChange() { renderTable({ skipSideTables: true }); }
@@ -3760,7 +3914,7 @@ function applyFilters(overrides, opts) {
   // filter once renderTable finishes so the dependent-dropdown cascade can't
   // silently drop any value (a recurring multi-filter combo bug).
   var _intended = {};
-  ["fltUm","fltL3","fltL4","fltEqpt","fltHod","fltParty","fltApprove","fltCStart","fltCEnd"].forEach(function(id){
+  ["fltUm","fltL3","fltL4","fltEqpt","fltHod","fltParty","fltApprove","fltCStart","fltCEnd","fltRangeStart","fltRangeEnd"].forEach(function(id){
     var el = document.getElementById(id);
     if (el) _intended[id] = el.value;
   });
