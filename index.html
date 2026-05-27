@@ -1029,8 +1029,10 @@ function findCommitConflict_(selfLk, eqpt, start, end) {
 function canEditCommitment_() {
   try {
     var s = typeof loadSession === "function" ? loadSession() : null;
-    return !!(s && s.role) && hasInputRight_("view") &&
-      (hasInputRight_("entry") || hasInputRight_("edit") || hasInputRight_("delete"));
+  return !!(s && s.role) &&
+      (hasInputRight_("view", "commit_start") || hasInputRight_("view", "commit_end")) &&
+      (hasInputRight_("entry", "commit_start") || hasInputRight_("edit", "commit_start") || hasInputRight_("delete", "commit_start") ||
+       hasInputRight_("entry", "commit_end") || hasInputRight_("edit", "commit_end") || hasInputRight_("delete", "commit_end"));
   } catch(e) { return true; }
 }
 // Per-line, per-field commit-date editability:
@@ -1042,8 +1044,9 @@ function canEditCommitment_() {
 function canEditCommitField_(lk, isStart) {
   try {
     var cur = isStart ? (LINE_CSTART[lk] || "") : (LINE_CEND[lk] || "");
-    if (!cur) return hasInputRight_("entry");
-    return hasInputRight_("edit") || hasInputRight_("delete");
+    var colKey = isStart ? "commit_start" : "commit_end";
+    if (!cur) return hasInputRight_("entry", colKey);
+    return hasInputRight_("edit", colKey) || hasInputRight_("delete", colKey);
   } catch(e) { return true; }
 }
 // Reschedule (auto-shift / bulk re-order of an equipment's commit dates) is
@@ -1987,7 +1990,7 @@ function saveRemoteLineInput(lk, opts) {
   // Always POST every manual edit â€" we no longer gate on REMOTE_INPUTS_LOADING
   // so that user input typed during an auto-refresh window is never dropped.
   if (!hasInputApi() || !lk) return;
-  if (!hasRemoteInputRecord_(lk) && !hasInputRight_("entry")) {
+  if (!hasRemoteInputRecord_(lk) && !hasAnyColumnRight_("entry")) {
     console.warn("[Planning sync] Entry access is required to create a fresh planning entry", { line_id: lk });
     return;
   }
@@ -3296,7 +3299,7 @@ function renderPordTable(lines, um) {
     var manualPD = getLinePDManual(lkRaw);
     return '<tr class="' + (done ? "line-done" : "") + '" data-lk="' + lk + '" data-sfgnet="' + sfgNet + '">' + cols.map(function(c){
       if (c.key === "_done") {
-        var stDone = inputControlState_(done ? "1" : "", false, adminFreshLocked, "Done");
+        var stDone = inputControlState_(done ? "1" : "", false, adminFreshLocked, "Done", "done");
         if (stDone.hidden) return '<td class="input-no-view">-</td>';
         var disDone = stDone.disabled ? ' disabled title="' + esc(stDone.title) + '"' : '';
         return '<td class="line-done-cell"><input type="checkbox" class="line-done-chk"' + (done ? ' checked' : '') + disDone + ' /></td>';
@@ -3308,7 +3311,7 @@ function renderPordTable(lines, um) {
       }
       if (c.key === "_line_pd") {
         var dispVal = done ? sfgNet : (manualPD > 0 ? manualPD : "");
-        var stPD = inputControlState_(dispVal, done, adminFreshLocked, "Production Done Qty");
+        var stPD = inputControlState_(dispVal, done, adminFreshLocked, "Production Done Qty", "prod_done");
         if (stPD.hidden) return '<td class="input-no-view">-</td>';
         var readonly = stPD.disabled ? ' readonly title="' + esc(stPD.title) + '"' : '';
         var extraCls = done ? ' line-pd-locked' : '';
@@ -3326,7 +3329,7 @@ function renderPordTable(lines, um) {
       }
       if (c.key === "_eqpt") {
         var selE = getLineEqpt(lkRaw);
-        var stE = inputControlState_(selE, done, adminFreshLocked, "EQPT");
+        var stE = inputControlState_(selE, done, adminFreshLocked, "EQPT", "eqpt");
         if (stE.hidden) return '<td class="input-no-view">-</td>';
         var optsE = '<option value="">-- select --</option>' + EQPT_MASTER.map(function(e){ return '<option value="' + esc(e) + '"' + (selE === e ? ' selected' : '') + '>' + esc(e) + '</option>'; }).join("");
         var disE = stE.disabled ? ' disabled title="' + esc(stE.title) + '"' : '';
@@ -3334,7 +3337,7 @@ function renderPordTable(lines, um) {
       }
       if (c.key === "_hod") {
         var selH = getLineHod(lkRaw);
-        var stH = inputControlState_(selH, done, adminFreshLocked, "HOD");
+        var stH = inputControlState_(selH, done, adminFreshLocked, "HOD", "hod");
         if (stH.hidden) return '<td class="input-no-view">-</td>';
         var optsH = '<option value="">-- select --</option>' + HOD_MASTER.map(function(h){ return '<option value="' + esc(h) + '"' + (selH === h ? ' selected' : '') + '>' + esc(h) + '</option>'; }).join("");
         var disH = stH.disabled ? ' disabled title="' + esc(stH.title) + '"' : '';
@@ -3342,7 +3345,7 @@ function renderPordTable(lines, um) {
       }
       if (c.key === "_consume") {
         var selC = getLineConsume(lkRaw);
-        var stConsume = inputControlState_(selC, done, adminFreshLocked, "Consume from");
+        var stConsume = inputControlState_(selC, done, adminFreshLocked, "Consume from", "consume_from");
         if (stConsume.hidden) return '<td class="input-no-view">-</td>';
         var optsC = '<option value="">-- select --</option>' + CONSUME_FROM_OPTIONS.map(function(v){ return '<option value="' + esc(v) + '"' + (selC === v ? ' selected' : '') + '>' + esc(v) + '</option>'; }).join("");
         var disConsume = stConsume.disabled ? ' disabled title="' + esc(stConsume.title) + '"' : '';
@@ -3352,7 +3355,7 @@ function renderPordTable(lines, um) {
         var lkC = lkRaw;
         var isStart = c.key === "_cstart";
         var val = isStart ? getLineCStart(lkC) : getLineCEnd(lkC);
-        var stDate = inputControlState_(val, done, adminFreshLocked, isStart ? "Commit Start" : "Commit End");
+        var stDate = inputControlState_(val, done, adminFreshLocked, isStart ? "Commit Start" : "Commit End", isStart ? "commit_start" : "commit_end");
         if (stDate.hidden) return '<td class="input-no-view">-</td>';
         var cls = isStart ? "line-cstart-input" : "line-cend-input";
         var disC = "";
@@ -3404,7 +3407,7 @@ function wireDoneTicksGlobal() {
       var lk = tr.getAttribute("data-lk") || "";
       var oldVal = chk.checked ? "" : "1";
       var newVal = chk.checked ? "1" : "";
-      if (!canInputChange_(oldVal, newVal, "Done")) {
+      if (!canInputChange_(oldVal, newVal, "Done", "done")) {
         chk.checked = !chk.checked;
         return;
       }
@@ -3434,7 +3437,7 @@ function wireDoneTicksGlobal() {
       var prev = getLinePDManual(lk);
       var oldPermissionVal = prev > 0 ? String(prev) : "";
       var newPermissionVal = (nv != null && !isNaN(nv) && nv > 0) ? String(nv) : "";
-      if (!canInputChange_(oldPermissionVal, newPermissionVal, "Production Done Qty")) {
+      if (!canInputChange_(oldPermissionVal, newPermissionVal, "Production Done Qty", "prod_done")) {
         inp.value = prev > 0 ? String(prev) : "";
         return;
       }
@@ -3458,7 +3461,7 @@ function wireDoneTicksGlobal() {
       var tr = sel.closest("tr"); if (!tr) return;
       var lk = tr.getAttribute("data-lk") || "";
       var oldVal = getLineEqpt(lk) || "";
-      if (!canInputChange_(oldVal, sel.value || "", "EQPT")) {
+      if (!canInputChange_(oldVal, sel.value || "", "EQPT", "eqpt")) {
         sel.value = oldVal;
         return;
       }
@@ -3474,7 +3477,7 @@ function wireDoneTicksGlobal() {
       var tr = sel.closest("tr"); if (!tr) return;
       var lk = tr.getAttribute("data-lk") || "";
       var oldVal = getLineHod(lk) || "";
-      if (!canInputChange_(oldVal, sel.value || "", "HOD")) {
+      if (!canInputChange_(oldVal, sel.value || "", "HOD", "hod")) {
         sel.value = oldVal;
         return;
       }
@@ -3490,7 +3493,7 @@ function wireDoneTicksGlobal() {
       var tr = sel.closest("tr"); if (!tr) return;
       var lk = tr.getAttribute("data-lk") || "";
       var oldVal = getLineConsume(lk) || "";
-      if (!canInputChange_(oldVal, sel.value || "", "Consume from")) {
+      if (!canInputChange_(oldVal, sel.value || "", "Consume from", "consume_from")) {
         sel.value = oldVal;
         return;
       }
@@ -3523,7 +3526,7 @@ function wireDoneTicksGlobal() {
       }
       var newVal = inp.value || "";
       var oldVal = isStart ? getLineCStart(lk) : getLineCEnd(lk);
-      if (!canInputChange_(oldVal || "", newVal || "", isStart ? "Commit Start" : "Commit End")) {
+      if (!canInputChange_(oldVal || "", newVal || "", isStart ? "Commit Start" : "Commit End", isStart ? "commit_start" : "commit_end")) {
         inp.value = oldVal || "";
         return;
       }
@@ -4133,11 +4136,32 @@ function currentRole() { var s = loadSession(); return s ? s.role : "anonymous";
 function currentUsername() { var s = loadSession(); return s ? s.username : ""; }
 function isAdmin() { return currentRole() === "admin" || currentRole() === "super_admin"; }
 function isSuperAdmin() { return currentRole() === "super_admin"; }
+const INPUT_RIGHT_COLUMNS = [
+  { key: "done", label: "Done" },
+  { key: "prod_done", label: "Production Done Qty" },
+  { key: "eqpt", label: "EQPT" },
+  { key: "hod", label: "HOD" },
+  { key: "commit_start", label: "Commit Start" },
+  { key: "commit_end", label: "Commit End" },
+  { key: "consume_from", label: "Consume from" }
+];
+function makeInputRightsFromFlat_(flat) {
+  var out = { columns: {} };
+  INPUT_RIGHT_COLUMNS.forEach(function(c){
+    out.columns[c.key] = {
+      view: flat.view !== false,
+      entry: !!flat.entry,
+      edit: !!flat.edit,
+      delete: !!flat.delete
+    };
+  });
+  return out;
+}
 function defaultInputRights_(role) {
   role = String(role || "user").toLowerCase();
-  if (role === "super_admin") return { view: true, entry: true, edit: true, delete: true };
-  if (role === "admin") return { view: true, entry: true, edit: true, delete: false };
-  return { view: true, entry: true, edit: false, delete: false };
+  if (role === "super_admin") return makeInputRightsFromFlat_({ view: true, entry: true, edit: true, delete: true });
+  if (role === "admin") return makeInputRightsFromFlat_({ view: true, entry: true, edit: true, delete: false });
+  return makeInputRightsFromFlat_({ view: true, entry: true, edit: false, delete: false });
 }
 function normalizeInputRights_(raw, role) {
   var base = defaultInputRights_(role);
@@ -4147,56 +4171,81 @@ function normalizeInputRights_(raw, role) {
     try { obj = JSON.parse(String(raw)); } catch(e) { obj = null; }
   }
   if (!obj) return base;
-  return {
-    view: obj.view !== false && obj.view !== "false" && obj.view !== 0 && obj.view !== "0",
-    entry: obj.entry === true || obj.entry === "true" || obj.entry === 1 || obj.entry === "1",
-    edit: obj.edit === true || obj.edit === "true" || obj.edit === 1 || obj.edit === "1",
-    delete: obj.delete === true || obj.delete === "true" || obj.delete === 1 || obj.delete === "1"
-  };
+  function truthy(v, def) {
+    if (v == null) return !!def;
+    return v === true || v === "true" || v === 1 || v === "1";
+  }
+  // Backward compatibility for the earlier flat format.
+  if (!obj.columns) {
+    return makeInputRightsFromFlat_({
+      view: obj.view !== false && obj.view !== "false" && obj.view !== 0 && obj.view !== "0",
+      entry: truthy(obj.entry, false),
+      edit: truthy(obj.edit, false),
+      delete: truthy(obj.delete, false)
+    });
+  }
+  var out = { columns: {} };
+  INPUT_RIGHT_COLUMNS.forEach(function(c){
+    var src = obj.columns && obj.columns[c.key] ? obj.columns[c.key] : null;
+    var fallback = base.columns[c.key];
+    out.columns[c.key] = {
+      view: src ? (src.view !== false && src.view !== "false" && src.view !== 0 && src.view !== "0") : fallback.view,
+      entry: src ? truthy(src.entry, false) : fallback.entry,
+      edit: src ? truthy(src.edit, false) : fallback.edit,
+      delete: src ? truthy(src.delete, false) : fallback.delete
+    };
+  });
+  return out;
 }
-function inputRightsToJson_(rights) {
-  var r = normalizeInputRights_(rights, currentRole());
-  return JSON.stringify({ view: !!r.view, entry: !!r.entry, edit: !!r.edit, delete: !!r.delete });
+function inputRightsToJson_(rights, role) {
+  return JSON.stringify(normalizeInputRights_(rights, role || currentRole()));
 }
 function currentInputRights() {
   if (isSuperAdmin()) return defaultInputRights_("super_admin");
   var s = loadSession();
   return normalizeInputRights_(s && s.input_rights, s && s.role);
 }
-function hasInputRight_(name) {
+function getColumnRights_(colKey) {
   var r = currentInputRights();
-  return !!(r && r[name]);
+  return r && r.columns && r.columns[colKey] ? r.columns[colKey] : { view: false, entry: false, edit: false, delete: false };
+}
+function hasInputRight_(name, colKey) {
+  if (!colKey) return INPUT_RIGHT_COLUMNS.some(function(c){ return !!getColumnRights_(c.key)[name]; });
+  return !!getColumnRights_(colKey)[name];
+}
+function hasAnyColumnRight_(name) {
+  return INPUT_RIGHT_COLUMNS.some(function(c){ return hasInputRight_(name, c.key); });
 }
 function isBlankInputValue_(v) {
   return v == null || String(v).trim() === "" || String(v).trim() === "0";
 }
-function canInputChange_(oldVal, newVal, label) {
+function canInputChange_(oldVal, newVal, label, colKey) {
   if (isSuperAdmin()) return true;
-  if (!hasInputRight_("view")) {
+  if (!hasInputRight_("view", colKey)) {
     alert("You do not have view access for input columns.");
     return false;
   }
   var oldBlank = isBlankInputValue_(oldVal);
   var newBlank = isBlankInputValue_(newVal);
-  if (oldBlank && !newBlank && !hasInputRight_("entry")) {
+  if (oldBlank && !newBlank && !hasInputRight_("entry", colKey)) {
     alert("Entry access is not allowed for " + label + ".");
     return false;
   }
-  if (!oldBlank && newBlank && !hasInputRight_("delete")) {
+  if (!oldBlank && newBlank && !hasInputRight_("delete", colKey)) {
     alert("Delete access is not allowed for " + label + ".");
     return false;
   }
-  if (!oldBlank && !newBlank && String(oldVal) !== String(newVal) && !hasInputRight_("edit")) {
+  if (!oldBlank && !newBlank && String(oldVal) !== String(newVal) && !hasInputRight_("edit", colKey)) {
     alert("Edit access is not allowed for " + label + ".");
     return false;
   }
   return true;
 }
-function inputControlState_(currentVal, done, adminFreshLocked, label) {
-  if (!hasInputRight_("view")) return { hidden: true, disabled: true, title: "No view access" };
+function inputControlState_(currentVal, done, adminFreshLocked, label, colKey) {
+  if (!hasInputRight_("view", colKey)) return { hidden: true, disabled: true, title: "No view access" };
   if (done) return { hidden: false, disabled: true, title: "Un-tick Done to change " + label };
-  if (adminFreshLocked && !hasInputRight_("entry")) return { hidden: false, disabled: true, title: "Entry access required to create planning input" };
-  var hasAnyWrite = hasInputRight_("entry") || hasInputRight_("edit") || hasInputRight_("delete");
+  if (adminFreshLocked && !hasInputRight_("entry", colKey)) return { hidden: false, disabled: true, title: "Entry access required to create planning input" };
+  var hasAnyWrite = hasInputRight_("entry", colKey) || hasInputRight_("edit", colKey) || hasInputRight_("delete", colKey);
   if (!hasAnyWrite) return { hidden: false, disabled: true, title: "No input write access" };
   return { hidden: false, disabled: false, title: "" };
 }
@@ -4472,28 +4521,31 @@ function formatTs(s) {
 }
 function renderRightsEditor_(raw, role) {
   var r = normalizeInputRights_(raw, role);
-  function cb(k, label) {
-    return '<label style="display:inline-flex;align-items:center;gap:3px;margin-right:7px;white-space:nowrap;">' +
-      '<input type="checkbox" class="row-input-right row-input-' + k + '"' + (r[k] ? ' checked' : '') + ' /> ' + label + '</label>';
+  function cb(col, action) {
+    var checked = r.columns && r.columns[col.key] && r.columns[col.key][action] ? ' checked' : '';
+    return '<td style="text-align:center;padding:1px 3px;"><input type="checkbox" class="row-input-right row-input-' + action + '" data-col="' + esc(col.key) + '"' + checked + ' /></td>';
   }
-  return '<div class="row-rights" style="font-size:11px;">' +
-    cb("view", "View") + cb("entry", "Entry") + cb("edit", "Edit") + cb("delete", "Delete") +
-    '</div>';
+  return '<table class="rights-mini" style="font-size:10px;border-collapse:collapse;min-width:270px;">' +
+    '<thead><tr><th style="text-align:left;padding:1px 4px;">Column Name</th><th title="View">V</th><th title="Entry">En</th><th title="Edit">Ed</th><th title="Delete">Del</th></tr></thead><tbody>' +
+    INPUT_RIGHT_COLUMNS.map(function(col){
+      return '<tr><td style="padding:1px 4px;white-space:nowrap;color:#234;">' + esc(col.label) + '</td>' +
+        cb(col, "view") + cb(col, "entry") + cb(col, "edit") + cb(col, "delete") +
+        '</tr>';
+    }).join("") + '</tbody></table>';
 }
 function readRightsFromRow_(tr, role) {
-  function checked(cls) {
-    var el = tr.querySelector(cls);
-    return !!(el && el.checked);
-  }
   if (String(role || "").toLowerCase() === "super_admin") {
-    return inputRightsToJson_({ view: true, entry: true, edit: true, delete: true });
+    return inputRightsToJson_(defaultInputRights_("super_admin"), role);
   }
-  return inputRightsToJson_({
-    view: checked(".row-input-view"),
-    entry: checked(".row-input-entry"),
-    edit: checked(".row-input-edit"),
-    delete: checked(".row-input-delete")
+  var rights = { columns: {} };
+  INPUT_RIGHT_COLUMNS.forEach(function(col){
+    rights.columns[col.key] = {};
+    ["view", "entry", "edit", "delete"].forEach(function(action){
+      var el = tr.querySelector('.row-input-' + action + '[data-col="' + col.key + '"]');
+      rights.columns[col.key][action] = !!(el && el.checked);
+    });
   });
+  return inputRightsToJson_(rights, role);
 }
 async function refreshUserPanel() {
   var body = document.getElementById("userPanelBody");
@@ -4530,7 +4582,7 @@ async function refreshUserPanel() {
       '</tr>';
     }).join("") +
     '</tbody></table>' +
-    '<div style="margin-top:10px;font-size:11px;color:#2a52a8;background:#eef4ff;border:1px solid #c6d4ee;padding:7px 10px;border-radius:6px;"><strong>Input Rights:</strong> View shows manual input columns, Entry fills blank cells, Edit changes existing values, Delete clears existing values. <strong>View Filter:</strong> applies ONLY to role=user. Available APPROVE_STATUS: <em>' + esc(statusHint) + '</em>.</div>' +
+    '<div style="margin-top:10px;font-size:11px;color:#2a52a8;background:#eef4ff;border:1px solid #c6d4ee;padding:7px 10px;border-radius:6px;"><strong>Input Rights:</strong> column-wise access. V = view column, En = fill blank cell, Ed = change existing value, Del = clear existing value. <strong>View Filter:</strong> applies ONLY to role=user. Available APPROVE_STATUS: <em>' + esc(statusHint) + '</em>.</div>' +
     '<div style="margin-top:6px;font-size:11px;color:#8a5a00;background:#fff7e6;border:1px solid #e8c986;padding:6px 10px;border-radius:6px;">Note: passwords are stored in plain text in the sheet for easy reset. Anyone with sheet access can see them.</div>';
 }
 async function submitAddUser() {

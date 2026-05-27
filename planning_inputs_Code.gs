@@ -341,9 +341,28 @@ function doPlanningUpsert_(p) {
 // On first call after upgrade, we migrate the old schema in place.
 function defaultInputRights_(role) {
   role = String(role || 'user').toLowerCase();
-  if (role === 'super_admin') return { view: true, entry: true, edit: true, delete: true };
-  if (role === 'admin') return { view: true, entry: true, edit: true, delete: false };
-  return { view: true, entry: true, edit: false, delete: false };
+  var flat;
+  if (role === 'super_admin') flat = { view: true, entry: true, edit: true, delete: true };
+  else if (role === 'admin') flat = { view: true, entry: true, edit: true, delete: false };
+  else flat = { view: true, entry: true, edit: false, delete: false };
+  return makeInputRightsFromFlat_(flat);
+}
+
+function inputRightColumns_() {
+  return ['done', 'prod_done', 'eqpt', 'hod', 'commit_start', 'commit_end', 'consume_from'];
+}
+
+function makeInputRightsFromFlat_(flat) {
+  var out = { columns: {} };
+  inputRightColumns_().forEach(function(k){
+    out.columns[k] = {
+      view: flat.view !== false,
+      entry: !!flat.entry,
+      edit: !!flat.edit,
+      delete: !!flat.delete
+    };
+  });
+  return out;
 }
 
 function normalizeInputRights_(raw, role) {
@@ -353,12 +372,31 @@ function normalizeInputRights_(raw, role) {
     try { obj = JSON.parse(String(raw)); } catch(e) { obj = null; }
   }
   if (!obj) obj = defaultInputRights_(role);
-  return JSON.stringify({
-    view: obj.view !== false && obj.view !== 'false' && obj.view !== 0 && obj.view !== '0',
-    entry: obj.entry === true || obj.entry === 'true' || obj.entry === 1 || obj.entry === '1',
-    edit: obj.edit === true || obj.edit === 'true' || obj.edit === 1 || obj.edit === '1',
-    delete: obj.delete === true || obj.delete === 'true' || obj.delete === 1 || obj.delete === '1'
+  function truthy(v, def) {
+    if (v == null) return !!def;
+    return v === true || v === 'true' || v === 1 || v === '1';
+  }
+  if (!obj.columns) {
+    obj = makeInputRightsFromFlat_({
+      view: obj.view !== false && obj.view !== 'false' && obj.view !== 0 && obj.view !== '0',
+      entry: truthy(obj.entry, false),
+      edit: truthy(obj.edit, false),
+      delete: truthy(obj.delete, false)
+    });
+  }
+  var base = defaultInputRights_(role);
+  var out = { columns: {} };
+  inputRightColumns_().forEach(function(k){
+    var src = obj.columns && obj.columns[k] ? obj.columns[k] : null;
+    var fallback = base.columns[k];
+    out.columns[k] = {
+      view: src ? (src.view !== false && src.view !== 'false' && src.view !== 0 && src.view !== '0') : fallback.view,
+      entry: src ? truthy(src.entry, false) : fallback.entry,
+      edit: src ? truthy(src.edit, false) : fallback.edit,
+      delete: src ? truthy(src.delete, false) : fallback.delete
+    };
   });
+  return JSON.stringify(out);
 }
 
 function getUsersSheet_() {
