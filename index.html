@@ -1184,7 +1184,9 @@ function computeProposedSchedule_() {
   if (!earliest || earliest < todayISO) earliest = todayISO;
   var cursor = earliest;
   return order.map(function(b){
-    var dur = b.duration; // mutable: user can edit New End to change this
+    var currentDur = diffDaysISO_(b.origStart, b.origEnd) + 1;
+    var dur = b.duration || currentDur; // mutable: user can edit New End to change this
+    if (currentDur > 0 && (b.duration == null || b.duration < 1)) dur = currentDur;
     var newStart = cursor;
     var newEnd = addDaysISO_(cursor, dur - 1);
     cursor = addDaysISO_(newEnd, 1); // next booking starts the day after
@@ -1192,7 +1194,8 @@ function computeProposedSchedule_() {
       lk: b.lk, line: b.line,
       origStart: b.origStart, origEnd: b.origEnd,
       newStart: newStart, newEnd: newEnd,
-      durationDays: dur
+      durationDays: dur,
+      currentDurationDays: currentDur
     };
   });
 }
@@ -1241,6 +1244,18 @@ function renderEqptScheduleBody_() {
     var inputTitle = canEdit
       ? "Change to extend or shrink this booking; downstream rows auto-shift"
       : "Read-only (only Admin / Super Admin can edit)";
+    var startState = inputControlState_(p.origStart, false, !hasRemoteInputRecord_(p.lk), "Commit Start", "commit_start");
+    var endState = inputControlState_(p.origEnd, false, !hasRemoteInputRecord_(p.lk), "Commit End", "commit_end");
+    var commitBy = getLineCBy(p.lk);
+    var commitByHtml = commitBy
+      ? '<div class="commit-by-name" title="Last updated by ' + esc(commitBy) + '">by ' + esc(commitBy) + '</div>'
+      : '<div class="commit-by-name commit-by-empty" title="No updater recorded">&mdash;</div>';
+    var startCell = startState.hidden
+      ? '<td class="input-no-view">-</td>'
+      : '<td style="white-space:nowrap;"><input type="date" class="schedule-end-input schedule-current-input schedule-current-start" data-idx="' + i + '" value="' + esc(p.origStart) + '" min="' + esc(todayISO) + '"' + (startState.disabled ? ' disabled' : '') + ' title="' + esc(startState.title || "Edit Commit Start") + '" />' + commitByHtml + '</td>';
+    var endCell = endState.hidden
+      ? '<td class="input-no-view">-</td>'
+      : '<td style="white-space:nowrap;"><input type="date" class="schedule-end-input schedule-current-input schedule-current-end" data-idx="' + i + '" value="' + esc(p.origEnd) + '" min="' + esc(todayISO) + '"' + (endState.disabled ? ' disabled' : '') + ' title="' + esc(endState.title || "Edit Commit End") + '" />' + commitByHtml + '</td>';
     var prevEnd = i === 0 ? todayISO : (proposed[i - 1].origEnd || "");
     var freeBefore = 0;
     if (prevEnd && p.origStart) freeBefore = Math.max(dateDiffDaysInclusive_(prevEnd, p.origStart) - 2, 0);
@@ -1260,8 +1275,9 @@ function renderEqptScheduleBody_() {
       '<td>' + esc(fgItem) + '</td>' +
       '<td class="num">' + esc(balTxt) + '</td>' +
       '<td>' + esc(hodName) + '</td>' +
-      '<td class="num">' + p.durationDays + ' day' + (p.durationDays === 1 ? '' : 's') + '</td>' +
-      '<td style="white-space:nowrap;color:#666;">' + esc(fmtDateDMY(p.origStart)) + ' &rarr; ' + esc(fmtDateDMY(p.origEnd)) + '</td>' +
+      '<td class="num">' + p.currentDurationDays + ' day' + (p.currentDurationDays === 1 ? '' : 's') + '</td>' +
+      startCell +
+      endCell +
       '<td class="' + newCls + '" style="white-space:nowrap;">' +
         '<span class="schedule-new-start">' + esc(fmtDateDMY(p.newStart)) + '</span> &rarr; ' +
         '<input type="date" class="schedule-end-input" data-idx="' + i + '" value="' + esc(p.newEnd) +
@@ -1287,7 +1303,8 @@ function renderEqptScheduleBody_() {
         '<th style="text-align:right;">Balance Qty</th>' +
         '<th>HOD</th>' +
         '<th style="text-align:right;">Duration</th>' +
-        '<th>Current</th>' +
+        '<th>Commit Start</th>' +
+        '<th>Commit End</th>' +
         '<th>New (start &rarr; end editable)</th>' +
         '<th style="text-align:right;">Free Before</th>' +
         '<th style="text-align:right;" title="How many times this booking has been forward-pushed">Reschedule #</th>' +
@@ -1305,9 +1322,66 @@ function renderEqptScheduleBody_() {
       moveEqptScheduleRow_(i, dir);
     };
   });
+  body.querySelectorAll(".schedule-current-input").forEach(function(inp){
+    inp.onchange = function(){
+      if (inp.disabled) return;
+      var idx = parseInt(inp.getAttribute("data-idx"), 10);
+      var item = EQPT_SCHEDULE_STATE.order[idx];
+      if (!item) { renderEqptScheduleBody_(); return; }
+      var isStart = inp.classList.contains("schedule-current-start");
+      var colKey = isStart ? "commit_start" : "commit_end";
+      var label = isStart ? "Commit Start" : "Commit End";
+      var oldVal = isStart ? item.origStart : item.origEnd;
+      var newVal = inp.value || "";
+      if (!canInputChange_(oldVal || "", newVal || "", label, colKey)) {
+        inp.value = oldVal || "";
+        return;
+      }
+      if (newVal && newVal < todayISO) {
+        alert("Cannot pick a date earlier than today (" + fmtDateDMY(todayISO) + ").");
+        inp.value = oldVal || "";
+        return;
+      }
+      var nextStart = isStart ? newVal : item.origStart;
+      var nextEnd = isStart ? item.origEnd : newVal;
+      if (nextStart && nextEnd && nextStart > nextEnd) {
+        alert("Commit End date cannot be earlier than Commit Start date.");
+        inp.value = oldVal || "";
+        return;
+      }
+      var eqpt = EQPT_SCHEDULE_STATE.eqpt || "";
+      if (eqpt && (nextStart || nextEnd)) {
+        var conflict = findCommitConflict_(item.lk, eqpt, nextStart, nextEnd);
+        if (conflict) {
+          var byTxt = conflict.by ? " by " + conflict.by : "";
+          var rangeTxt = conflict.start && conflict.end
+            ? fmtDateDMY(conflict.start) + " to " + fmtDateDMY(conflict.end)
+            : "on " + fmtDateDMY(conflict.end || conflict.start);
+          alert("This equipment (" + eqpt + ") is already booked " + rangeTxt + byTxt + ". Choose a non-overlapping date.");
+          inp.value = oldVal || "";
+          return;
+        }
+      }
+      var by = "";
+      try {
+        var s = typeof loadSession === "function" ? loadSession() : null;
+        by = s && s.username ? s.username : "";
+      } catch(e) {}
+      setLineCommit(item.lk, nextStart, nextEnd, by);
+      if (nextStart && nextEnd) {
+        item.origStart = nextStart;
+        item.origEnd = nextEnd;
+        item.duration = diffDaysISO_(nextStart, nextEnd) + 1;
+      } else {
+        EQPT_SCHEDULE_STATE.order = EQPT_SCHEDULE_STATE.order.filter(function(x){ return x.lk !== item.lk; });
+      }
+      if (typeof renderTable === "function") renderTable();
+      renderEqptScheduleBody_();
+    };
+  });
   // End-date inputs: changing one row's New End re-computes its duration and
   // shifts every later row to maintain back-to-back scheduling.
-  body.querySelectorAll(".schedule-end-input").forEach(function(inp){
+  body.querySelectorAll(".schedule-end-input:not(.schedule-current-input)").forEach(function(inp){
     inp.onchange = function(){
       var idx = parseInt(inp.getAttribute("data-idx"), 10);
       var newEnd = inp.value || "";
