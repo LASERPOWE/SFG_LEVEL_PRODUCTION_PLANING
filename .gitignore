@@ -1,0 +1,21 @@
+# Python runtime
+__pycache__/
+*.pyc
+*.pyo
+
+# Server logs
+server.err.log
+server.out.log
+*.log
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Editor folders
+.vscode/
+.idea/
+
+# Local env files
+.env
+*.local

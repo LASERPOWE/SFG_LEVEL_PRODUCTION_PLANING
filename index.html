@@ -43,6 +43,22 @@
   tbody tr.zero:hover { background: #fafbfc; }
   tfoot td { background: #f7f8fa; padding: 10px 8px; font-weight: 600; border-top: 2px solid #d6d8db; position: sticky; bottom: 0; }
   .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  /* MC Status "Balance (pending)" KPI tint â€" red emphasis to mirror Page 1's
+     primary balance KPIs. */
+  .kpi.mc-kpi-pending { background: #fff0f0; border-color: #f3b8b8; }
+  .kpi.mc-kpi-pending .value { color: #b03030; }
+  /* MC Status child modal: manual-input columns are visually grouped on the
+     right with a subtle pink-mauve tint so users can tell at a glance where
+     source data ends and editable inputs begin. */
+  .team-master-table th.mc-input-col,
+  .team-master-table td.mc-input-col { background: #faf4ff; }
+  .team-master-table th.mc-input-col { border-left: 1px solid #ddd; }
+  .team-master-table tr td.mc-input-col:first-of-type { border-left: 2px solid #c39ad8; }
+  /* SFG Balance Qty column â€" red highlight so pending balances pop visually.
+     Pink-tinted background + red-bold number when balance > 0, soft grey
+     when fully produced (balance = 0). */
+  td.sfg-balance-cell { background: #ffecec; color: #b03030; font-weight: 700; }
+  td.sfg-balance-cell.bal-zero { background: #f4f4f4; color: #999; font-weight: 400; }
   .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 500; }
   .pill-km { background: #e6efff; color: #2a52a8; }
   .pill-kg { background: #fff4e0; color: #a8650a; }
@@ -217,6 +233,26 @@
   .row.dashboard-status-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   @media (max-width: 1200px) { .row.dashboard-status-row { grid-template-columns: 1fr 1fr; } }
   @media (max-width: 700px)  { .row.dashboard-status-row { grid-template-columns: 1fr; } }
+  .page-tabs { display: inline-flex; gap: 6px; margin-left: 10px; vertical-align: middle; }
+  .page-tab {
+    border: 1px solid #b9c7d9; background: #fff; color: #1f3b62;
+    border-radius: 6px; padding: 6px 10px; font-size: 12px; cursor: pointer;
+  }
+  .page-tab.active { background: #2f6fdf; border-color: #2f6fdf; color: #fff; }
+  .team-toolbar { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; margin-bottom: 10px; }
+  .team-toolbar label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: #42526e; font-weight: 600; }
+  .team-toolbar input { min-width: 280px; padding: 7px 9px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 12px; }
+  .team-master-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .team-master-table th { position: sticky; top: 0; background: #eaf1f8; color: #17324d; text-align: left; padding: 8px 10px; border-bottom: 1px solid #c8d6e5; white-space: nowrap; }
+  .team-master-table td { padding: 7px 10px; border-bottom: 1px solid #e5edf5; vertical-align: top; }
+  .team-master-table tbody tr:nth-child(even) td { background: #f8fbff; }
+  .team-form-panel { margin: 10px 0 12px; padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; background: #f8fbff; }
+  .team-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; }
+  .team-form-grid label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; font-weight: 600; color: #42526e; }
+  .team-form-grid input, .team-form-grid select { padding: 7px 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 12px; }
+  .team-status-select { min-width: 96px; padding: 4px 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 12px; }
+  .team-member-row { margin-top: 8px; padding: 8px; border: 1px solid #dbe5f0; border-radius: 8px; background: #fff; }
+  .team-member-row-head { display:flex; align-items:center; gap:8px; margin-bottom:7px; font-size:11px; color:#42526e; font-weight:700; }
   .equipment-block-table tr.party-row { cursor: pointer; }
   .equipment-block-table tr.party-row:hover { background: #fff8ec; }
   .equipment-block-table .overdue-count { color: #c92a2a; font-weight: 700; }
@@ -608,7 +644,12 @@
     </div>
   </div>
   <h1>SFG BOM Requirements <span style="font-weight: 400; font-size: 14px; color: #666;">- Static GitHub Pages</span>
-    <button class="refresh-btn" id="refreshBtn" onclick="loadData(true)">Refresh</button>
+    <button class="refresh-btn" id="refreshBtn" onclick="refreshActivePage(true)">Refresh</button>
+    <span class="page-tabs">
+      <button class="page-tab active" id="dashboardPageBtn" type="button" onclick="showDashboardPage()">SFG Dashboard</button>
+      <button class="page-tab" id="teamMasterPageBtn" type="button" onclick="showTeamMasterPage()">Team Master</button>
+      <button class="page-tab" id="mcStatusPageBtn" type="button" onclick="showMcStatusPage()">MC Status</button>
+    </span>
     <span class="auth-bar" id="authBar">
       <span class="auth-badge role-anonymous" id="authBadge">Not logged in</span>
       <button class="auth-btn auth-btn-primary" id="loginBtn" onclick="openLoginModal()">Login</button>
@@ -747,6 +788,97 @@
     </div>
   </div>
 
+  <div id="teamMasterContent" style="display:none">
+    <div class="card">
+      <h3>TEAM MASTER <span class="hint">- live from Google Sheet tab: TEAM MASTER_MANPOWER</span></h3>
+      <div class="team-toolbar">
+        <label>Search
+          <input id="teamSearch" type="text" placeholder="Search team / manpower..." oninput="renderTeamMasterTable()" />
+        </label>
+        <label>Existing Team
+          <select id="teamExistingSelect" onchange="onTeamSelectionChange()"><option value="">Select team</option></select>
+        </label>
+        <button class="auth-btn auth-btn-primary" type="button" onclick="openTeamForm('team', '', 1)">New Team - Single</button>
+        <button class="auth-btn auth-btn-primary" type="button" onclick="openTeamForm('team', '', 3)">New Team - Multiple</button>
+        <button class="auth-btn" type="button" onclick="openTeamForm('member', '', 1)">Add Member - Single</button>
+        <button class="auth-btn" type="button" onclick="openTeamForm('member', '', 3)">Add Member - Multiple</button>
+        <button class="clear-filter-btn" type="button" onclick="clearTeamMasterSearch()">Clear Search</button>
+        <span id="teamMasterMeta" style="margin-left:auto;font-size:11px;color:#666;"></span>
+      </div>
+      <div id="teamFormPanel" class="team-form-panel" style="display:none;">
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+          <strong id="teamFormTitle">Add Team Member</strong>
+          <span id="teamFormStatus" style="font-size:11px;color:#666;"></span>
+          <button class="modal-close" type="button" onclick="closeTeamForm()" style="margin-left:auto;">&times;</button>
+        </div>
+        <div id="teamFormFields" class="team-form-grid"></div>
+        <div id="teamFormMultiRows"></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px;">
+          <button class="auth-btn" id="teamAddRowBtn" type="button" onclick="addTeamMemberRow()">Add Row</button>
+          <button class="auth-btn" type="button" onclick="closeTeamForm()">Cancel</button>
+          <button class="auth-btn auth-btn-primary" type="button" onclick="saveTeamForm()">Save</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="team-master-table">
+          <thead><tr id="teamMasterHead"></tr></thead>
+          <tbody id="teamMasterBody"><tr><td class="empty">Open Team Master page to load data.</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="mcStatusContent" style="display:none">
+    <!-- KPI row, same layout class as Page 1 (.kpis grid) so the MC Status
+         view feels like a sibling of the SFG Dashboard. -->
+    <div class="kpis" id="mcStatusKpis"></div>
+    <!-- Side card: Top BOMs by Balance â€" mirrors the Equipment / HOD / Party
+         balance cards on Page 1. -->
+    <div class="row dashboard-status-row" style="grid-template-columns: 1fr 1fr;">
+      <div class="card">
+        <h3>Top BOMs by Balance</h3>
+        <div class="equipment-block-wrap">
+          <table class="equipment-block-table">
+            <thead>
+              <tr>
+                <th>BOM ID</th>
+                <th>Item</th>
+                <th style="text-align:right;">Lines</th>
+                <th style="text-align:right;">Balance</th>
+              </tr>
+            </thead>
+            <tbody id="mcStatusTopBody">
+              <tr><td colspan="4" class="empty">No data yet.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Production Progress (overall)</h3>
+        <div id="mcStatusProgressWrap" style="padding:12px 4px;">
+          <div class="empty" id="mcStatusProgressEmpty">No data yet.</div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>MC STATUS (Pivot) <span class="hint">- live from Google Sheet tab: MC STATUS; click any row for child rows; Balance = Net MC Qty &minus; Production Done</span></h3>
+      <div class="filters">
+        <label>Search
+          <input id="mcStatusSearch" type="text" placeholder="BOM ID, item, name..." oninput="renderMcStatusTable()" />
+        </label>
+        <label class="check"><input type="checkbox" id="mcStatusBalanceOnly" onchange="renderMcStatusTable()" /> Balance &gt; 0 only</label>
+        <button class="clear-filter-btn" type="button" onclick="clearMcStatusSearch()">Clear Filters</button>
+        <span id="mcStatusMeta" style="margin-left:auto;font-size:11px;color:#666;"></span>
+      </div>
+      <div class="table-wrap">
+        <table class="pivot-table" id="mcStatusPivotTable">
+          <thead><tr id="mcStatusHead"></tr></thead>
+          <tbody id="mcStatusBody"><tr><td class="empty">Open MC Status page to load data.</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
   <!-- Login modal -->
   <div class="modal-backdrop" id="loginModal">
     <div class="modal" style="max-width: 380px;">
@@ -764,6 +896,19 @@
           <button type="submit" class="auth-btn auth-btn-primary" id="loginSubmit" style="margin-top:6px;">Login</button>
         </form>
       </div>
+    </div>
+  </div>
+  <!-- MC Status child detail popup -->
+  <div class="modal-backdrop" id="mcStatusModal" style="z-index:58;">
+    <div class="modal" style="max-width: 1180px;">
+      <div class="modal-head">
+        <div>
+          <h2 id="mcStatusModalTitle">MC Status Details</h2>
+          <div class="meta" id="mcStatusModalMeta"></div>
+        </div>
+        <button class="modal-close" onclick="closeMcStatusModal()">&times;</button>
+      </div>
+      <div class="modal-body" id="mcStatusModalBody"></div>
     </div>
   </div>
   <!-- User Control Panel (Super Admin only) -->
@@ -1903,6 +2048,42 @@ function isPastISODate(s) {
 }
 
 const APP_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzJn0_gDs_nvFeg5X7nlM99dUZ4tnhI3Z1ionkM9RGfU_TS4lIWYThEGjt6EpTnMtHbgQ/exec";
+var CURRENT_PAGE = "dashboard";
+var TEAM_MASTER_ROWS = [];
+var TEAM_MASTER_COLUMNS = [];
+var TEAM_MASTER_META = null;
+var TEAM_FORM_MODE = "member";
+var MC_STATUS_ROWS = [];
+var MC_STATUS_COLUMNS = [];
+var MC_STATUS_META = null;
+var MC_STATUS_GROUPS = [];
+var MC_STATUS_MODAL_GROUP_INDEX = -1;
+const MC_DONE_KEY = "erp_mc_status_done_v1";
+const MC_PD_KEY = "erp_mc_status_prod_done_v1";
+const MC_EQPT_KEY = "erp_mc_status_eqpt_v1";
+const MC_HOD_KEY = "erp_mc_status_hod_v1";
+const MC_CONSUME_KEY = "erp_mc_status_consume_from_v1";
+const MC_CSTART_KEY = "erp_mc_status_commit_start_v1";
+const MC_CEND_KEY = "erp_mc_status_commit_end_v1";
+const MC_CBY_KEY = "erp_mc_status_commit_by_v1";
+const MC_DONE = (function() { try { return JSON.parse(localStorage.getItem(MC_DONE_KEY) || "{}"); } catch(e) { return {}; } })();
+const MC_PD = (function() { try { return JSON.parse(localStorage.getItem(MC_PD_KEY) || "{}"); } catch(e) { return {}; } })();
+const MC_EQPT = (function() { try { return JSON.parse(localStorage.getItem(MC_EQPT_KEY) || "{}"); } catch(e) { return {}; } })();
+const MC_HOD = (function() { try { return JSON.parse(localStorage.getItem(MC_HOD_KEY) || "{}"); } catch(e) { return {}; } })();
+const MC_CONSUME = (function() { try { return JSON.parse(localStorage.getItem(MC_CONSUME_KEY) || "{}"); } catch(e) { return {}; } })();
+const MC_CSTART = (function() { try { return JSON.parse(localStorage.getItem(MC_CSTART_KEY) || "{}"); } catch(e) { return {}; } })();
+const MC_CEND = (function() { try { return JSON.parse(localStorage.getItem(MC_CEND_KEY) || "{}"); } catch(e) { return {}; } })();
+const MC_CBY = (function() { try { return JSON.parse(localStorage.getItem(MC_CBY_KEY) || "{}"); } catch(e) { return {}; } })();
+function saveMcDone_() { try { localStorage.setItem(MC_DONE_KEY, JSON.stringify(MC_DONE)); } catch(e) {} }
+function saveMcPd_() { try { localStorage.setItem(MC_PD_KEY, JSON.stringify(MC_PD)); } catch(e) {} }
+function saveMcPlanning_() {
+  try { localStorage.setItem(MC_EQPT_KEY, JSON.stringify(MC_EQPT)); } catch(e) {}
+  try { localStorage.setItem(MC_HOD_KEY, JSON.stringify(MC_HOD)); } catch(e) {}
+  try { localStorage.setItem(MC_CONSUME_KEY, JSON.stringify(MC_CONSUME)); } catch(e) {}
+  try { localStorage.setItem(MC_CSTART_KEY, JSON.stringify(MC_CSTART)); } catch(e) {}
+  try { localStorage.setItem(MC_CEND_KEY, JSON.stringify(MC_CEND)); } catch(e) {}
+  try { localStorage.setItem(MC_CBY_KEY, JSON.stringify(MC_CBY)); } catch(e) {}
+}
 
 function hasInputApi() {
   return typeof INPUT_API_URL === "string" && INPUT_API_URL.trim() !== "";
@@ -2101,15 +2282,1070 @@ function saveRemoteLineInput(lk, opts) {
   }).catch(function(e){ console.warn("Planning input save failed", e); });
 }
 
+// JSONP fallback â€" Apps Script Web App returns a 302 redirect to
+// googleusercontent.com, and the redirected response sometimes blows up
+// CORS when the page is loaded from file:// or behind a strict origin
+// (manifests as "Failed to fetch"). The script-tag JSONP path bypasses
+// CORS entirely so a tab that fails via fetch() can still load.
+function fetchLiveDataJsonp_(tab) {
+  return new Promise(function(resolve, reject){
+    var cb = "__erpFeedCb_" + Date.now() + "_" + Math.floor(Math.random() * 100000);
+    var script = document.createElement("script");
+    var done = false;
+    function finish(payload, err) {
+      if (done) return; done = true;
+      try { delete window[cb]; } catch(e) { window[cb] = undefined; }
+      if (script.parentNode) script.parentNode.removeChild(script);
+      if (err) reject(err); else resolve(payload || null);
+    }
+    window[cb] = function(payload){ finish(payload); };
+    script.onerror = function(){ finish(null, new Error("Apps Script JSONP load failed")); };
+    var qs = new URLSearchParams();
+    qs.set("format", "json");
+    if (tab) qs.set("tab", tab);
+    qs.set("callback", cb);
+    qs.set("_", String(Date.now()));
+    script.src = APP_SCRIPT_URL + (APP_SCRIPT_URL.indexOf("?") >= 0 ? "&" : "?") + qs.toString();
+    document.head.appendChild(script);
+    // Apps Script can take a while on big tabs (MC STATUS has 44k rows) â€"
+    // give the script tag a generous 60-second window before timing out.
+    setTimeout(function(){ finish(null, new Error("Apps Script JSONP timeout")); }, 60000);
+  });
+}
 async function fetchLiveData(tab) {
   const url = new URL(APP_SCRIPT_URL);
   url.searchParams.set("format", "json");
   if (tab) url.searchParams.set("tab", tab);
   url.searchParams.set("_", String(Date.now()));
-  const resp = await fetch(url.toString(), { cache: "no-store", redirect: "follow" });
-  if (!resp.ok) throw new Error("Apps Script HTTP " + resp.status);
-  return resp.json();
+  try {
+    const resp = await fetch(url.toString(), { cache: "no-store", redirect: "follow" });
+    if (!resp.ok) throw new Error("Apps Script HTTP " + resp.status);
+    return await resp.json();
+  } catch(e) {
+    // CORS / network failure â†’ retry via JSONP which doesn't suffer CORS.
+    console.warn("[fetchLiveData] fetch() failed for tab '" + (tab || "(default)") + "':", e && e.message ? e.message : e, "â†’ falling back to JSONP");
+    return await fetchLiveDataJsonp_(tab);
+  }
 }
+
+function refreshActivePage(force) {
+  if (CURRENT_PAGE === "team") return loadTeamMasterData(!!force);
+  if (CURRENT_PAGE === "mc") return loadMcStatusData(!!force);
+  return loadData(!!force);
+}
+window.refreshActivePage = refreshActivePage;
+
+function setPageTabState_() {
+  var dashBtn = document.getElementById("dashboardPageBtn");
+  var teamBtn = document.getElementById("teamMasterPageBtn");
+  var mcBtn = document.getElementById("mcStatusPageBtn");
+  if (dashBtn) dashBtn.classList.toggle("active", CURRENT_PAGE === "dashboard");
+  if (teamBtn) teamBtn.classList.toggle("active", CURRENT_PAGE === "team");
+  if (mcBtn) mcBtn.classList.toggle("active", CURRENT_PAGE === "mc");
+  var contentEl = document.getElementById("content");
+  var teamEl = document.getElementById("teamMasterContent");
+  var mcEl = document.getElementById("mcStatusContent");
+  if (contentEl) contentEl.style.display = CURRENT_PAGE === "dashboard" && ROWS.length ? "" : "none";
+  if (teamEl) teamEl.style.display = CURRENT_PAGE === "team" ? "" : "none";
+  if (mcEl) mcEl.style.display = CURRENT_PAGE === "mc" ? "" : "none";
+}
+
+function showDashboardPage() {
+  CURRENT_PAGE = "dashboard";
+  setPageTabState_();
+  if (!ROWS.length) loadData(false);
+}
+window.showDashboardPage = showDashboardPage;
+
+function showTeamMasterPage() {
+  CURRENT_PAGE = "team";
+  setPageTabState_();
+  if (!TEAM_MASTER_ROWS.length) loadTeamMasterData(false);
+}
+window.showTeamMasterPage = showTeamMasterPage;
+
+function showMcStatusPage() {
+  CURRENT_PAGE = "mc";
+  setPageTabState_();
+  if (!MC_STATUS_ROWS.length) loadMcStatusData(false);
+}
+window.showMcStatusPage = showMcStatusPage;
+
+async function loadMcStatusData(force) {
+  const btn = document.getElementById("refreshBtn");
+  const errEl = document.getElementById("error");
+  const loadingEl = document.getElementById("loading");
+  const metaEl = document.getElementById("mcStatusMeta");
+  if (errEl) errEl.style.display = "none";
+  if (loadingEl) { loadingEl.style.display = ""; loadingEl.textContent = "Fetching MC STATUS from Google Sheets..."; }
+  if (btn) { btn.disabled = true; btn.textContent = "Refreshing..."; }
+  try {
+    const masterLoads = [];
+    if (!EQPT_MASTER.length) masterLoads.push(fetchEqptMaster().then(function(v){ if (v && v.length) EQPT_MASTER = v; }).catch(function(e){ console.warn("EQPT master load failed for MC Status", e); }));
+    if (!HOD_MASTER.length) masterLoads.push(fetchHodMaster().then(function(v){ if (v && v.length) HOD_MASTER = v; }).catch(function(e){ console.warn("HOD master load failed for MC Status", e); }));
+    const live = await fetchLiveData("MC STATUS");
+    if (masterLoads.length) await Promise.all(masterLoads);
+    if (live && live.error) throw new Error(live.error);
+    MC_STATUS_ROWS = live && Array.isArray(live.rows) ? live.rows : [];
+    MC_STATUS_COLUMNS = live && Array.isArray(live.columns) && live.columns.length
+      ? live.columns.filter(Boolean)
+      : (MC_STATUS_ROWS[0] ? Object.keys(MC_STATUS_ROWS[0]) : []);
+    MC_STATUS_META = { exported_at: live.exported_at, row_count: MC_STATUS_ROWS.length };
+    MC_STATUS_META.header_row = live.header_row || "";
+    await loadMcStatusInputs_();
+    if (metaEl) metaEl.textContent = MC_STATUS_ROWS.length + " rows" + (MC_STATUS_META.header_row ? " / header row " + MC_STATUS_META.header_row : "") + " / live as of " + (MC_STATUS_META.exported_at || "").slice(0,19).replace("T", " ");
+    renderMcStatusTable();
+  } catch(e) {
+    if (errEl) {
+      errEl.style.display = "block";
+      errEl.textContent = "Failed to load MC STATUS: " + e.message;
+    }
+  } finally {
+    if (loadingEl) loadingEl.style.display = "none";
+    if (btn) { btn.disabled = false; btn.textContent = "Refresh"; }
+    setPageTabState_();
+  }
+}
+window.loadMcStatusData = loadMcStatusData;
+
+// Module-level sort state for the MC Status pivot â€" mirrors the SORT object
+// used by the SFG dashboard so the column-click sorting feels identical.
+var MC_STATUS_SORT = { key: "qty", asc: false };
+function renderMcStatusTable() {
+  var head = document.getElementById("mcStatusHead");
+  var body = document.getElementById("mcStatusBody");
+  var metaEl = document.getElementById("mcStatusMeta");
+  var kpiEl = document.getElementById("mcStatusKpis");
+  var topBody = document.getElementById("mcStatusTopBody");
+  var progressWrap = document.getElementById("mcStatusProgressWrap");
+  if (!head || !body) return;
+  var qEl = document.getElementById("mcStatusSearch");
+  var q = qEl ? String(qEl.value || "").trim().toLowerCase() : "";
+  var balOnly = !!(document.getElementById("mcStatusBalanceOnly") && document.getElementById("mcStatusBalanceOnly").checked);
+  var rows = MC_STATUS_ROWS.filter(function(r){
+    if (!q) return true;
+    return MC_STATUS_COLUMNS.some(function(c){
+      return String(r[c] == null ? "" : r[c]).toLowerCase().indexOf(q) >= 0;
+    });
+  });
+  var visibleCols = MC_STATUS_COLUMNS.filter(function(c){ return String(c).indexOf("__") !== 0; });
+  if (!visibleCols.length) {
+    head.innerHTML = "";
+    body.innerHTML = '<tr><td class="empty">No columns found in MC STATUS.</td></tr>';
+    if (kpiEl) kpiEl.innerHTML = "";
+    return;
+  }
+  var bomCol = findMcStatusCol_(["BOM ID", "BOM_ID", "BOMID", "SFG_BOM", "BOM"], ["BOM", "ID"]);
+  var itemCodeCol = findMcStatusCol_(["ITEM CODE", "ITEM_CODE", "ITEMCODE", "SFG_CODE"], ["ITEM", "CODE"]);
+  var itemNameCol = findMcStatusCol_(["ITEM NAME", "ITEM_NAME", "ITEMNAME", "SFG_NAME"], ["ITEM", "NAME"]);
+  var qtyCol = findMcStatusCol_(["NET MC", "NET_MC", "NET MC QTY", "NET_MC_QTY", "MC_NET_QTY"], ["NET", "MC"]);
+  if (!bomCol || !itemCodeCol || !itemNameCol || !qtyCol) {
+    head.innerHTML = visibleCols.map(function(c){ return '<th>' + esc(c) + '</th>'; }).join("");
+    if (!rows.length) {
+      body.innerHTML = '<tr><td colspan="' + visibleCols.length + '" class="empty">No MC STATUS rows found.</td></tr>';
+    } else {
+      body.innerHTML = rows.map(function(r){
+        return '<tr>' + visibleCols.map(function(c){
+          return '<td>' + esc(r[c] == null ? "" : r[c]) + '</td>';
+        }).join("") + '</tr>';
+      }).join("");
+    }
+    if (metaEl) metaEl.textContent = "Column mapping needed: BOM ID=" + (bomCol || "-") + ", Item Code=" + (itemCodeCol || "-") + ", Item Name=" + (itemNameCol || "-") + ", Net MC=" + (qtyCol || "-") + (MC_STATUS_META && MC_STATUS_META.header_row ? " / header row " + MC_STATUS_META.header_row : "");
+    if (kpiEl) kpiEl.innerHTML = "";
+    return;
+  }
+
+  var groups = buildMcStatusGroups_(rows, bomCol, itemCodeCol, itemNameCol, qtyCol);
+  if (balOnly) groups = groups.filter(function(g){ return g.balance > 0.0005; });
+  MC_STATUS_GROUPS = groups;
+
+  // KPI panel: same shape as Page 1's KPI row. Numbers are computed off the
+  // CURRENT filtered groups so search/balance-only toggles update the totals.
+  if (kpiEl) {
+    var totalBoms = groups.length;
+    var totalLines = groups.reduce(function(a,g){return a + g.lines;}, 0);
+    var totalQty = groups.reduce(function(a,g){return a + g.qty;}, 0);
+    var totalDone = groups.reduce(function(a,g){return a + g.prodDone;}, 0);
+    var totalBal = groups.reduce(function(a,g){return a + g.balance;}, 0);
+    var topBomGroup = groups.slice().sort(function(a,b){return b.balance - a.balance;})[0];
+    var kpis = [
+      { label: "Distinct BOMs", value: fmt(totalBoms, 0), sub: totalLines + " lines" },
+      { label: "Total Net MC Qty", value: fmt(totalQty, 0), sub: "" },
+      { label: "Production Done", value: fmt(totalDone, 0), sub: totalQty > 0 ? Math.round(totalDone / totalQty * 100) + "% complete" : "" },
+      { label: "Balance (pending)", value: fmt(totalBal, 0), sub: totalQty > 0 ? Math.round(totalBal / totalQty * 100) + "% remaining" : "", cls: totalBal > 0 ? " mc-kpi-pending" : "" },
+      { label: "Top BOM by Balance", value: topBomGroup ? fmt(topBomGroup.balance, 0) : "-", sub: topBomGroup ? (topBomGroup.itemName || topBomGroup.bomId || "").slice(0, 40) : "" }
+    ];
+    kpiEl.innerHTML = kpis.map(function(k){
+      return '<div class="kpi' + (k.cls || "") + '"><div class="label">' + esc(k.label) + '</div><div class="value">' + esc(String(k.value)) + '</div>' + (k.sub ? '<div class="sub2">' + esc(k.sub) + '</div>' : '') + '</div>';
+    }).join("");
+  }
+
+  // Top BOMs by Balance side card â€" mirrors the Equipment Blocking side
+  // table on Page 1. Click filters the pivot to that BOM ID.
+  if (topBody) {
+    var top10 = groups.slice().sort(function(a,b){return b.balance - a.balance;}).slice(0, 10);
+    if (!top10.length || top10[0].balance <= 0.0005) {
+      topBody.innerHTML = '<tr><td colspan="4" class="empty">No pending balances.</td></tr>';
+    } else {
+      topBody.innerHTML = top10.map(function(g){
+        return '<tr class="eqpt-row" onclick="document.getElementById(\'mcStatusSearch\').value=' + JSON.stringify(g.bomId || "") + ';renderMcStatusTable();" title="Click to filter pivot by this BOM">' +
+          '<td><strong>' + esc(g.bomId || "-") + '</strong></td>' +
+          '<td style="font-size:11px;color:#444;">' + esc((g.itemName || "").slice(0, 36)) + '</td>' +
+          '<td class="num">' + fmt(g.lines, 0) + '</td>' +
+          '<td class="num bal-neg" style="font-weight:700;">' + fmt(g.balance, 0) + '</td>' +
+        '</tr>';
+      }).join("");
+    }
+  }
+
+  // Production progress overview â€" big horizontal bar showing overall
+  // done / total. Matches the simple visual style of Page 1's HOD balance
+  // cards (no heavy chart, just a clear ratio).
+  if (progressWrap) {
+    var totalQ2 = groups.reduce(function(a,g){return a + g.qty;}, 0);
+    var totalD2 = groups.reduce(function(a,g){return a + g.prodDone;}, 0);
+    if (totalQ2 <= 0) {
+      progressWrap.innerHTML = '<div class="empty">No data yet.</div>';
+    } else {
+      var pct = Math.min(100, totalD2 / totalQ2 * 100);
+      progressWrap.innerHTML =
+        '<div style="font-size:12px;color:#444;margin-bottom:6px;">' +
+          '<strong>' + fmt(totalD2, 0) + '</strong> done / <strong>' + fmt(totalQ2, 0) + '</strong> total ' +
+          '<span style="float:right;color:#2a5;">' + pct.toFixed(1) + '%</span>' +
+        '</div>' +
+        '<div style="background:#eef0f2;border-radius:8px;height:18px;overflow:hidden;">' +
+          '<div style="background:linear-gradient(90deg,#4a7dd6,#7aa9ff);height:100%;width:' + pct + '%;transition:width .3s ease;"></div>' +
+        '</div>' +
+        '<div style="display:flex;justify-content:space-between;font-size:11px;color:#666;margin-top:6px;">' +
+          '<span>Pending: <strong>' + fmt(totalQ2 - totalD2, 0) + '</strong></span>' +
+          '<span>BOMs in scope: <strong>' + groups.length + '</strong></span>' +
+        '</div>';
+    }
+  }
+
+  // Sort the groups based on current MC_STATUS_SORT state (column header
+  // click cycles asc/desc via the head onclick handler below).
+  var sortKey = MC_STATUS_SORT.key;
+  var sortAsc = !!MC_STATUS_SORT.asc;
+  groups = groups.slice().sort(function(a, b){
+    var av, bv;
+    if (sortKey === "bomId" || sortKey === "itemCode" || sortKey === "itemName") {
+      av = String(a[sortKey] || ""); bv = String(b[sortKey] || "");
+      var cmp = av.localeCompare(bv);
+      return sortAsc ? cmp : -cmp;
+    }
+    av = a[sortKey] || 0; bv = b[sortKey] || 0;
+    return sortAsc ? (av - bv) : (bv - av);
+  });
+
+  // Sortable header (cycles asc/desc just like Page 1).
+  var heads = [
+    { k: "bomId",    label: "BOM ID" },
+    { k: "itemCode", label: "Item Code" },
+    { k: "itemName", label: "Item Name" },
+    { k: "lines",    label: "Lines", num: true },
+    { k: "qty",      label: "Net MC Qty", num: true },
+    { k: "prodDone", label: "Production Done", num: true },
+    { k: "balance",  label: "Balance", num: true, primary: true }
+  ];
+  head.innerHTML = heads.map(function(h){
+    var cls = (sortKey === h.k ? "sorted " + (sortAsc ? "asc" : "") : "") + (h.primary ? " primary" : "");
+    return '<th data-k="' + h.k + '" class="' + cls + '"' + (h.num ? ' style="text-align:right;"' : '') + '>' + esc(h.label) + '</th>';
+  }).join("");
+  head.querySelectorAll("th").forEach(function(th){
+    th.onclick = function(){
+      var k = th.dataset.k;
+      if (MC_STATUS_SORT.key === k) MC_STATUS_SORT.asc = !MC_STATUS_SORT.asc;
+      else { MC_STATUS_SORT.key = k; MC_STATUS_SORT.asc = (k === "bomId" || k === "itemCode" || k === "itemName"); }
+      renderMcStatusTable();
+    };
+  });
+
+  if (!groups.length) {
+    body.innerHTML = '<tr><td colspan="7" class="empty">No matching MC status rows.</td></tr>';
+  } else {
+    body.innerHTML = groups.map(function(g, idx){
+      var balCls = g.balance > 0.0005 ? "num sfg-balance-cell" : "num sfg-balance-cell bal-zero";
+      var pctG = g.qty > 0 ? Math.min(100, g.prodDone / g.qty * 100) : 0;
+      var doneBar =
+        '<div style="display:flex;align-items:center;gap:6px;justify-content:flex-end;">' +
+          '<div style="background:#eef0f2;border-radius:4px;width:60px;height:8px;overflow:hidden;">' +
+            '<div style="background:#4a7dd6;height:100%;width:' + pctG + '%;"></div>' +
+          '</div>' +
+          '<span>' + fmt(g.prodDone, 0) + '</span>' +
+        '</div>';
+      return '<tr class="party-row" onclick="openMcStatusChildModal(' + idx + ')" title="Click to view child rows">' +
+        '<td><strong>' + esc(g.bomId || "-") + '</strong></td>' +
+        '<td>' + esc(g.itemCode || "-") + '</td>' +
+        '<td title="' + esc(g.itemName || "") + '">' + esc((g.itemName || "-").slice(0, 60)) + '</td>' +
+        '<td class="num">' + fmt(g.lines, 0) + '</td>' +
+        '<td class="num"><strong>' + fmt(g.qty, 0) + '</strong></td>' +
+        '<td class="num">' + doneBar + '</td>' +
+        '<td class="' + balCls + '"><strong>' + fmt(g.balance, 0) + '</strong></td>' +
+      '</tr>';
+    }).join("");
+  }
+  if (metaEl) {
+    var base = MC_STATUS_ROWS.length + " source rows / " + groups.length + " grouped BOM" + (groups.length === 1 ? "" : "s");
+    metaEl.textContent = base + (MC_STATUS_META && MC_STATUS_META.header_row ? " / header row " + MC_STATUS_META.header_row : "") + (MC_STATUS_META && MC_STATUS_META.exported_at ? " / live as of " + MC_STATUS_META.exported_at.slice(0,19).replace("T", " ") : "");
+  }
+}
+window.renderMcStatusTable = renderMcStatusTable;
+
+function findMcStatusCol_(exactNames, containsAll) {
+  var exact = exactNames.map(function(x){ return String(x).toUpperCase().replace(/[^A-Z0-9]/g, ""); });
+  for (var i = 0; i < MC_STATUS_COLUMNS.length; i++) {
+    var raw = String(MC_STATUS_COLUMNS[i] || "");
+    var norm = raw.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (exact.indexOf(norm) >= 0) return MC_STATUS_COLUMNS[i];
+  }
+  for (var j = 0; j < MC_STATUS_COLUMNS.length; j++) {
+    var norm2 = String(MC_STATUS_COLUMNS[j] || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    var ok = containsAll.every(function(part){ return norm2.indexOf(String(part).toUpperCase()) >= 0; });
+    if (ok) return MC_STATUS_COLUMNS[j];
+  }
+  return "";
+}
+
+function buildMcStatusGroups_(rows, bomCol, itemCodeCol, itemNameCol, qtyCol) {
+  var map = new Map();
+  rows.forEach(function(r){
+    var bomId = String(r[bomCol] == null ? "" : r[bomCol]).trim();
+    var itemCode = String(r[itemCodeCol] == null ? "" : r[itemCodeCol]).trim();
+    var itemName = String(r[itemNameCol] == null ? "" : r[itemNameCol]).trim();
+    var key = bomId + "||" + itemCode + "||" + itemName;
+    if (!map.has(key)) map.set(key, { bomId: bomId, itemCode: itemCode, itemName: itemName, qty: 0, prodDone: 0, balance: 0, lines: 0, rows: [] });
+    var g = map.get(key);
+    var lineQty = num(r[qtyCol]);
+    var lineDone = getMcStatusProdDone_(r, qtyCol);
+    g.qty += lineQty;
+    g.prodDone += lineDone;
+    g.lines += 1;
+    g.rows.push(r);
+  });
+  map.forEach(function(g){ g.balance = Math.max(0, g.qty - g.prodDone); });
+  return Array.from(map.values()).sort(function(a,b){ return b.qty - a.qty; });
+}
+
+function renderMcStatusChildTable_(rows, visibleCols) {
+  var qtyCol = findMcStatusCol_(["NET MC", "NET_MC", "NET MC QTY", "NET_MC_QTY", "MC_NET_QTY"], ["NET", "MC"]);
+  // Layout: source columns up to (and including) "Net MC" appear first, then
+  // the 8 manual-input columns, then any remaining source columns. This puts
+  // the inputs right next to the qty number that drives them so the planner
+  // doesn't have to scroll all the way right to enter Production Done Qty.
+  var splitIdx = qtyCol ? visibleCols.indexOf(qtyCol) : -1;
+  var leftCols, rightCols;
+  if (splitIdx >= 0) {
+    leftCols  = visibleCols.slice(0, splitIdx + 1);
+    rightCols = visibleCols.slice(splitIdx + 1);
+  } else {
+    leftCols = visibleCols.slice();
+    rightCols = [];
+  }
+  return '<div style="overflow:auto;max-height:360px;"><table class="team-master-table">' +
+    '<thead><tr>' +
+      leftCols.map(function(c){ return '<th>' + esc(c) + '</th>'; }).join("") +
+      '<th class="mc-input-col">Done</th>' +
+      '<th class="mc-input-col" style="text-align:right;">Production Done Qty</th>' +
+      '<th class="mc-input-col">EQPT</th>' +
+      '<th class="mc-input-col">HOD</th>' +
+      '<th class="mc-input-col">Consume From</th>' +
+      '<th class="mc-input-col">Commit Start</th>' +
+      '<th class="mc-input-col">Commit End</th>' +
+      '<th class="mc-input-col">Commit By</th>' +
+      rightCols.map(function(c){ return '<th>' + esc(c) + '</th>'; }).join("") +
+    '</tr></thead>' +
+    '<tbody>' + rows.map(function(r, i){
+      var key = mcStatusRowKey_(r);
+      var netQty = num(r[qtyCol]);
+      var done = !!MC_DONE[key];
+      var manual = getMcStatusManualPd_(key);
+      var value = done ? netQty : (manual > 0 ? manual : "");
+      var state = inputControlState_(manual > 0 ? String(manual) : "", done, false, "MC Production Done Qty", "prod_done");
+      var qtyAttrs = state.disabled ? ' readonly disabled title="' + esc(state.title || "") + '"' : '';
+      var chkAttrs = done ? ' checked' : '';
+      if (!hasInputRight_("view", "done")) chkAttrs += ' disabled title="No view access"';
+      var eqptVal = getMcEqpt_(key);
+      var hodVal = getMcHod_(key);
+      var consumeVal = getMcConsume_(key);
+      var cStart = getMcCStart_(key);
+      var cEnd = getMcCEnd_(key);
+      var cBy = getMcCBy_(key);
+      var stEqpt = inputControlState_(eqptVal, false, false, "MC EQPT", "eqpt");
+      var stHod = inputControlState_(hodVal, false, false, "MC HOD", "hod");
+      var stConsume = inputControlState_(consumeVal, false, false, "MC Consume From", "consume_from");
+      var stStart = inputControlState_(cStart, false, false, "MC Commit Start", "commit_start");
+      var stEnd = inputControlState_(cEnd, false, false, "MC Commit End", "commit_end");
+      var eqptOpts = '<option value="">-- select --</option>' + EQPT_MASTER.map(function(e){ return '<option value="' + esc(e) + '"' + (eqptVal === e ? ' selected' : '') + '>' + esc(e) + '</option>'; }).join("");
+      var hodOpts = '<option value="">-- select --</option>' + HOD_MASTER.map(function(h){ return '<option value="' + esc(h) + '"' + (hodVal === h ? ' selected' : '') + '>' + esc(h) + '</option>'; }).join("");
+      var consumeOpts = '<option value="">-- select --</option>' + CONSUME_FROM_OPTIONS.map(function(v){ return '<option value="' + esc(v) + '"' + (consumeVal === v ? ' selected' : '') + '>' + esc(v) + '</option>'; }).join("");
+      var eqptAttrs = stEqpt.disabled ? ' disabled title="' + esc(stEqpt.title || "") + '"' : '';
+      var hodAttrs = stHod.disabled ? ' disabled title="' + esc(stHod.title || "") + '"' : '';
+      var consumeAttrs = stConsume.disabled ? ' disabled title="' + esc(stConsume.title || "") + '"' : '';
+      var startAttrs = stStart.disabled ? ' disabled title="' + esc(stStart.title || "") + '"' : '';
+      var endAttrs = stEnd.disabled ? ' disabled title="' + esc(stEnd.title || "") + '"' : '';
+      return '<tr data-mc-key="' + esc(key) + '" data-net-mc="' + esc(netQty) + '">' +
+        leftCols.map(function(c){ return '<td>' + esc(r[c] == null ? "" : r[c]) + '</td>'; }).join("") +
+        '<td class="mc-input-col"><input class="mc-status-done-chk" type="checkbox"' + chkAttrs + ' /></td>' +
+        '<td class="mc-input-col num"><input class="mc-status-pd-input" type="number" min="0" step="0.001" style="width:90px;text-align:right;" value="' + esc(value) + '"' + qtyAttrs + ' /></td>' +
+        '<td class="mc-input-col"><select class="mc-status-eqpt-select" style="min-width:150px;"' + eqptAttrs + '>' + eqptOpts + '</select></td>' +
+        '<td class="mc-input-col"><select class="mc-status-hod-select" style="min-width:130px;"' + hodAttrs + '>' + hodOpts + '</select></td>' +
+        '<td class="mc-input-col"><select class="mc-status-consume-select" style="min-width:100px;"' + consumeAttrs + '>' + consumeOpts + '</select></td>' +
+        '<td class="mc-input-col"><input class="mc-status-cstart-input" type="date" value="' + esc(cStart) + '"' + startAttrs + ' /></td>' +
+        '<td class="mc-input-col"><input class="mc-status-cend-input" type="date" value="' + esc(cEnd) + '"' + endAttrs + ' /></td>' +
+        '<td class="mc-input-col muted small">' + esc(cBy || "-") + '</td>' +
+        rightCols.map(function(c){ return '<td>' + esc(r[c] == null ? "" : r[c]) + '</td>'; }).join("") +
+      '</tr>';
+    }).join("") + '</tbody></table></div>';
+}
+
+function openMcStatusChildModal(idx) {
+  var g = MC_STATUS_GROUPS[idx];
+  if (!g) return;
+  var visibleCols = MC_STATUS_COLUMNS.filter(function(c){ return String(c).indexOf("__") !== 0; });
+  // Truncate at "INSPECTION HOD" â€" the planner only needs the columns up to
+  // (but NOT including) Inspection HOD; everything after is downstream
+  // inspection / dispatch metadata that adds horizontal scroll noise.
+  var cutIdx = -1;
+  for (var ci = 0; ci < visibleCols.length; ci++) {
+    var nm = String(visibleCols[ci] || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (nm === "INSPECTIONHOD" || nm.indexOf("INSPECTIONHOD") >= 0) { cutIdx = ci; break; }
+  }
+  if (cutIdx >= 0) visibleCols = visibleCols.slice(0, cutIdx);
+  var title = document.getElementById("mcStatusModalTitle");
+  var meta = document.getElementById("mcStatusModalMeta");
+  var body = document.getElementById("mcStatusModalBody");
+  if (title) title.textContent = "MC Status: " + (g.bomId || "-");
+  if (meta) meta.textContent = "Item Code: " + (g.itemCode || "-") + " / Item Name: " + (g.itemName || "-") + " / Lines: " + g.lines + " / Sum of Net MC Qty: " + fmt(g.qty, 3) + " / Production Done: " + fmt(g.prodDone, 3) + " / Balance: " + fmt(g.balance, 3);
+  if (body) body.innerHTML = renderMcStatusChildTable_(g.rows, visibleCols);
+  wireMcStatusInputs_();
+  MC_STATUS_MODAL_GROUP_INDEX = idx;
+  var modal = document.getElementById("mcStatusModal");
+  if (modal) modal.classList.add("open");
+}
+window.openMcStatusChildModal = openMcStatusChildModal;
+
+function closeMcStatusModal() {
+  var modal = document.getElementById("mcStatusModal");
+  if (modal) modal.classList.remove("open");
+  MC_STATUS_MODAL_GROUP_INDEX = -1;
+}
+window.closeMcStatusModal = closeMcStatusModal;
+
+function clearMcStatusSearch() {
+  var qEl = document.getElementById("mcStatusSearch");
+  if (qEl) qEl.value = "";
+  var boEl = document.getElementById("mcStatusBalanceOnly");
+  if (boEl) boEl.checked = false;
+  renderMcStatusTable();
+}
+window.clearMcStatusSearch = clearMcStatusSearch;
+
+function mcStatusActionCall_(params) {
+  return new Promise(function(resolve, reject){
+    var cb = "__mcStatusCb_" + Date.now() + "_" + Math.floor(Math.random() * 100000);
+    var script = document.createElement("script");
+    var done = false;
+    function finish(payload, err) {
+      if (done) return; done = true;
+      try { delete window[cb]; } catch(e) { window[cb] = undefined; }
+      if (script.parentNode) script.parentNode.removeChild(script);
+      if (err) reject(err); else resolve(payload || null);
+    }
+    window[cb] = function(payload){ finish(payload); };
+    script.onerror = function(){ finish(null, new Error("MC Status input API failed")); };
+    var qs = new URLSearchParams();
+    Object.keys(params).forEach(function(k){ qs.set(k, params[k] == null ? "" : String(params[k])); });
+    qs.set("callback", cb);
+    qs.set("_", String(Date.now()));
+    script.src = APP_SCRIPT_URL + (APP_SCRIPT_URL.indexOf("?") >= 0 ? "&" : "?") + qs.toString();
+    document.head.appendChild(script);
+    setTimeout(function(){ finish(null, new Error("MC Status input API timeout")); }, 15000);
+  });
+}
+
+async function loadMcStatusInputs_() {
+  try {
+    var resp = await mcStatusActionCall_({ action: "list_mc_status_inputs" });
+    var records = resp && Array.isArray(resp.records) ? resp.records : [];
+    records.forEach(function(rec){
+      var key = String(rec.row_key || "").trim();
+      if (!key) return;
+      if (rec.done === true || rec.done === "TRUE" || rec.done === "true" || rec.done === 1 || rec.done === "1") MC_DONE[key] = 1;
+      else delete MC_DONE[key];
+      var pd = num(rec.prod_done);
+      if (pd > 0) MC_PD[key] = pd;
+      else delete MC_PD[key];
+      var eqpt = rec.eqpt == null ? "" : String(rec.eqpt).trim();
+      var hod = rec.hod == null ? "" : String(rec.hod).trim();
+      var consumeFrom = rec.consume_from == null ? "" : String(rec.consume_from).trim();
+      var cs = normalizeISO(rec.commit_start);
+      var ce = normalizeISO(rec.commit_end);
+      var cb = rec.commit_by == null ? "" : String(rec.commit_by).trim();
+      if (eqpt) MC_EQPT[key] = eqpt; else delete MC_EQPT[key];
+      if (hod) MC_HOD[key] = hod; else delete MC_HOD[key];
+      if (consumeFrom) MC_CONSUME[key] = consumeFrom; else delete MC_CONSUME[key];
+      if (cs) MC_CSTART[key] = cs; else delete MC_CSTART[key];
+      if (ce) MC_CEND[key] = ce; else delete MC_CEND[key];
+      if (cb) MC_CBY[key] = cb; else delete MC_CBY[key];
+    });
+    saveMcDone_();
+    saveMcPd_();
+    saveMcPlanning_();
+  } catch(e) {
+    console.warn("MC Status manual inputs failed to load", e);
+  }
+}
+
+function mcStatusRowKey_(r) {
+  var cols = [
+    findMcStatusCol_(["MC NOITEM CODE", "MC_NOITEM_CODE", "MCNOITEMCODE"], ["MC", "NO", "ITEM", "CODE"]),
+    findMcStatusCol_(["MC NO", "MC_NO", "MCNO"], ["MC", "NO"]),
+    findMcStatusCol_(["BOM ID", "BOM_ID", "BOMID", "SFG_BOM", "BOM"], ["BOM", "ID"]),
+    findMcStatusCol_(["ITEM CODE", "ITEM_CODE", "ITEMCODE", "SFG_CODE"], ["ITEM", "CODE"]),
+    findMcStatusCol_(["MC DATE", "MC_DATE", "MCDATE"], ["MC", "DATE"])
+  ].filter(Boolean);
+  var parts = cols.map(function(c){ return String(r[c] == null ? "" : r[c]).trim(); }).filter(Boolean);
+  var rowNo = String(r.__row_number || "").trim();
+  if (rowNo) parts.push("R" + rowNo);
+  return parts.length ? parts.join("||") : JSON.stringify(r).slice(0, 200);
+}
+
+function getMcStatusManualPd_(key) {
+  return num(MC_PD[key]);
+}
+
+function getMcStatusProdDone_(r, qtyCol) {
+  var key = mcStatusRowKey_(r);
+  if (MC_DONE[key]) return num(r[qtyCol]);
+  return getMcStatusManualPd_(key);
+}
+
+function getMcEqpt_(key) { return MC_EQPT[key] || ""; }
+function getMcHod_(key) { return MC_HOD[key] || ""; }
+function getMcConsume_(key) { return MC_CONSUME[key] || ""; }
+function getMcCStart_(key) { return MC_CSTART[key] || ""; }
+function getMcCEnd_(key) { return MC_CEND[key] || ""; }
+function getMcCBy_(key) { return MC_CBY[key] || ""; }
+
+function saveMcStatusInput_(key) {
+  if (!key) return;
+  var body = {
+    action: "upsert_mc_status_input",
+    row_key: key,
+    done: MC_DONE[key] ? "1" : "0",
+    prod_done: MC_PD[key] == null ? "" : String(MC_PD[key]),
+    eqpt: MC_EQPT[key] || "",
+    hod: MC_HOD[key] || "",
+    consume_from: MC_CONSUME[key] || "",
+    commit_start: MC_CSTART[key] || "",
+    commit_end: MC_CEND[key] || "",
+    commit_by: MC_CBY[key] || "",
+    updated_at: new Date().toISOString()
+  };
+  try {
+    var s = typeof loadSession === "function" ? loadSession() : null;
+    body.updated_by = s && s.username ? s.username : "";
+  } catch(e) {}
+  mcStatusActionCall_(body).catch(function(e){ console.warn("MC Status input save failed", e); });
+}
+
+function refreshMcStatusAfterInput_() {
+  var modalOpen = document.getElementById("mcStatusModal");
+  var keepIdx = MC_STATUS_MODAL_GROUP_INDEX;
+  renderMcStatusTable();
+  if (modalOpen && modalOpen.classList.contains("open") && keepIdx >= 0) {
+    openMcStatusChildModal(keepIdx);
+  }
+}
+
+function wireMcStatusInputs_() {
+  var body = document.getElementById("mcStatusModalBody");
+  if (!body) return;
+  body.querySelectorAll(".mc-status-done-chk").forEach(function(chk){
+    chk.onclick = function(e){ e.stopPropagation(); };
+    chk.onchange = function(){
+      var tr = chk.closest("tr"); if (!tr) return;
+      var key = tr.getAttribute("data-mc-key") || "";
+      var oldVal = chk.checked ? "" : "1";
+      var newVal = chk.checked ? "1" : "";
+      if (!canInputChange_(oldVal, newVal, "MC Done", "done")) {
+        chk.checked = !chk.checked;
+        return;
+      }
+      if (chk.checked) MC_DONE[key] = 1;
+      else delete MC_DONE[key];
+      saveMcDone_();
+      saveMcStatusInput_(key);
+      refreshMcStatusAfterInput_();
+    };
+  });
+  body.querySelectorAll(".mc-status-pd-input").forEach(function(inp){
+    inp.onclick = function(e){ e.stopPropagation(); };
+    inp.onkeydown = function(e){ e.stopPropagation(); };
+    var update = function(showAlert){
+      if (inp.readOnly || inp.disabled) return;
+      var tr = inp.closest("tr"); if (!tr) return;
+      var key = tr.getAttribute("data-mc-key") || "";
+      var netQty = num(tr.getAttribute("data-net-mc"));
+      var v = inp.value.trim();
+      var nv = v === "" ? null : parseFloat(v);
+      var prev = getMcStatusManualPd_(key);
+      var oldPermissionVal = prev > 0 ? String(prev) : "";
+      var newPermissionVal = (nv != null && !isNaN(nv) && nv > 0) ? String(nv) : "";
+      if (!canInputChange_(oldPermissionVal, newPermissionVal, "MC Production Done Qty", "prod_done")) {
+        inp.value = prev > 0 ? String(prev) : "";
+        return;
+      }
+      if (nv != null && !isNaN(nv) && netQty > 0 && nv > netQty + 0.0005) {
+        if (showAlert) {
+          alert("Production Done Qty (" + fmt(nv, 3) + ") cannot be greater than Net MC Qty (" + fmt(netQty, 3) + ").");
+          inp.value = prev > 0 ? String(prev) : "";
+        }
+        return;
+      }
+      if (nv == null || isNaN(nv) || nv === 0) delete MC_PD[key];
+      else MC_PD[key] = nv;
+      saveMcPd_();
+      saveMcStatusInput_(key);
+      refreshMcStatusAfterInput_();
+    };
+    inp.oninput = function(){ update(false); };
+    inp.onchange = function(){ update(true); };
+  });
+  body.querySelectorAll(".mc-status-eqpt-select").forEach(function(sel){
+    sel.onclick = function(e){ e.stopPropagation(); };
+    sel.onchange = function(){
+      var tr = sel.closest("tr"); if (!tr) return;
+      var key = tr.getAttribute("data-mc-key") || "";
+      var oldVal = getMcEqpt_(key);
+      if (!canInputChange_(oldVal, sel.value || "", "MC EQPT", "eqpt")) {
+        sel.value = oldVal;
+        return;
+      }
+      if (sel.value) MC_EQPT[key] = sel.value;
+      else delete MC_EQPT[key];
+      saveMcPlanning_();
+      saveMcStatusInput_(key);
+    };
+  });
+  body.querySelectorAll(".mc-status-hod-select").forEach(function(sel){
+    sel.onclick = function(e){ e.stopPropagation(); };
+    sel.onchange = function(){
+      var tr = sel.closest("tr"); if (!tr) return;
+      var key = tr.getAttribute("data-mc-key") || "";
+      var oldVal = getMcHod_(key);
+      if (!canInputChange_(oldVal, sel.value || "", "MC HOD", "hod")) {
+        sel.value = oldVal;
+        return;
+      }
+      if (sel.value) MC_HOD[key] = sel.value;
+      else delete MC_HOD[key];
+      saveMcPlanning_();
+      saveMcStatusInput_(key);
+    };
+  });
+  body.querySelectorAll(".mc-status-consume-select").forEach(function(sel){
+    sel.onclick = function(e){ e.stopPropagation(); };
+    sel.onchange = function(){
+      var tr = sel.closest("tr"); if (!tr) return;
+      var key = tr.getAttribute("data-mc-key") || "";
+      var oldVal = getMcConsume_(key);
+      if (!canInputChange_(oldVal, sel.value || "", "MC Consume From", "consume_from")) {
+        sel.value = oldVal;
+        return;
+      }
+      if (sel.value) MC_CONSUME[key] = sel.value;
+      else delete MC_CONSUME[key];
+      saveMcPlanning_();
+      saveMcStatusInput_(key);
+    };
+  });
+  body.querySelectorAll(".mc-status-cstart-input,.mc-status-cend-input").forEach(function(inp){
+    inp.onclick = function(e){ e.stopPropagation(); };
+    inp.onkeydown = function(e){ e.stopPropagation(); };
+    inp.onchange = function(){
+      var tr = inp.closest("tr"); if (!tr) return;
+      var key = tr.getAttribute("data-mc-key") || "";
+      var isStart = inp.classList.contains("mc-status-cstart-input");
+      var oldVal = isStart ? getMcCStart_(key) : getMcCEnd_(key);
+      var label = isStart ? "MC Commit Start" : "MC Commit End";
+      var colKey = isStart ? "commit_start" : "commit_end";
+      if (!canInputChange_(oldVal, inp.value || "", label, colKey)) {
+        inp.value = oldVal;
+        return;
+      }
+      if (isStart) {
+        if (inp.value) MC_CSTART[key] = inp.value; else delete MC_CSTART[key];
+      } else {
+        if (inp.value) MC_CEND[key] = inp.value; else delete MC_CEND[key];
+      }
+      var s = typeof loadSession === "function" ? loadSession() : null;
+      if (s && s.username) MC_CBY[key] = s.username;
+      saveMcPlanning_();
+      saveMcStatusInput_(key);
+      refreshMcStatusAfterInput_();
+    };
+  });
+}
+
+async function loadTeamMasterData(force) {
+  const btn = document.getElementById("refreshBtn");
+  const errEl = document.getElementById("error");
+  const loadingEl = document.getElementById("loading");
+  const metaEl = document.getElementById("teamMasterMeta");
+  if (errEl) errEl.style.display = "none";
+  if (loadingEl) { loadingEl.style.display = ""; loadingEl.textContent = "Fetching TEAM MASTER_MANPOWER from Google Sheets..."; }
+  if (btn) { btn.disabled = true; btn.textContent = "Refreshing..."; }
+  try {
+    const live = await fetchLiveData("TEAM MASTER_MANPOWER");
+    if (live && live.error) throw new Error(live.error);
+    TEAM_MASTER_ROWS = live && Array.isArray(live.rows) ? live.rows : [];
+    TEAM_MASTER_COLUMNS = live && Array.isArray(live.columns) && live.columns.length
+      ? live.columns.filter(Boolean)
+      : (TEAM_MASTER_ROWS[0] ? Object.keys(TEAM_MASTER_ROWS[0]) : []);
+    if (TEAM_MASTER_COLUMNS.indexOf("STATUS") < 0 && !TEAM_MASTER_COLUMNS.some(function(c){ return String(c).toUpperCase().indexOf("STATUS") >= 0; })) {
+      TEAM_MASTER_COLUMNS.push("STATUS");
+    }
+    TEAM_MASTER_META = { exported_at: live.exported_at, row_count: TEAM_MASTER_ROWS.length };
+    if (metaEl) metaEl.textContent = TEAM_MASTER_ROWS.length + " rows / live as of " + (TEAM_MASTER_META.exported_at || "").slice(0,19).replace("T", " ");
+    updateTeamSelect_();
+    renderTeamMasterTable();
+  } catch(e) {
+    if (errEl) {
+      errEl.style.display = "block";
+      errEl.textContent = "Failed to load TEAM MASTER_MANPOWER: " + e.message;
+    }
+  } finally {
+    if (loadingEl) loadingEl.style.display = "none";
+    if (btn) { btn.disabled = false; btn.textContent = "Refresh"; }
+    setPageTabState_();
+  }
+}
+window.loadTeamMasterData = loadTeamMasterData;
+
+function renderTeamMasterTable() {
+  var head = document.getElementById("teamMasterHead");
+  var body = document.getElementById("teamMasterBody");
+  var metaEl = document.getElementById("teamMasterMeta");
+  if (!head || !body) return;
+  var qEl = document.getElementById("teamSearch");
+  var q = qEl ? String(qEl.value || "").trim().toLowerCase() : "";
+  var teamFilter = selectedTeam_();
+  var teamCol = findTeamColumn_();
+  var rows = TEAM_MASTER_ROWS.filter(function(r){
+    if (teamFilter && String(r[teamCol] || "").trim() !== teamFilter) return false;
+    if (!q) return true;
+    return TEAM_MASTER_COLUMNS.some(function(c){
+      return String(r[c] == null ? "" : r[c]).toLowerCase().indexOf(q) >= 0;
+    });
+  });
+  var visibleCols = TEAM_MASTER_COLUMNS.filter(function(c){ return String(c).indexOf("__") !== 0; });
+  var statusCol = findStatusColumn_();
+  head.innerHTML = visibleCols.map(function(c){ return '<th>' + esc(c) + '</th>'; }).join("") + '<th>Actions</th>';
+  if (!TEAM_MASTER_COLUMNS.length) {
+    body.innerHTML = '<tr><td class="empty">No columns found in TEAM MASTER_MANPOWER.</td></tr>';
+    return;
+  }
+  if (!rows.length) {
+    body.innerHTML = '<tr><td colspan="' + (visibleCols.length + 1) + '" class="empty">No matching team master rows.</td></tr>';
+  } else {
+    body.innerHTML = rows.map(function(r){
+      var rowNo = r.__row_number || "";
+      return '<tr>' + visibleCols.map(function(c){
+        if (c === statusCol) {
+          var st = String(r[c] == null ? "" : r[c]).trim();
+          var active = st.toLowerCase() !== "inactive";
+          return '<td><select class="team-status-select" data-old="' + esc(active ? "Active" : "Inactive") + '" onchange="saveTeamStatus(\'' + esc(rowNo) + '\', this)"><option value="Active"' + (active ? ' selected' : '') + '>Active</option><option value="Inactive"' + (!active ? ' selected' : '') + '>Inactive</option></select></td>';
+        }
+        return '<td>' + esc(r[c] == null ? "" : r[c]) + '</td>';
+      }).join("") +
+      '<td style="white-space:nowrap;"><button class="auth-btn" type="button" onclick="openTeamForm(\'edit\', \'' + esc(rowNo) + '\')">Edit</button> <button class="auth-btn auth-btn-danger" type="button" onclick="deleteTeamMember(\'' + esc(rowNo) + '\')">Delete</button></td></tr>';
+    }).join("");
+  }
+  if (metaEl) {
+    var base = TEAM_MASTER_ROWS.length + " rows";
+    if (teamFilter || q) base = rows.length + " of " + TEAM_MASTER_ROWS.length + " rows";
+    if (teamFilter) base += " / Team: " + teamFilter;
+    metaEl.textContent = base + (TEAM_MASTER_META && TEAM_MASTER_META.exported_at ? " / live as of " + TEAM_MASTER_META.exported_at.slice(0,19).replace("T", " ") : "");
+  }
+}
+window.renderTeamMasterTable = renderTeamMasterTable;
+
+function clearTeamMasterSearch() {
+  var qEl = document.getElementById("teamSearch");
+  if (qEl) qEl.value = "";
+  renderTeamMasterTable();
+}
+window.clearTeamMasterSearch = clearTeamMasterSearch;
+
+function findTeamColumn_() {
+  for (var i = 0; i < TEAM_MASTER_COLUMNS.length; i++) {
+    var k = String(TEAM_MASTER_COLUMNS[i] || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (k === "TEAM" || k === "TEAMNAME" || k.indexOf("TEAM") >= 0) return TEAM_MASTER_COLUMNS[i];
+  }
+  return TEAM_MASTER_COLUMNS[0] || "TEAM";
+}
+function findStatusColumn_() {
+  for (var i = 0; i < TEAM_MASTER_COLUMNS.length; i++) {
+    var k = String(TEAM_MASTER_COLUMNS[i] || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (k === "STATUS" || k.indexOf("STATUS") >= 0) return TEAM_MASTER_COLUMNS[i];
+  }
+  return "STATUS";
+}
+function findPlantColumn_() {
+  for (var i = 0; i < TEAM_MASTER_COLUMNS.length; i++) {
+    var k = String(TEAM_MASTER_COLUMNS[i] || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (k === "PLANT" || k.indexOf("PLANT") >= 0) return TEAM_MASTER_COLUMNS[i];
+  }
+  return "";
+}
+function findEmployeeCodeColumn_() {
+  for (var i = 0; i < TEAM_MASTER_COLUMNS.length; i++) {
+    var k = String(TEAM_MASTER_COLUMNS[i] || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (k === "EMPLOYEECODE" || k === "EMPCODE" || k === "EMPID" || k === "EMPLOYEEID" || k === "CODE") return TEAM_MASTER_COLUMNS[i];
+    if (k.indexOf("EMPLOYEE") >= 0 && k.indexOf("CODE") >= 0) return TEAM_MASTER_COLUMNS[i];
+  }
+  return "";
+}
+function normTeamKey_(v) {
+  return String(v == null ? "" : v).trim().toUpperCase();
+}
+function teamExists_(teamName) {
+  var teamCol = findTeamColumn_();
+  var key = normTeamKey_(teamName);
+  if (!key) return false;
+  return TEAM_MASTER_ROWS.some(function(r){ return normTeamKey_(r[teamCol]) === key; });
+}
+function employeeCodeExists_(empCode, skipRow) {
+  var empCol = findEmployeeCodeColumn_();
+  if (!empCol) return false;
+  var key = normTeamKey_(empCode);
+  if (!key) return false;
+  return TEAM_MASTER_ROWS.some(function(r){
+    if (skipRow && String(r.__row_number) === String(skipRow)) return false;
+    return normTeamKey_(r[empCol]) === key;
+  });
+}
+function selectedTeam_() {
+  var sel = document.getElementById("teamExistingSelect");
+  return sel ? String(sel.value || "").trim() : "";
+}
+function getTeamHistoryValue_(teamName, colName) {
+  if (!teamName || !colName) return "";
+  var teamCol = findTeamColumn_();
+  for (var i = TEAM_MASTER_ROWS.length - 1; i >= 0; i--) {
+    var r = TEAM_MASTER_ROWS[i];
+    if (String(r[teamCol] || "").trim() === teamName) {
+      var v = String(r[colName] == null ? "" : r[colName]).trim();
+      if (v) return v;
+    }
+  }
+  return "";
+}
+function updateTeamSelect_() {
+  var sel = document.getElementById("teamExistingSelect");
+  if (!sel) return;
+  var old = sel.value;
+  var teamCol = findTeamColumn_();
+  var seen = new Set();
+  TEAM_MASTER_ROWS.forEach(function(r){
+    var v = String(r[teamCol] == null ? "" : r[teamCol]).trim();
+    if (v) seen.add(v);
+  });
+  sel.innerHTML = '<option value="">Select team</option>' + Array.from(seen).sort().map(function(v){
+    return '<option value="' + esc(v) + '">' + esc(v) + '</option>';
+  }).join("");
+  if (old && seen.has(old)) sel.value = old;
+}
+function onTeamSelectionChange() {
+  renderTeamMasterTable();
+  closeTeamForm();
+}
+window.onTeamSelectionChange = onTeamSelectionChange;
+function teamActionCall_(params) {
+  return new Promise(function(resolve, reject){
+    var cb = "__teamCb_" + Date.now() + "_" + Math.floor(Math.random() * 100000);
+    var script = document.createElement("script");
+    var done = false;
+    function finish(payload, err) {
+      if (done) return; done = true;
+      try { delete window[cb]; } catch(e) { window[cb] = undefined; }
+      if (script.parentNode) script.parentNode.removeChild(script);
+      if (err) reject(err); else resolve(payload || null);
+    }
+    window[cb] = function(payload){ finish(payload); };
+    script.onerror = function(){ finish(null, new Error("Team Master API failed")); };
+    var qs = new URLSearchParams();
+    Object.keys(params).forEach(function(k){ qs.set(k, params[k] == null ? "" : String(params[k])); });
+    qs.set("callback", cb);
+    qs.set("_", String(Date.now()));
+    script.src = APP_SCRIPT_URL + (APP_SCRIPT_URL.indexOf("?") >= 0 ? "&" : "?") + qs.toString();
+    document.head.appendChild(script);
+    setTimeout(function(){ finish(null, new Error("Team Master API timeout")); }, 15000);
+  });
+}
+function renderTeamMemberFields_(row, rowNumber, index, lockedTeam) {
+  var teamCol = findTeamColumn_();
+  var statusCol = findStatusColumn_();
+  var selectedTeam = selectedTeam_();
+  var plantCol = findPlantColumn_();
+  var defaultPlant = getTeamHistoryValue_(selectedTeam, plantCol);
+  var cols = TEAM_MASTER_COLUMNS.filter(function(c){ return String(c).indexOf("__") !== 0; });
+  return '<div class="team-member-row" data-row="' + esc(rowNumber || "") + '">' +
+    '<div class="team-member-row-head"><span>Member ' + (index + 1) + '</span>' +
+      (rowNumber ? '<span>Row ' + esc(rowNumber) + '</span>' : '') +
+      '<button class="auth-btn" type="button" onclick="removeTeamMemberRow(this)" style="margin-left:auto;">Remove</button></div>' +
+    '<div class="team-form-grid">' + cols.map(function(c){
+      var val = row ? (row[c] == null ? "" : row[c]) : "";
+      if (!row && c === teamCol && lockedTeam) val = lockedTeam;
+      else if (!row && c === teamCol && TEAM_FORM_MODE === "member") val = selectedTeam;
+      if (!row && c === plantCol && defaultPlant) val = defaultPlant;
+      if (!row && c === statusCol) val = "Active";
+      var readonly = (c === teamCol && lockedTeam) ? ' readonly' : '';
+      if (c === statusCol) {
+        return '<label>' + esc(c) + '<select data-col="' + esc(c) + '"><option value="Active"' + (String(val).toLowerCase() !== "inactive" ? " selected" : "") + '>Active</option><option value="Inactive"' + (String(val).toLowerCase() === "inactive" ? " selected" : "") + '>Inactive</option></select></label>';
+      }
+      return '<label>' + esc(c) + '<input type="text" data-col="' + esc(c) + '" value="' + esc(val) + '"' + readonly + ' /></label>';
+    }).join("") + '</div></div>';
+}
+function openTeamForm(mode, rowNumber, rowCount) {
+  TEAM_FORM_MODE = mode || "member";
+  var panel = document.getElementById("teamFormPanel");
+  var title = document.getElementById("teamFormTitle");
+  var fields = document.getElementById("teamFormFields");
+  var multi = document.getElementById("teamFormMultiRows");
+  var status = document.getElementById("teamFormStatus");
+  if (!panel || !fields || !multi) return;
+  if (!TEAM_MASTER_COLUMNS.length) TEAM_MASTER_COLUMNS = ["TEAM", "MEMBER_NAME", "STATUS", "ROLE", "CONTACT", "REMARKS"];
+  var row = rowNumber ? TEAM_MASTER_ROWS.find(function(r){ return String(r.__row_number) === String(rowNumber); }) : null;
+  var selectedTeam = selectedTeam_();
+  if (TEAM_FORM_MODE === "member" && !row && !selectedTeam) {
+    alert("Please select Existing Team first.");
+    return;
+  }
+  if (title) title.textContent = row ? "Edit Team Member" : (TEAM_FORM_MODE === "team" ? "Add New Team" : "Add Member to Existing Team");
+  if (status) status.textContent = row ? ("Row " + rowNumber) : "";
+  fields.setAttribute("data-row", rowNumber || "");
+  fields.style.display = "none";
+  var count = row ? 1 : Math.max(1, parseInt(rowCount || "1", 10) || 1);
+  var lockedTeam = TEAM_FORM_MODE === "member" ? selectedTeam : "";
+  multi.innerHTML = "";
+  for (var i = 0; i < count; i++) {
+    multi.insertAdjacentHTML("beforeend", renderTeamMemberFields_(i === 0 ? row : null, i === 0 ? rowNumber : "", i, lockedTeam));
+  }
+  panel.style.display = "";
+}
+window.openTeamForm = openTeamForm;
+function renumberTeamRows_() {
+  document.querySelectorAll("#teamFormMultiRows .team-member-row").forEach(function(row, i){
+    var label = row.querySelector(".team-member-row-head span");
+    if (label) label.textContent = "Member " + (i + 1);
+  });
+}
+function addTeamMemberRow() {
+  var multi = document.getElementById("teamFormMultiRows");
+  if (!multi) return;
+  var selectedTeam = selectedTeam_();
+  var lockedTeam = TEAM_FORM_MODE === "member" ? selectedTeam : "";
+  var firstTeam = "";
+  if (TEAM_FORM_MODE === "team") {
+    var teamCol = findTeamColumn_();
+    var first = multi.querySelector('[data-col="' + teamCol + '"]');
+    firstTeam = first ? String(first.value || "").trim() : "";
+    lockedTeam = firstTeam;
+  }
+  multi.insertAdjacentHTML("beforeend", renderTeamMemberFields_(null, "", multi.querySelectorAll(".team-member-row").length, lockedTeam));
+  renumberTeamRows_();
+}
+window.addTeamMemberRow = addTeamMemberRow;
+function removeTeamMemberRow(btn) {
+  var rows = document.querySelectorAll("#teamFormMultiRows .team-member-row");
+  if (rows.length <= 1) { alert("At least one member row is required."); return; }
+  var row = btn.closest(".team-member-row");
+  if (row) row.remove();
+  renumberTeamRows_();
+}
+window.removeTeamMemberRow = removeTeamMemberRow;
+function closeTeamForm() {
+  var panel = document.getElementById("teamFormPanel");
+  if (panel) panel.style.display = "none";
+}
+window.closeTeamForm = closeTeamForm;
+async function saveTeamForm() {
+  var fields = document.getElementById("teamFormFields");
+  var multi = document.getElementById("teamFormMultiRows");
+  var status = document.getElementById("teamFormStatus");
+  if (!multi) return;
+  var teamCol = findTeamColumn_();
+  var empCol = findEmployeeCodeColumn_();
+  if (status) status.textContent = "Saving...";
+  try {
+    var rows = Array.from(multi.querySelectorAll(".team-member-row"));
+    var firstTeam = "";
+    var seenEmp = new Set();
+    for (var i = 0; i < rows.length; i++) {
+      var data = {};
+      rows[i].querySelectorAll("[data-col]").forEach(function(el){
+        data[el.getAttribute("data-col")] = el.value;
+      });
+      if (TEAM_FORM_MODE === "team" && !firstTeam) firstTeam = String(data[teamCol] || "").trim();
+      if (TEAM_FORM_MODE === "team" && firstTeam) data[teamCol] = firstTeam;
+      if (!String(data[teamCol] || "").trim()) { alert("Team name is required in row " + (i + 1) + "."); return; }
+      var row = rows[i].getAttribute("data-row") || "";
+      if (TEAM_FORM_MODE === "team" && !row && i === 0 && teamExists_(data[teamCol])) {
+        alert("Team already exists: " + data[teamCol]);
+        return;
+      }
+      if (empCol) {
+        var empKey = normTeamKey_(data[empCol]);
+        if (empKey) {
+          if (seenEmp.has(empKey)) { alert("Employee code duplicate in this form: " + data[empCol]); return; }
+          seenEmp.add(empKey);
+          if (employeeCodeExists_(empKey, row)) { alert("Employee code already exists: " + data[empCol]); return; }
+        }
+      }
+      var resp = await teamActionCall_({ action: "team_upsert", row_number: row, new_team: TEAM_FORM_MODE === "team" ? "1" : "", data_json: JSON.stringify(data) });
+      if (!resp || resp.status !== "ok") throw new Error(resp && resp.message ? resp.message : "Save failed");
+    }
+    if (status) status.textContent = "Saved";
+    closeTeamForm();
+    await loadTeamMasterData(true);
+    if (document.getElementById("teamExistingSelect") && firstTeam) {
+      document.getElementById("teamExistingSelect").value = firstTeam;
+      renderTeamMasterTable();
+    }
+  } catch(e) {
+    if (status) status.textContent = "Save failed";
+    alert(String(e && e.message || e));
+  }
+}
+window.saveTeamForm = saveTeamForm;
+async function deleteTeamMember(rowNumber) {
+  if (!rowNumber) return;
+  if (!confirm("Delete this team member? This cannot be undone.")) return;
+  try {
+    var resp = await teamActionCall_({ action: "team_delete", row_number: rowNumber });
+    if (!resp || resp.status !== "ok") throw new Error(resp && resp.message ? resp.message : "Delete failed");
+    await loadTeamMasterData(true);
+  } catch(e) {
+    alert(String(e && e.message || e));
+  }
+}
+window.deleteTeamMember = deleteTeamMember;
+async function saveTeamStatus(rowNumber, sel) {
+  var old = sel.getAttribute("data-old") || "";
+  try {
+    var resp = await teamActionCall_({ action: "team_status", row_number: rowNumber, status: sel.value });
+    if (!resp || resp.status !== "ok") throw new Error(resp && resp.message ? resp.message : "Status save failed");
+    sel.setAttribute("data-old", sel.value);
+    await loadTeamMasterData(true);
+  } catch(e) {
+    sel.value = old;
+    alert(String(e && e.message || e));
+  }
+}
+window.saveTeamStatus = saveTeamStatus;
 
 function findEqptKey(rows) {
   if (!rows || !rows.length) return null;
@@ -2334,7 +3570,11 @@ async function loadData(force, silent) {
     document.getElementById("sub").textContent =
       ROWS.length + " distinct SFG BOMs / " + LINES.length + " underlying lines / " + EQPT_MASTER.length + " EQPTs / " + HOD_MASTER.length + " HODs / live as of " + (META.fetched_at || "").slice(0,19).replace("T", " ") + " / auto refresh " + AUTO_REFRESH_SECONDS + "s";
     loadingEl.style.display = "none";
-    contentEl.style.display = "";
+    contentEl.style.display = CURRENT_PAGE === "dashboard" ? "" : "none";
+    var teamEl = document.getElementById("teamMasterContent");
+    if (teamEl) teamEl.style.display = CURRENT_PAGE === "team" ? "" : "none";
+    var mcEl = document.getElementById("mcStatusContent");
+    if (mcEl) mcEl.style.display = CURRENT_PAGE === "mc" ? "" : "none";
     renderAll();
   } catch(e) {
     if (silent) {
@@ -3349,6 +4589,7 @@ function renderPordTable(lines, um) {
     { key: "_pct", label: "Compl %" },
     { key: "SFG_NET_ORD_QTY", label: "SFG Net", num: true },
     { key: "SFG_REQUIRED_AG_BAL TO PRD FG", label: "FG_BALANCE_HOD", num: true },
+    { key: "_sfg_balance", label: "SFG Balance Qty", num: true },
     { key: "_line_pd", label: "Production Done Qty", num: true },
     { key: "_line_date", label: "Target Date of Prod Closer" },
     { key: "_eqpt", label: "EQPT" },
@@ -3379,6 +4620,16 @@ function renderPordTable(lines, um) {
         return '<td class="line-done-cell"><input type="checkbox" class="line-done-chk"' + (done ? ' checked' : '') + disDone + ' /></td>';
       }
       if (c.key === "_status") return '<td>' + (open ? '<span class="pill pill-open">Open</span>' : '<span class="pill pill-closed">Done</span>') + '</td>';
+      if (c.key === "_sfg_balance") {
+        // SFG Balance Qty = SFG Net Order Qty â€" Production Done Qty (manual
+        // per-line input). When Done is ticked, prod_done snaps to sfgNet so
+        // the balance lands exactly on 0. Red-highlighted column so pending
+        // balances are immediately visible; greys out at zero.
+        var pdNow = done ? sfgNet : (manualPD > 0 ? manualPD : 0);
+        var sfgBal = Math.max(0, sfgNet - pdNow);
+        var balCls = (sfgBal > 0.0005) ? "num sfg-balance-cell" : "num sfg-balance-cell bal-zero";
+        return '<td class="' + balCls + '">' + (sfgNet > 0 ? fmt(sfgBal, 3) : "-") + '</td>';
+      }
       if (c.key === "_pct") {
         if (net <= 0) return '<td>-</td>';
         return '<td><div class="progress"><span style="width:' + pct + '%"></span></div><div style="font-size:10px;color:#666;text-align:right;">' + pct.toFixed(0) + '%</div></td>';
@@ -4576,6 +5827,39 @@ function listUsersCall() {
     setTimeout(function(){ finish(null); }, 12000);
   });
 }
+async function refreshCurrentSessionFromServer() {
+  var username = currentUsername();
+  if (!username) return false;
+  try {
+    var resp = await listUsersCall();
+    if (!resp || resp.status !== "ok" || !Array.isArray(resp.users)) return false;
+    var found = resp.users.find(function(u){
+      return String(u.username || "").toLowerCase().trim() === String(username).toLowerCase().trim();
+    });
+    if (!found) return false;
+    var oldRole = currentRole();
+    var oldFilter = "";
+    var oldRights = "";
+    try {
+      var s = loadSession();
+      oldFilter = s && s.view_filter ? String(s.view_filter) : "";
+      oldRights = s && s.input_rights ? JSON.stringify(s.input_rights) : "";
+    } catch(_e) {}
+    var newRole = String(found.role || "user").toLowerCase();
+    var newFilter = found.view_filter == null ? "" : String(found.view_filter);
+    var newRights = found.input_rights || "";
+    var changed = oldRole !== newRole || oldFilter !== newFilter || oldRights !== JSON.stringify(normalizeInputRights_(newRights, newRole));
+    if (changed) {
+      saveSession(found.username || username, newRole, newFilter, newRights);
+      applyRoleUI();
+    }
+    return changed;
+  } catch(e) {
+    console.warn("Session role refresh failed", e);
+    return false;
+  }
+}
+window.refreshCurrentSessionFromServer = refreshCurrentSessionFromServer;
 function postUserAction(params) {
   if (!hasInputApi()) return Promise.reject(new Error("API not configured"));
   return new Promise(function(resolve, reject){
@@ -4678,260 +5962,4 @@ async function submitAddUser() {
   var r = document.getElementById("newUserRole").value;
   var status = document.getElementById("userPanelStatus");
   if (!u || !p) { status.textContent = "Username and password required"; return; }
-  status.textContent = "Adding " + u + "...";
-  var hash = await sha256Hex(p);
-  var addResp = await postUserAction({
-    action: "upsert_user",
-    username: u,
-    password_plain: p,
-    password_hash: hash,
-    role: r,
-    view_filter: "",
-    input_rights: JSON.stringify(defaultInputRights_(r))
-  });
-  if (!addResp || addResp.status !== "ok") throw new Error(addResp && addResp.message ? addResp.message : "User add failed");
-  document.getElementById("newUserName").value = "";
-  document.getElementById("newUserPass").value = "";
-  document.getElementById("newUserRole").value = "user";
-  setTimeout(function(){ status.textContent = ""; refreshUserPanel(); }, 800);
-}
-window.submitAddUser = submitAddUser;
-async function saveUserRow(btn) {
-  var tr = btn.closest("tr"); if (!tr) return;
-  var username = tr.getAttribute("data-username");
-  var role = tr.querySelector(".row-role").value;
-  var plainInput = tr.querySelector(".row-plain-pw");
-  var newPlain = plainInput ? String(plainInput.value || "") : "";
-  var viewFilterInput = tr.querySelector(".row-view-filter");
-  var newViewFilter = viewFilterInput ? String(viewFilterInput.value || "").trim() : "";
-  var status = document.getElementById("userPanelStatus");
-  status.textContent = "Saving " + username + "...";
-  var rightsJson = readRightsFromRow_(tr, role);
-  var params = { action: "upsert_user", username: username, role: role, view_filter: newViewFilter, input_rights: rightsJson };
-  if (newPlain) { params.password_plain = newPlain; params.password_hash = await sha256Hex(newPlain); }
-  var resp = await postUserAction(params);
-  if (!resp || resp.status !== "ok") throw new Error(resp && resp.message ? resp.message : "User save failed");
-  if (username && currentUsername() && username.toLowerCase() === currentUsername().toLowerCase()) {
-    saveSession(currentUsername(), role, newViewFilter, rightsJson);
-    applyRoleUI();
-    if (typeof loadData === "function") loadData(false);
-  }
-  setTimeout(function(){ status.textContent = "Saved " + username; refreshUserPanel(); }, 800);
-}
-window.saveUserRow = saveUserRow;
-async function deleteUserRow(btn) {
-  var tr = btn.closest("tr"); if (!tr) return;
-  var username = tr.getAttribute("data-username");
-  if (username === currentUsername()) { alert("You can't delete yourself."); return; }
-  if (!confirm("Delete user '" + username + "'? This cannot be undone.")) return;
-  var status = document.getElementById("userPanelStatus");
-  status.textContent = "Deleting " + username + "...";
-  var resp = await postUserAction({ action: "delete_user", username: username });
-  if (!resp || resp.status !== "ok") throw new Error(resp && resp.message ? resp.message : "User delete failed");
-  setTimeout(function(){ status.textContent = "Deleted " + username; refreshUserPanel(); }, 800);
-}
-window.deleteUserRow = deleteUserRow;
-
-// ============================================================
-// VIEW-FILTER EDITOR (multi-column, multi-value)
-// ============================================================
-// Curated list of columns the Super Admin can use to scope a User's view.
-// These map to raw ERP sheet columns we filter on before building ROWS/LINES.
-var FILTERABLE_COLUMNS = [
-  "APPROVE_STATUS",
-  "SFG_LEVEL_3_NAME",
-  "SFG_LEVEL_4_NAME",
-  "SFG_UM",
-  "ACC_NAME",
-  "MC_NO",
-  "SFG_BOM",
-  "SFG_CODE",
-  "FG_LEVEL_4_NAME",
-  // HOD and EQPT are NOT ERP sheet columns - they are per-line assignments
-  // stored in LINE_HOD / LINE_EQPT (PLANNING_INPUTS sheet via Apps Script).
-  // We handle them specially in loadData's view-filter and in
-  // uniqueColumnValues so the editor still shows pickable values.
-  "HOD",
-  "EQPT"
-];
-// Working copy of the filter being edited inside the modal.
-var FILTER_EDITOR_STATE = { username: null, conditions: {}, hiddenInput: null };
-function uniqueColumnValues(col) {
-  // HOD and EQPT are special - their pickable values come from the master
-  // sheets (HOD MASTER / EQPT_MASTER tabs), not from the ERP main rows.
-  if (col === "HOD") return (HOD_MASTER || []).slice().sort();
-  if (col === "EQPT") return (EQPT_MASTER || []).slice().sort();
-  // Collect distinct non-blank values for a given column from the currently
-  // loaded LINES (works for line-level columns). For pivot-only columns
-  // (e.g. SFG_LEVEL_3_NAME) we also peek into ROWS which carry them on L3/L4.
-  var set = new Set();
-  (LINES || []).forEach(function(l){
-    var v = l && l[col];
-    if (v == null) return;
-    var s = String(v).trim();
-    if (s) set.add(s);
-  });
-  // Map pivot-row aliases (L3 -> SFG_LEVEL_3_NAME, L4 -> SFG_LEVEL_4_NAME, UM)
-  // so the dropdown still works even if LINES doesn't include them.
-  if (set.size === 0) {
-    (ROWS || []).forEach(function(r){
-      var v = null;
-      if (col === "SFG_LEVEL_3_NAME") v = r.L3;
-      else if (col === "SFG_LEVEL_4_NAME") v = r.L4;
-      else if (col === "SFG_UM") v = r.UM;
-      else v = r[col];
-      if (v == null) return;
-      var s = String(v).trim();
-      if (s) set.add(s);
-    });
-  }
-  return Array.from(set).sort();
-}
-function openFilterEditor(btn) {
-  var tr = btn.closest("tr");
-  if (!tr) return;
-  var username = tr.getAttribute("data-username") || "";
-  var hidden = tr.querySelector(".row-view-filter");
-  var raw = hidden ? hidden.value : "";
-  FILTER_EDITOR_STATE = {
-    username: username,
-    conditions: parseViewFilter(raw),
-    hiddenInput: hidden
-  };
-  document.getElementById("filterEditorTitle").textContent = "Configure data access for: " + username;
-  // Populate the "add column" dropdown with columns not already in use.
-  var sel = document.getElementById("newConditionColumn");
-  sel.innerHTML = '<option value="">-- pick a column --</option>' +
-    FILTERABLE_COLUMNS.filter(function(c){ return !FILTER_EDITOR_STATE.conditions[c]; })
-      .map(function(c){ return '<option value="' + esc(c) + '">' + esc(c) + '</option>'; }).join("");
-  renderFilterEditorBody();
-  document.getElementById("filterEditorModal").classList.add("open");
-}
-window.openFilterEditor = openFilterEditor;
-function closeFilterEditor() {
-  document.getElementById("filterEditorModal").classList.remove("open");
-  FILTER_EDITOR_STATE = { username: null, conditions: {}, hiddenInput: null };
-}
-window.closeFilterEditor = closeFilterEditor;
-function renderFilterEditorBody() {
-  var body = document.getElementById("filterEditorBody");
-  var conds = FILTER_EDITOR_STATE.conditions;
-  var keys = Object.keys(conds);
-  if (!keys.length) {
-    body.innerHTML = '<div style="text-align:center;color:#999;font-style:italic;padding:14px;border:1px dashed #d6d8db;border-radius:6px;">No filter columns yet. Add one below to grant view access.</div>';
-    return;
-  }
-  body.innerHTML = keys.map(function(col){
-    var allValues = uniqueColumnValues(col);
-    var selected = conds[col] || [];
-    var sortedAll = Array.from(new Set(allValues.concat(selected))).sort();
-    // ALWAYS prepend a "(blank)" pseudo-option so the Super Admin can grant
-    // access to lines that have NO value for this column (e.g. lines where
-    // HOD / EQPT was never assigned). Stored as the empty string "" in the
-    // filter so the loadData check `actual === ""` matches correctly.
-    sortedAll = [""].concat(sortedAll.filter(function(v){ return v !== ""; }));
-    var checkboxes = sortedAll.map(function(v){
-      var isOn = selected.indexOf(v) >= 0;
-      var label = v === "" ? "(blank - not assigned)" : v;
-      var bg = isOn ? "#eef4ff" : (v === "" ? "#fff7e6" : "#f7f8fa");
-      var bd = isOn ? "#4a7dd6" : (v === "" ? "#e8c986" : "#e6e8eb");
-      return '<label style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;background:' + bg + ';border:1px solid ' + bd + ';border-radius:14px;font-size:11px;cursor:pointer;margin:2px;">' +
-        '<input type="checkbox" data-col="' + esc(col) + '" data-val="' + esc(v) + '"' + (isOn ? " checked" : "") + ' onchange="toggleFilterValue(this)" style="margin:0;" />' +
-        esc(label) +
-      '</label>';
-    }).join("");
-    return '<div style="border:1px solid #e6e8eb;border-radius:8px;padding:10px;margin-bottom:8px;">' +
-      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">' +
-        '<strong style="font-size:12px;">' + esc(col) + '</strong>' +
-        '<button class="clear-btn" onclick="removeFilterColumn(\'' + esc(col) + '\')" style="font-size:10px;padding:2px 8px;">Remove column</button>' +
-      '</div>' +
-      '<div style="display:flex;flex-wrap:wrap;gap:0;">' + checkboxes + '</div>' +
-    '</div>';
-  }).join("");
-}
-function addFilterCondition() {
-  var sel = document.getElementById("newConditionColumn");
-  var col = sel.value;
-  if (!col) return;
-  if (!FILTER_EDITOR_STATE.conditions[col]) FILTER_EDITOR_STATE.conditions[col] = [];
-  // Remove this column from the "add" dropdown.
-  Array.from(sel.options).forEach(function(o){ if (o.value === col) sel.removeChild(o); });
-  sel.value = "";
-  renderFilterEditorBody();
-}
-window.addFilterCondition = addFilterCondition;
-function removeFilterColumn(col) {
-  delete FILTER_EDITOR_STATE.conditions[col];
-  // Restore this column to the "add" dropdown.
-  var sel = document.getElementById("newConditionColumn");
-  var opt = document.createElement("option");
-  opt.value = col; opt.textContent = col;
-  sel.appendChild(opt);
-  renderFilterEditorBody();
-}
-window.removeFilterColumn = removeFilterColumn;
-function toggleFilterValue(chk) {
-  var col = chk.getAttribute("data-col");
-  var val = chk.getAttribute("data-val");
-  if (!col) return;
-  var arr = FILTER_EDITOR_STATE.conditions[col] || [];
-  if (chk.checked) {
-    if (arr.indexOf(val) < 0) arr.push(val);
-  } else {
-    arr = arr.filter(function(x){ return x !== val; });
-  }
-  FILTER_EDITOR_STATE.conditions[col] = arr;
-  // Recolor the pill in-place without full re-render for snappier UX.
-  var label = chk.parentElement;
-  if (chk.checked) {
-    label.style.background = "#eef4ff";
-    label.style.borderColor = "#4a7dd6";
-  } else {
-    label.style.background = "#f7f8fa";
-    label.style.borderColor = "#e6e8eb";
-  }
-}
-window.toggleFilterValue = toggleFilterValue;
-function saveFilterEditor() {
-  if (!FILTER_EDITOR_STATE.hiddenInput) { closeFilterEditor(); return; }
-  // Strip out any columns with no selected values â€" they would block all
-  // rows. We treat "empty values" as "remove this filter column".
-  var clean = {};
-  Object.keys(FILTER_EDITOR_STATE.conditions).forEach(function(k){
-    // KEEP empty strings - they represent the explicit "(blank)" pseudo-value
-    // a Super Admin can pick to grant access to un-assigned rows. We only
-    // strip duplicates and ensure values are normalized strings.
-    var raw = FILTER_EDITOR_STATE.conditions[k] || [];
-    var vals = [];
-    var seen = new Set();
-    raw.forEach(function(v){
-      var s = v == null ? "" : String(v).trim();
-      if (seen.has(s)) return;
-      seen.add(s);
-      vals.push(s);
-    });
-    if (vals.length) clean[k] = vals;
-  });
-  var json = Object.keys(clean).length ? JSON.stringify(clean) : "";
-  FILTER_EDITOR_STATE.hiddenInput.value = json;
-  // Update the button label to reflect the new condition count.
-  var btn = FILTER_EDITOR_STATE.hiddenInput.parentElement.querySelector("button");
-  if (btn) btn.innerHTML = esc(viewFilterSummary(json)) + " &nbsp;&#9881;";
-  closeFilterEditor();
-}
-window.saveFilterEditor = saveFilterEditor;
-// Backdrop click closes the filter editor too.
-var _fe = document.getElementById("filterEditorModal");
-if (_fe) _fe.onclick = function(e){ if (e.target.id === "filterEditorModal") closeFilterEditor(); };
-
-// Backdrop click closes modals
-var _lm = document.getElementById("loginModal"); if (_lm) _lm.onclick = function(e){ if (e.target.id === "loginModal") closeLoginModal(); };
-var _um = document.getElementById("userPanelModal"); if (_um) _um.onclick = function(e){ if (e.target.id === "userPanelModal") closeUserPanel(); };
-
-// Initial UI sync + conditional data load + auto-refresh
-applyRoleUI();
-if (typeof currentRole === "function" && currentRole() !== "anonymous") loadData(false);
-if (typeof startAutoRefresh === "function") startAutoRefresh();
-</script>
-</body>
-</html>
+  status.textContent =
