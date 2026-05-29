@@ -5962,4 +5962,260 @@ async function submitAddUser() {
   var r = document.getElementById("newUserRole").value;
   var status = document.getElementById("userPanelStatus");
   if (!u || !p) { status.textContent = "Username and password required"; return; }
-  status.textContent =
+  status.textContent = "Adding " + u + "...";
+  var hash = await sha256Hex(p);
+  var addResp = await postUserAction({
+    action: "upsert_user",
+    username: u,
+    password_plain: p,
+    password_hash: hash,
+    role: r,
+    view_filter: "",
+    input_rights: JSON.stringify(defaultInputRights_(r))
+  });
+  if (!addResp || addResp.status !== "ok") throw new Error(addResp && addResp.message ? addResp.message : "User add failed");
+  document.getElementById("newUserName").value = "";
+  document.getElementById("newUserPass").value = "";
+  document.getElementById("newUserRole").value = "user";
+  setTimeout(function(){ status.textContent = ""; refreshUserPanel(); }, 800);
+}
+window.submitAddUser = submitAddUser;
+async function saveUserRow(btn) {
+  var tr = btn.closest("tr"); if (!tr) return;
+  var username = tr.getAttribute("data-username");
+  var role = tr.querySelector(".row-role").value;
+  var plainInput = tr.querySelector(".row-plain-pw");
+  var newPlain = plainInput ? String(plainInput.value || "") : "";
+  var viewFilterInput = tr.querySelector(".row-view-filter");
+  var newViewFilter = viewFilterInput ? String(viewFilterInput.value || "").trim() : "";
+  var status = document.getElementById("userPanelStatus");
+  status.textContent = "Saving " + username + "...";
+  var rightsJson = readRightsFromRow_(tr, role);
+  var params = { action: "upsert_user", username: username, role: role, view_filter: newViewFilter, input_rights: rightsJson };
+  if (newPlain) { params.password_plain = newPlain; params.password_hash = await sha256Hex(newPlain); }
+  var resp = await postUserAction(params);
+  if (!resp || resp.status !== "ok") throw new Error(resp && resp.message ? resp.message : "User save failed");
+  if (username && currentUsername() && username.toLowerCase() === currentUsername().toLowerCase()) {
+    saveSession(currentUsername(), role, newViewFilter, rightsJson);
+    applyRoleUI();
+    if (typeof loadData === "function") loadData(false);
+  }
+  setTimeout(function(){ status.textContent = "Saved " + username; refreshUserPanel(); }, 800);
+}
+window.saveUserRow = saveUserRow;
+async function deleteUserRow(btn) {
+  var tr = btn.closest("tr"); if (!tr) return;
+  var username = tr.getAttribute("data-username");
+  if (username === currentUsername()) { alert("You can't delete yourself."); return; }
+  if (!confirm("Delete user '" + username + "'? This cannot be undone.")) return;
+  var status = document.getElementById("userPanelStatus");
+  status.textContent = "Deleting " + username + "...";
+  var resp = await postUserAction({ action: "delete_user", username: username });
+  if (!resp || resp.status !== "ok") throw new Error(resp && resp.message ? resp.message : "User delete failed");
+  setTimeout(function(){ status.textContent = "Deleted " + username; refreshUserPanel(); }, 800);
+}
+window.deleteUserRow = deleteUserRow;
+
+// ============================================================
+// VIEW-FILTER EDITOR (multi-column, multi-value)
+// ============================================================
+// Curated list of columns the Super Admin can use to scope a User's view.
+// These map to raw ERP sheet columns we filter on before building ROWS/LINES.
+var FILTERABLE_COLUMNS = [
+  "APPROVE_STATUS",
+  "SFG_LEVEL_3_NAME",
+  "SFG_LEVEL_4_NAME",
+  "SFG_UM",
+  "ACC_NAME",
+  "MC_NO",
+  "SFG_BOM",
+  "SFG_CODE",
+  "FG_LEVEL_4_NAME",
+  // HOD and EQPT are NOT ERP sheet columns - they are per-line assignments
+  // stored in LINE_HOD / LINE_EQPT (PLANNING_INPUTS sheet via Apps Script).
+  // We handle them specially in loadData's view-filter and in
+  // uniqueColumnValues so the editor still shows pickable values.
+  "HOD",
+  "EQPT"
+];
+// Working copy of the filter being edited inside the modal.
+var FILTER_EDITOR_STATE = { username: null, conditions: {}, hiddenInput: null };
+function uniqueColumnValues(col) {
+  // HOD and EQPT are special - their pickable values come from the master
+  // sheets (HOD MASTER / EQPT_MASTER tabs), not from the ERP main rows.
+  if (col === "HOD") return (HOD_MASTER || []).slice().sort();
+  if (col === "EQPT") return (EQPT_MASTER || []).slice().sort();
+  // Collect distinct non-blank values for a given column from the currently
+  // loaded LINES (works for line-level columns). For pivot-only columns
+  // (e.g. SFG_LEVEL_3_NAME) we also peek into ROWS which carry them on L3/L4.
+  var set = new Set();
+  (LINES || []).forEach(function(l){
+    var v = l && l[col];
+    if (v == null) return;
+    var s = String(v).trim();
+    if (s) set.add(s);
+  });
+  // Map pivot-row aliases (L3 -> SFG_LEVEL_3_NAME, L4 -> SFG_LEVEL_4_NAME, UM)
+  // so the dropdown still works even if LINES doesn't include them.
+  if (set.size === 0) {
+    (ROWS || []).forEach(function(r){
+      var v = null;
+      if (col === "SFG_LEVEL_3_NAME") v = r.L3;
+      else if (col === "SFG_LEVEL_4_NAME") v = r.L4;
+      else if (col === "SFG_UM") v = r.UM;
+      else v = r[col];
+      if (v == null) return;
+      var s = String(v).trim();
+      if (s) set.add(s);
+    });
+  }
+  return Array.from(set).sort();
+}
+function openFilterEditor(btn) {
+  var tr = btn.closest("tr");
+  if (!tr) return;
+  var username = tr.getAttribute("data-username") || "";
+  var hidden = tr.querySelector(".row-view-filter");
+  var raw = hidden ? hidden.value : "";
+  FILTER_EDITOR_STATE = {
+    username: username,
+    conditions: parseViewFilter(raw),
+    hiddenInput: hidden
+  };
+  document.getElementById("filterEditorTitle").textContent = "Configure data access for: " + username;
+  // Populate the "add column" dropdown with columns not already in use.
+  var sel = document.getElementById("newConditionColumn");
+  sel.innerHTML = '<option value="">-- pick a column --</option>' +
+    FILTERABLE_COLUMNS.filter(function(c){ return !FILTER_EDITOR_STATE.conditions[c]; })
+      .map(function(c){ return '<option value="' + esc(c) + '">' + esc(c) + '</option>'; }).join("");
+  renderFilterEditorBody();
+  document.getElementById("filterEditorModal").classList.add("open");
+}
+window.openFilterEditor = openFilterEditor;
+function closeFilterEditor() {
+  document.getElementById("filterEditorModal").classList.remove("open");
+  FILTER_EDITOR_STATE = { username: null, conditions: {}, hiddenInput: null };
+}
+window.closeFilterEditor = closeFilterEditor;
+function renderFilterEditorBody() {
+  var body = document.getElementById("filterEditorBody");
+  var conds = FILTER_EDITOR_STATE.conditions;
+  var keys = Object.keys(conds);
+  if (!keys.length) {
+    body.innerHTML = '<div style="text-align:center;color:#999;font-style:italic;padding:14px;border:1px dashed #d6d8db;border-radius:6px;">No filter columns yet. Add one below to grant view access.</div>';
+    return;
+  }
+  body.innerHTML = keys.map(function(col){
+    var allValues = uniqueColumnValues(col);
+    var selected = conds[col] || [];
+    var sortedAll = Array.from(new Set(allValues.concat(selected))).sort();
+    // ALWAYS prepend a "(blank)" pseudo-option so the Super Admin can grant
+    // access to lines that have NO value for this column (e.g. lines where
+    // HOD / EQPT was never assigned). Stored as the empty string "" in the
+    // filter so the loadData check `actual === ""` matches correctly.
+    sortedAll = [""].concat(sortedAll.filter(function(v){ return v !== ""; }));
+    var checkboxes = sortedAll.map(function(v){
+      var isOn = selected.indexOf(v) >= 0;
+      var label = v === "" ? "(blank - not assigned)" : v;
+      var bg = isOn ? "#eef4ff" : (v === "" ? "#fff7e6" : "#f7f8fa");
+      var bd = isOn ? "#4a7dd6" : (v === "" ? "#e8c986" : "#e6e8eb");
+      return '<label style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;background:' + bg + ';border:1px solid ' + bd + ';border-radius:14px;font-size:11px;cursor:pointer;margin:2px;">' +
+        '<input type="checkbox" data-col="' + esc(col) + '" data-val="' + esc(v) + '"' + (isOn ? " checked" : "") + ' onchange="toggleFilterValue(this)" style="margin:0;" />' +
+        esc(label) +
+      '</label>';
+    }).join("");
+    return '<div style="border:1px solid #e6e8eb;border-radius:8px;padding:10px;margin-bottom:8px;">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">' +
+        '<strong style="font-size:12px;">' + esc(col) + '</strong>' +
+        '<button class="clear-btn" onclick="removeFilterColumn(\'' + esc(col) + '\')" style="font-size:10px;padding:2px 8px;">Remove column</button>' +
+      '</div>' +
+      '<div style="display:flex;flex-wrap:wrap;gap:0;">' + checkboxes + '</div>' +
+    '</div>';
+  }).join("");
+}
+function addFilterCondition() {
+  var sel = document.getElementById("newConditionColumn");
+  var col = sel.value;
+  if (!col) return;
+  if (!FILTER_EDITOR_STATE.conditions[col]) FILTER_EDITOR_STATE.conditions[col] = [];
+  // Remove this column from the "add" dropdown.
+  Array.from(sel.options).forEach(function(o){ if (o.value === col) sel.removeChild(o); });
+  sel.value = "";
+  renderFilterEditorBody();
+}
+window.addFilterCondition = addFilterCondition;
+function removeFilterColumn(col) {
+  delete FILTER_EDITOR_STATE.conditions[col];
+  // Restore this column to the "add" dropdown.
+  var sel = document.getElementById("newConditionColumn");
+  var opt = document.createElement("option");
+  opt.value = col; opt.textContent = col;
+  sel.appendChild(opt);
+  renderFilterEditorBody();
+}
+window.removeFilterColumn = removeFilterColumn;
+function toggleFilterValue(chk) {
+  var col = chk.getAttribute("data-col");
+  var val = chk.getAttribute("data-val");
+  if (!col) return;
+  var arr = FILTER_EDITOR_STATE.conditions[col] || [];
+  if (chk.checked) {
+    if (arr.indexOf(val) < 0) arr.push(val);
+  } else {
+    arr = arr.filter(function(x){ return x !== val; });
+  }
+  FILTER_EDITOR_STATE.conditions[col] = arr;
+  // Recolor the pill in-place without full re-render for snappier UX.
+  var label = chk.parentElement;
+  if (chk.checked) {
+    label.style.background = "#eef4ff";
+    label.style.borderColor = "#4a7dd6";
+  } else {
+    label.style.background = "#f7f8fa";
+    label.style.borderColor = "#e6e8eb";
+  }
+}
+window.toggleFilterValue = toggleFilterValue;
+function saveFilterEditor() {
+  if (!FILTER_EDITOR_STATE.hiddenInput) { closeFilterEditor(); return; }
+  // Strip out any columns with no selected values â€" they would block all
+  // rows. We treat "empty values" as "remove this filter column".
+  var clean = {};
+  Object.keys(FILTER_EDITOR_STATE.conditions).forEach(function(k){
+    // KEEP empty strings - they represent the explicit "(blank)" pseudo-value
+    // a Super Admin can pick to grant access to un-assigned rows. We only
+    // strip duplicates and ensure values are normalized strings.
+    var raw = FILTER_EDITOR_STATE.conditions[k] || [];
+    var vals = [];
+    var seen = new Set();
+    raw.forEach(function(v){
+      var s = v == null ? "" : String(v).trim();
+      if (seen.has(s)) return;
+      seen.add(s);
+      vals.push(s);
+    });
+    if (vals.length) clean[k] = vals;
+  });
+  var json = Object.keys(clean).length ? JSON.stringify(clean) : "";
+  FILTER_EDITOR_STATE.hiddenInput.value = json;
+  // Update the button label to reflect the new condition count.
+  var btn = FILTER_EDITOR_STATE.hiddenInput.parentElement.querySelector("button");
+  if (btn) btn.innerHTML = esc(viewFilterSummary(json)) + " &nbsp;&#9881;";
+  closeFilterEditor();
+}
+window.saveFilterEditor = saveFilterEditor;
+// Backdrop click closes the filter editor too.
+var _fe = document.getElementById("filterEditorModal");
+if (_fe) _fe.onclick = function(e){ if (e.target.id === "filterEditorModal") closeFilterEditor(); };
+
+// Backdrop click closes modals
+var _lm = document.getElementById("loginModal"); if (_lm) _lm.onclick = function(e){ if (e.target.id === "loginModal") closeLoginModal(); };
+var _um = document.getElementById("userPanelModal"); if (_um) _um.onclick = function(e){ if (e.target.id === "userPanelModal") closeUserPanel(); };
+
+// Initial UI sync + conditional data load + auto-refresh
+applyRoleUI();
+if (typeof currentRole === "function" && currentRole() !== "anonymous") loadData(false);
+if (typeof startAutoRefresh === "function") startAutoRefresh();
+</script>
+</body>
+</html>
