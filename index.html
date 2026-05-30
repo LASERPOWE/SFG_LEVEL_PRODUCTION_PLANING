@@ -196,16 +196,29 @@
   .party-group.open .party-head::before { content: '\25BE '; color: #4a7dd6; }
   .mc-block { margin: 8px 0; padding-left: 10px; border-left: 3px solid #cfd7e5; }
   .mc-head { font-size: 12px; font-weight: 600; color: #333; margin-bottom: 4px; }
-  .pord-wrap { overflow-x: auto; overflow-y: hidden; max-width: 100%; margin: 4px 0 6px; border: 1px solid #eef0f2; border-radius: 4px; -webkit-overflow-scrolling: touch; }
+  .pord-wrap { overflow: hidden; max-width: 100%; margin: 4px 0 6px; border: 1px solid #eef0f2; border-radius: 4px; }
   .pord-wrap::-webkit-scrollbar { height: 10px; }
   .pord-wrap::-webkit-scrollbar-track { background: #f3f4f6; }
   .pord-wrap::-webkit-scrollbar-thumb { background: #cfd7e5; border-radius: 5px; }
   .pord-wrap::-webkit-scrollbar-thumb:hover { background: #a3b1c4; }
-  .pord-table { border-collapse: collapse; font-size: 11px; width: max-content; min-width: 100%; }
+  /* Drill-down child tables now fit the modal width. table-layout: auto +
+     width 100% lets the browser distribute columns, and word-break on the
+     text cells means long Party / FG Item / SFG Name strings wrap instead
+     of stretching the column. */
+  .pord-table { border-collapse: collapse; font-size: 11px; width: 100%; table-layout: auto; }
   .pord-table th { background: #fafbfc; padding: 4px 6px; text-align: left; font-weight: 500; color: #555; border-bottom: 1px solid #eef0f2; white-space: nowrap; position: sticky; top: 0; z-index: 1; }
-  .pord-table td { padding: 4px 6px; border-bottom: 1px solid #f3f4f6; white-space: nowrap; }
+  .pord-table td { padding: 4px 6px; border-bottom: 1px solid #f3f4f6; white-space: normal; word-break: break-word; vertical-align: top; }
   .pord-table tr:last-child td { border-bottom: none; }
-  .pord-table .fg-item-cell { max-width: 280px; overflow: hidden; text-overflow: ellipsis; }
+  /* Numeric / date / input / pill cells stay on one line â€" wrapping numbers
+     and dates fragments them visually. */
+  .pord-table td.num,
+  .pord-table td.input-cell,
+  .pord-table td.eqpt-cell,
+  .pord-table td.hod-cell,
+  .pord-table td.consume-cell,
+  .pord-table td.commit-cell,
+  .pord-table td.line-done-cell { white-space: nowrap; }
+  .pord-table .fg-item-cell { max-width: 200px; }
   .progress { background: #eef0f2; border-radius: 3px; height: 5px; overflow: hidden; min-width: 50px; }
   .progress > span { display: block; height: 100%; background: #4a7dd6; }
   .pord-table tr.line-done td { background: #eaf7ee; color: #1f7a3a; text-decoration: line-through; }
@@ -225,6 +238,8 @@
   .commit-by-name { margin-top: 3px; font-size: 10px; color: #6b3a78; font-style: italic; white-space: nowrap; }
   .pord-link { color: #2563eb; text-decoration: none; font-weight: 600; cursor: pointer; }
   .pord-link:hover { text-decoration: underline; color: #1e3a8a; }
+  .schedule-line-link { color: #2563eb; text-decoration: underline dotted; cursor: pointer; }
+  .schedule-line-link:hover { text-decoration: underline; color: #1e3a8a; }
   .commit-by-name.commit-by-empty { color: #b8a4be; font-style: normal; }
   .line-eqpt-select, .line-hod-select { width: 130px; padding: 3px 5px; font-size: 11px; border: 1px solid #d6d8db; border-radius: 4px; background: #fff; cursor: pointer; font-family: inherit; }
   .line-eqpt-select:focus, .line-hod-select:focus { outline: none; border-color: #4a7dd6; box-shadow: 0 0 0 2px rgba(74,125,214,0.15); }
@@ -262,6 +277,10 @@
   .equipment-block-table tr.party-row:hover { background: #fff8ec; }
   .equipment-block-table .overdue-count { color: #c92a2a; font-weight: 700; }
   .equipment-block-table .overdue-count.zero { color: #888; font-weight: 400; }
+  .equipment-block-table tr.eqpt-row-overdue td { background: #ffe4e4; }
+  .equipment-block-table tr.eqpt-row-overdue:hover td { background: #ffd1d1; }
+  .equipment-block-table tr.eqpt-row-overdue td:first-child { box-shadow: inset 4px 0 0 #c92a2a; }
+  .equipment-block-table td.overdue-danger-cell { background: #ffc9c9 !important; color: #8a2020; font-weight: 800; font-size: 13px; }
   /* Generic "selected row" indicator for click-toggle highlight. Applies to
      every <tbody> row across the dashboard. The blue left-rule + tinted bg
      persists until the user clicks the same row again (toggle off) or clicks
@@ -284,6 +303,13 @@
   .drill-clear-btn:hover { background: #fff3f3; border-color: #f3b8b8; color: #8a2020; }
   /* Drill-down click affordances on the top KPI cards and the equipment
      blocking table â€" clicking applies a matching filter on the pivot below. */
+  .kpi.kpi-danger { background: linear-gradient(135deg, #ffe4e4, #ffd0d0); border-color: #f3b8b8; box-shadow: 0 0 0 1px #f3b8b8 inset; }
+  .kpi.kpi-danger .label { color: #8a2020; font-weight: 700; letter-spacing: 0.05em; }
+  .kpi.kpi-danger .value { color: #b03030; font-weight: 800; }
+  .kpi.kpi-danger .sub2 { color: #8a2020; font-weight: 600; }
+  .kpi.kpi-danger.kpi-clickable:hover { border-color: #c92a2a !important; box-shadow: 0 2px 10px rgba(201,42,42,0.30) !important; }
+  @keyframes kpiDangerPulse { 0%{box-shadow:0 0 0 0 rgba(201,42,42,0.35);} 100%{box-shadow:0 0 0 8px rgba(201,42,42,0);} }
+  .kpi.kpi-danger { animation: kpiDangerPulse 1.6s ease-out infinite; }
   .kpi.kpi-clickable { cursor: pointer; transition: transform 0.08s ease, box-shadow 0.12s ease, border-color 0.12s ease; }
   .kpi.kpi-clickable:hover { border-color: #4a7dd6; box-shadow: 0 2px 8px rgba(74,125,214,0.18); transform: translateY(-1px); }
   .kpi.kpi-clickable:active { transform: translateY(0); }
@@ -794,7 +820,7 @@
         <button class="clear-btn" type="button" onclick="exportFilteredData()">Export Data</button>
         <button class="user-pending-btn" id="userPendingBtn" type="button" onclick="toggleUserPendingMode()" title="Show lines where HOD assigned + APPROVED but EQPT / Commit Start / Commit End is missing">User's Job Pending</button>
         <button class="admin-pending-btn" id="adminPendingBtn" type="button" onclick="toggleAdminPendingMode()" title="Show lines where HOD is not assigned and APPROVE_STATUS is APPROVED">Admin's Job Pending</button>
-        <button class="clear-btn super-only" onclick="clearAllProdDone()">Clear Production Done</button>
+
         <span id="rowCount" style="margin-left:auto;font-size:11px;color:#666;"></span>
       </div>
       <div class="table-wrap">
@@ -2229,8 +2255,8 @@ function renderEqptScheduleBody_() {
   var rowsHtml = proposed.map(function(p, i){
     var line = p.line || {};
     var label = (line.PORD_NO || "(no PORD)") +
-                (line.MC_NO ? " / MC " + line.MC_NO : "") +
-                (line.SFG_NAME ? " - " + String(line.SFG_NAME).slice(0, 40) : "");
+                (line.MC_NO ? " / MC " + line.MC_NO : "");
+    var sfgItem = line.SFG_NAME ? String(line.SFG_NAME) : "";
     // Party + FG Item context so the planner can identify the customer & FG
     // at a glance without opening the drill-down.
     var partyName = line.ACC_NAME || "-";
@@ -2283,11 +2309,17 @@ function renderEqptScheduleBody_() {
     var reasonCell = lastReason
       ? '<td class="rc-reason" title="' + esc(lastReason) + '">' + esc(lastReason) + '</td>'
       : '<td class="rc-reason rc-reason-empty">&mdash;</td>';
+    var pord = String((p.line && p.line.PORD_NO) || "").trim();
+    var lineCell = pord
+      ? '<td><a href="javascript:void(0)" class="schedule-line-link" data-pord="' + esc(pord) +
+        '" title="Click to see all items in this Production Order">' + esc(label) + '</a></td>'
+      : '<td>' + esc(label) + '</td>';
     return '<tr data-idx="' + i + '"' + rowCls + '>' +
       '<td><strong>' + (i + 1) + '</strong>' + overdueBadge + '</td>' +
-      '<td>' + esc(label) + '</td>' +
+      lineCell +
       '<td>' + esc(partyName) + '</td>' +
       '<td>' + esc(fgItem) + '</td>' +
+      '<td title="' + esc(sfgItem) + '">' + esc(sfgItem || "â€”") + '</td>' +
       '<td class="num">' + esc(balTxt) + '</td>' +
       '<td>' + esc(hodName) + '</td>' +
       '<td class="num">' + p.currentDurationDays + ' day' + (p.currentDurationDays === 1 ? '' : 's') + '</td>' +
@@ -2359,6 +2391,7 @@ function renderEqptScheduleBody_() {
         '<th>Line</th>' +
         '<th>Party</th>' +
         '<th>FG Item</th>' +
+        '<th>SFG Item</th>' +
         '<th style="text-align:right;">Balance Qty</th>' +
         '<th>HOD</th>' +
         '<th style="text-align:right;">Duration</th>' +
@@ -2375,6 +2408,14 @@ function renderEqptScheduleBody_() {
       '<tbody>' + rowsHtml + '</tbody>' +
     '</table>' +
     '</div>';
+  // Line label click -> PORD items breakdown popup
+  body.querySelectorAll(".schedule-line-link").forEach(function(a){
+    a.onclick = function(e){
+      e.stopPropagation();
+      var pord = a.getAttribute("data-pord");
+      if (pord && typeof openPordItemsModal === "function") openPordItemsModal(pord);
+    };
+  });
   // Manpower allocation buttons - open the per-booking allocation modal.
   body.querySelectorAll(".manpower-alloc-btn").forEach(function(btn){
     btn.onclick = function(){
@@ -3369,8 +3410,12 @@ async function loadMcStatusData(force) {
   if (btn) { btn.disabled = true; btn.textContent = "Refreshing..."; }
   try {
     const masterLoads = [];
-    if (!EQPT_MASTER.length) masterLoads.push(fetchEqptMaster().then(function(v){ if (v && v.length) EQPT_MASTER = v; }).catch(function(e){ console.warn("EQPT master load failed for MC Status", e); }));
-    if (!HOD_MASTER.length) masterLoads.push(fetchHodMaster().then(function(v){ if (v && v.length) HOD_MASTER = v; }).catch(function(e){ console.warn("HOD master load failed for MC Status", e); }));
+    if (!EQPT_MASTER.length && typeof fetchEqptMasterStatic === "function") {
+      masterLoads.push(fetchEqptMasterStatic().then(function(v){ if (v && v.length) EQPT_MASTER = v; }).catch(function(e){ console.warn("EQPT master load failed for MC Status", e); }));
+    }
+    if (!HOD_MASTER.length && typeof fetchHodMasterStatic === "function") {
+      masterLoads.push(fetchHodMasterStatic().then(function(v){ if (v && v.length) HOD_MASTER = v; }).catch(function(e){ console.warn("HOD master load failed for MC Status", e); }));
+    }
     const live = await fetchLiveData("MC STATUS");
     if (masterLoads.length) await Promise.all(masterLoads);
     if (live && live.error) throw new Error(live.error);
@@ -4796,9 +4841,54 @@ function renderKpis() {
   var topKg = kgRows.slice().sort(function(a,b){ return getBalance(b) - getBalance(a); })[0];
   var topKmBal = topKm ? getBalance(topKm) : 0;
   var topKgBal = topKg ? getBalance(topKg) : 0;
+  // ---- Overdue balance ----
+  var _todayISO = (typeof todayISOString_ === "function") ? todayISOString_() : "";
+  var overdueKm = 0, overdueKg = 0;
+  var overdueLinesKm = 0, overdueLinesKg = 0;
+  var overdueBomKm = new Set(), overdueBomKg = new Set();
+  var _src = (typeof LINES_ALL !== "undefined" && LINES_ALL && LINES_ALL.length) ? LINES_ALL : LINES;
+  if (Array.isArray(_src) && _todayISO) {
+    _src.forEach(function(l){
+      if (!l || (typeof isLineDone === "function" && isLineDone(l))) return;
+      var lk = lineKey(l);
+      var ce = LINE_CEND[lk];
+      if (!ce || ce >= _todayISO) return;
+      var net = num(l.SFG_NET_ORD_QTY);
+      if (net <= 0) return;
+      var pd = (typeof getLinePDManual === "function") ? getLinePDManual(lk) : 0;
+      var bal = Math.max(0, net - pd);
+      if (bal <= 0.0005) return;
+      var um = String(l.SFG_UM || "").toUpperCase();
+      var bomKey = String(l.SFG_BOM || "") + "||" + String(l.SFG_CODE || "");
+      if (um === "KM") { overdueKm += bal; overdueLinesKm++; overdueBomKm.add(bomKey); }
+      else if (um === "KG") { overdueKg += bal; overdueLinesKg++; overdueBomKg.add(bomKey); }
+    });
+  }
   // Each KPI card can carry a "click" action that applies a filter on the
   // pivot table below. Cards without an action stay plain (info-only).
   var kpis = [
+    {
+      label: "Overdue Balance (KM)",
+      value: overdueKm > 0 ? fmt(overdueKm, 2) + " km" : "0 km",
+      sub: overdueKm > 0
+            ? overdueLinesKm + " line(s) / " + overdueBomKm.size + " BOM(s) past commit_end"
+            : "No overdue KM lines",
+      danger: overdueKm > 0,
+      click: overdueKm > 0
+        ? function(){ applyFilters({ fltUm: "KM" }, { toast: "Filtered: Unit = KM" }); }
+        : null
+    },
+    {
+      label: "Overdue Balance (KG)",
+      value: overdueKg > 0 ? fmt(overdueKg, 0) + " kg" : "0 kg",
+      sub: overdueKg > 0
+            ? overdueLinesKg + " line(s) / " + overdueBomKg.size + " BOM(s) past commit_end"
+            : "No overdue KG lines",
+      danger: overdueKg > 0,
+      click: overdueKg > 0
+        ? function(){ applyFilters({ fltUm: "KG" }, { toast: "Filtered: Unit = KG" }); }
+        : null
+    },
     {
       label: "Distinct BOMs", value: total, sub: nz + " with balance > 0",
       click: function(){ clearFilters(); showFilterToast("Filters cleared"); }
@@ -4822,7 +4912,7 @@ function renderKpis() {
   ];
   var container = document.getElementById("kpis");
   container.innerHTML = kpis.map(function(k, i){
-    var cls = "kpi" + (k.click ? " kpi-clickable" : "");
+    var cls = "kpi" + (k.click ? " kpi-clickable" : "") + (k.danger ? " kpi-danger" : "");
     var ttl = k.click ? ' title="Click to apply this filter"' : '';
     return '<div class="' + cls + '" data-idx="' + i + '"' + ttl + '><div class="label">' + esc(k.label) + '</div><div class="value">' + esc(String(k.value)) + '</div>' + (k.sub ? '<div class="sub2">' + esc(k.sub) + '</div>' : '') + '</div>';
   }).join("");
@@ -4936,7 +5026,9 @@ function renderEquipmentBlockTable(filteredRows, filterCtx) {
       if (d && todayISO && d < todayISO) g.overdue += 1;
     });
   }
+  // Default sort: most overdue lines first.
   var rows = Array.from(map.values()).sort(function(a,b){
+    if (a.overdue !== b.overdue) return b.overdue - a.overdue;
     if (a.maxDate && b.maxDate && a.maxDate !== b.maxDate) return b.maxDate.localeCompare(a.maxDate);
     if (a.maxDate && !b.maxDate) return -1;
     if (!a.maxDate && b.maxDate) return 1;
@@ -4968,8 +5060,9 @@ function renderEquipmentBlockTable(filteredRows, filterCtx) {
       ? "Auto-reschedule bookings for this equipment"
       : "View schedule (read-only)";
     var btnHtml = ' <button class="reschedule-btn" data-eqpt="' + esc(r.eqpt) + '" title="' + esc(btnTitle) + '">Reschedule</button>';
-    var overdueCls = r.overdue > 0 ? "num overdue-count" : "num overdue-count zero";
-    return '<tr class="eqpt-row" data-eqpt="' + esc(r.eqpt) + '" title="Click name to filter pivot by EQPT = ' + esc(r.eqpt) + '">' +
+    var overdueCls = r.overdue > 0 ? "num overdue-count overdue-danger-cell" : "num overdue-count zero";
+    var rowCls = r.overdue > 0 ? 'eqpt-row eqpt-row-overdue' : 'eqpt-row';
+    return '<tr class="' + rowCls + '" data-eqpt="' + esc(r.eqpt) + '" title="Click name to filter pivot by EQPT = ' + esc(r.eqpt) + (r.overdue > 0 ? ' â€” ' + r.overdue + ' overdue line(s)' : '') + '">' +
       '<td><strong>' + esc(r.eqpt) + '</strong>' + btnHtml + '</td>' +
       '<td class="num">' + fmt(r.balance, 3) + '</td>' +
       '<td class="' + dateCls + '">' + (r.maxDate ? esc(fmtDateDMY(r.maxDate)) : '-') + '</td>' +
@@ -5922,6 +6015,8 @@ function openPordItemsModal(pord) {
         '<td>' + esc(l.SFG_LEVEL_3_NAME || "-") + '</td>' +
         '<td>' + esc(l.SFG_LEVEL_4_NAME || "-") + '</td>' +
         '<td>' + esc(l.MC_NO || "-") + '</td>' +
+        '<td>' + esc((typeof getLineEqpt === "function" ? getLineEqpt(lineKey(l)) : "") || "-") + '</td>' +
+        '<td>' + esc((typeof getLineHod === "function" ? getLineHod(lineKey(l)) : "") || "-") + '</td>' +
         '<td class="num">' + fmt(sfgNet, 3) + ' ' + esc(l.SFG_UM || "") + '</td>' +
         '<td class="' + balCls + '">' + esc(balTxt) + '</td>' +
         '<td>' + (cs ? esc(fmtDateDMY(cs)) : '<span style="color:#bbb;">-</span>') + '</td>' +
@@ -5940,6 +6035,8 @@ function openPordItemsModal(pord) {
             '<th>SFG L3</th>' +
             '<th>SFG L4</th>' +
             '<th>MC No</th>' +
+            '<th>EQPT</th>' +
+            '<th>HOD</th>' +
             '<th style="text-align:right;">SFG Net Qty</th>' +
             '<th style="text-align:right;">SFG Balance</th>' +
             '<th>Commit Start</th>' +
@@ -7461,7 +7558,21 @@ var _um = document.getElementById("userPanelModal"); if (_um) _um.onclick = func
 
 // Initial UI sync + conditional data load + auto-refresh
 applyRoleUI();
-if (typeof currentRole === "function" && currentRole() !== "anonymous") loadData(false);
+if (typeof currentRole === "function" && currentRole() !== "anonymous") {
+  // Fire all three page loaders so Team Master and MC Status are warm by
+  // the time the user navigates to them. SFG Dashboard goes first; the
+  // other two are staggered so EQPT/HOD masters loaded by loadData are
+  // already populated before MC Status reads them.
+  (async function(){
+    try { await loadData(false); } catch(e) { console.warn("Initial loadData failed:", e); }
+    if (typeof loadTeamMasterData === "function") {
+      try { loadTeamMasterData(false).catch(function(){}); } catch(e) {}
+    }
+    if (typeof loadMcStatusData === "function") {
+      try { loadMcStatusData(false).catch(function(){}); } catch(e) {}
+    }
+  })();
+}
 if (typeof startAutoRefresh === "function") startAutoRefresh();
 </script>
 </body>
