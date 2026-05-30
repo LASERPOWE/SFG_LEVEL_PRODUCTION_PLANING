@@ -565,6 +565,254 @@ function listUsersPublic_() {
   });
 }
 
+// ---------- MANPOWER_ALLOCATIONS sheet ----------
+// One row per (date, equipment, emp_code) allocation. Conflict rule
+// enforced at upsert time: an emp_code can only sit on ONE equipment per
+// date â€" attempting to allocate the same emp_code to a different
+// equipment on the same date returns a "conflict" error so the front-end
+// can show "already allocated to X" inline.
+var ALLOC_SHEET_NAME = 'MANPOWER_ALLOCATIONS';
+var ALLOC_HEADERS = [
+  'id',                // composite key: date|equipment|emp_code
+  'date',              // YYYY-MM-DD
+  'equipment',
+  'booking_line_key',  // line_id of the Reschedule booking that triggered this allocation
+  'emp_code',
+  'emp_name',
+  'from_team',         // team currently allocated from (can differ from original_team)
+  'original_team',     // team this employee belongs to per TEAM MASTER_MANPOWER
+  'allocated_at',
+  'allocated_by',
+  'rate'               // member day-rate captured AT ALLOCATION TIME (so cost is historically accurate even if Team Master rate changes later)
+];
+
+function getAllocSheet_() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(ALLOC_SHEET_NAME);
+  if (!sh) {
+    sh = ss.insertSheet(ALLOC_SHEET_NAME);
+    sh.appendRow(ALLOC_HEADERS.slice());
+    return sh;
+  }
+  var hdr = sh.getRange(1, 1, 1, Math.max(sh.getLastColumn(), 1)).getValues()[0].map(String);
+  ALLOC_HEADERS.forEach(function(name, i){
+    if (hdr[i] !== name) sh.getRange(1, i + 1).setValue(name);
+  });
+  return sh;
+}
+
+function _allocId_(date, equipment, empCode) {
+  return String(date || '').trim() + '|' + String(equipment || '').trim() + '|' + String(empCode || '').trim();
+}
+
+function readAllocations_() {
+  var sh = getAllocSheet_();
+  var values = sh.getDataRange().getValues();
+  if (values.length < 2) return [];
+  var headers = values[0].map(String);
+  var out = [];
+  for (var i = 1; i < values.length; i++) {
+    var r = values[i];
+    if (!r[0]) continue;
+    var obj = {};
+    headers.forEach(function(h, idx){ obj[h] = r[idx]; });
+    // Date normalization: Sheets coerces YYYY-MM-DD into Date when shown.
+    if (obj.date) {
+      if (obj.date instanceof Date) {
+        var d = obj.date;
+        obj.date = d.getFullYear() + '-' +
+                   String(d.getMonth() + 1).padStart(2, '0') + '-' +
+                   String(d.getDate()).padStart(2, '0');
+      } else {
+        var s = String(obj.date).trim();
+        var m = s.match(/^(\\d{4})-(\\d{2})-(\\d{2})/);
+        if (m) obj.date = m[1] + '-' + m[2] + '-' + m[3];
+      }
+    }
+    // Rate normalization: stored as number; frontend expects num.
+    if (obj.rate != null && obj.rate !== '') {
+      var rr = parseFloat(obj.rate);
+      obj.rate = isNaN(rr) ? 0 : rr;
+    } else {
+      obj.rate = 0;
+    }
+    out.push(obj);
+  }
+  return out;
+}
+
+function listAllocations_(date) {
+  var rows = readAllocations_();
+  if (date) {
+    var d = String(date).trim();
+    rows = rows.filter(function(r){ return String(r.date || '').trim() === d; });
+  }
+  return { status: 'ok', allocations: rows };
+}
+
+function _findAllocRow_(sh, date, equipment, empCode) {
+  var last = sh.getLastRow();
+  if (last < 2) return 0;
+  var data = sh.getRange(2, 1, last - 1, ALLOC_HEADERS.length).getValues();
+  var wantId = _allocId_(date, equipment, empCode);
+  for (var i = 0; i < data.length; i++) {
+    if (String(data[i][0] || '').trim() === wantId) return i + 2;
+  }
+  return 0;
+}
+
+function _findAllocConflict_(sh, date, equipment, empCode) {
+  var last = sh.getLastRow();
+  if (last < 2) return null;
+  var data = sh.getRange(2, 1, last - 1, ALLOC_HEADERS.length).getValues();
+  var d = String(date || '').trim();
+  var eq = String(equipment || '').trim();
+  var emp = String(empCode || '').trim();
+  for (var i = 0; i < data.length; i++) {
+    var rowDate = data[i][1];
+    if (rowDate instanceof Date) {
+      rowDate = rowDate.getFullYear() + '-' +
+                String(rowDate.getMonth() + 1).padStart(2, '0') + '-' +
+                String(rowDate.getDate()).padStart(2, '0');
+    } else {
+      rowDate = String(rowDate || '').trim().slice(0, 10);
+    }
+    var rowEq = String(data[i][2] || '').trim();
+    var rowEmp = String(data[i][4] || '').trim();
+    if (rowDate === d && rowEmp === emp && rowEq !== eq) {
+      return {
+        id: data[i][0],
+        date: rowDate,
+        equipment: rowEq,
+        booking_line_key: data[i][3],
+        emp_code: rowEmp,
+        emp_name: data[i][5],
+        from_team: data[i][6],
+        original_team: data[i][7]
+      };
+    }
+  }
+  return null;
+}
+
+function upsertAllocation_(p) {
+  var date = String(p.date || '').trim();
+  var equipment = String(p.equipment || '').trim();
+  var empCode = String(p.emp_code || '').trim();
+  if (!date || !equipment || !empCode) {
+    return { status: 'error', message: 'date, equipment and emp_code are required' };
+  }
+  var sh = getAllocSheet_();
+  var conflict = _findAllocConflict_(sh, date, equipment, empCode);
+  if (conflict) {
+    return { status: 'conflict', message: 'Already allocated to ' + conflict.equipment, conflict: conflict };
+  }
+  var row = _findAllocRow_(sh, date, equipment, empCode);
+  if (!row) row = sh.getLastRow() + 1;
+  var id = _allocId_(date, equipment, empCode);
+  var rateVal = 0;
+  if (p.rate != null && p.rate !== '') {
+    rateVal = parseFloat(p.rate);
+    if (isNaN(rateVal)) rateVal = 0;
+  }
+  var values = [
+    id, date, equipment,
+    String(p.booking_line_key || ''),
+    empCode,
+    String(p.emp_name || ''),
+    String(p.from_team || ''),
+    String(p.original_team || ''),
+    p.allocated_at || new Date().toISOString(),
+    String(p.allocated_by || ''),
+    rateVal
+  ];
+  sh.getRange(row, 1, 1, ALLOC_HEADERS.length).setValues([values]);
+  return { status: 'ok', id: id, row_number: row };
+}
+
+function deleteAllocation_(p) {
+  var date = String(p.date || '').trim();
+  var equipment = String(p.equipment || '').trim();
+  var empCode = String(p.emp_code || '').trim();
+  if (!date || !equipment || !empCode) {
+    return { status: 'error', message: 'date, equipment and emp_code are required' };
+  }
+  var sh = getAllocSheet_();
+  var row = _findAllocRow_(sh, date, equipment, empCode);
+  if (!row) return { status: 'ok', message: 'No matching allocation; nothing to delete' };
+  sh.deleteRow(row);
+  return { status: 'ok', deleted: _allocId_(date, equipment, empCode) };
+}
+
+// Bulk replace: wipe all allocations for (date, equipment) and re-insert
+// the supplied list. items[] each carry emp_code, emp_name, from_team,
+// original_team, rate.
+function bulkSetAllocations_(p) {
+  var date = String(p.date || '').trim();
+  var equipment = String(p.equipment || '').trim();
+  if (!date || !equipment) {
+    return { status: 'error', message: 'date and equipment are required' };
+  }
+  var items = [];
+  try { items = JSON.parse(String(p.items || '[]')); } catch(e) { items = []; }
+  if (!Array.isArray(items)) items = [];
+  var sh = getAllocSheet_();
+  var last = sh.getLastRow();
+  if (last >= 2) {
+    var data = sh.getRange(2, 1, last - 1, ALLOC_HEADERS.length).getValues();
+    for (var i = data.length - 1; i >= 0; i--) {
+      var rd = data[i][1];
+      if (rd instanceof Date) {
+        rd = rd.getFullYear() + '-' +
+             String(rd.getMonth() + 1).padStart(2, '0') + '-' +
+             String(rd.getDate()).padStart(2, '0');
+      } else {
+        rd = String(rd || '').trim().slice(0, 10);
+      }
+      var req = String(data[i][2] || '').trim();
+      if (rd === date && req === equipment) {
+        sh.deleteRow(i + 2);
+      }
+    }
+  }
+  var conflicts = [];
+  var inserted = [];
+  for (var k = 0; k < items.length; k++) {
+    var it = items[k] || {};
+    var ec = String(it.emp_code || '').trim();
+    if (!ec) continue;
+    var conf = _findAllocConflict_(sh, date, equipment, ec);
+    if (conf) {
+      conflicts.push({ emp_code: ec, emp_name: it.emp_name || '', conflict: conf });
+      continue;
+    }
+    var id = _allocId_(date, equipment, ec);
+    var row = sh.getLastRow() + 1;
+    var itRate = 0;
+    if (it.rate != null && it.rate !== '') {
+      itRate = parseFloat(it.rate);
+      if (isNaN(itRate)) itRate = 0;
+    }
+    sh.getRange(row, 1, 1, ALLOC_HEADERS.length).setValues([[
+      id, date, equipment,
+      String(p.booking_line_key || it.booking_line_key || ''),
+      ec,
+      String(it.emp_name || ''),
+      String(it.from_team || ''),
+      String(it.original_team || ''),
+      new Date().toISOString(),
+      String(p.allocated_by || ''),
+      itRate
+    ]]);
+    inserted.push(id);
+  }
+  return {
+    status: conflicts.length ? 'partial' : 'ok',
+    inserted: inserted.length,
+    conflicts: conflicts
+  };
+}
+
 // ---------- HTTP entrypoints ----------
 function doGet(e) {
   var params = e && e.parameter ? e.parameter : {};
@@ -579,6 +827,14 @@ function doGet(e) {
       payload = upsertUser_(params);
     } else if (action === 'delete_user') {
       payload = deleteUser_(String(params.username || ''));
+    } else if (action === 'list_allocations') {
+      payload = listAllocations_(params.date);
+    } else if (action === 'upsert_allocation') {
+      payload = upsertAllocation_(params);
+    } else if (action === 'delete_allocation') {
+      payload = deleteAllocation_(params);
+    } else if (action === 'bulk_set_allocations') {
+      payload = bulkSetAllocations_(params);
     } else {
       payload = {
         status: 'ok',
@@ -608,6 +864,12 @@ function doPost(e) {
       payload = upsertUser_(p);
     } else if (action === 'delete_user') {
       payload = deleteUser_(String(p.username || ''));
+    } else if (action === 'upsert_allocation') {
+      payload = upsertAllocation_(p);
+    } else if (action === 'delete_allocation') {
+      payload = deleteAllocation_(p);
+    } else if (action === 'bulk_set_allocations') {
+      payload = bulkSetAllocations_(p);
     } else {
       payload = doPlanningUpsert_(p);
     }

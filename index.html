@@ -293,9 +293,22 @@
   .reorder-btn { background: #fff; border: 1px solid #d6d8db; border-radius: 4px; cursor: pointer; padding: 2px 8px; font-size: 11px; margin-left: 3px; color: #444; }
   .reorder-btn:hover { background: #eef4ff; border-color: #4a7dd6; color: #4a7dd6; }
   .reorder-btn:disabled { opacity: 0.35; cursor: not-allowed; }
-  .schedule-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  /* Schedule table: text-heavy columns wrap, numeric / date columns stay
+     on one line. min-width:100% keeps the table filling the modal on big
+     monitors, max-content lets it grow if absolutely necessary on narrow
+     screens (the wrapper has overflow-x as a safety net). */
+  .schedule-table { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: auto; }
   .schedule-table th { background: #f3f4f6; padding: 8px 10px; border-bottom: 1px solid #d6d8db; text-align: left; font-weight: 600; white-space: nowrap; }
-  .schedule-table td { padding: 7px 10px; border-bottom: 1px solid #eef0f2; vertical-align: top; }
+  .schedule-table td { padding: 7px 10px; border-bottom: 1px solid #eef0f2; vertical-align: top; white-space: normal; word-break: break-word; }
+  /* Numeric / date / input cells stay on one line so they don't fragment. */
+  .schedule-table td.num,
+  .schedule-table td.new-date-changed,
+  .schedule-table td.new-date-same,
+  .schedule-table td.alloc-cost-cell,
+  .schedule-table td.manpower-cell,
+  .schedule-table td:last-child { white-space: nowrap; }
+  /* Last Reason wraps long text â€" cap width so it doesn't dominate. */
+  .schedule-table td.rc-reason { white-space: normal; word-break: break-word; max-width: 220px; }
   .schedule-table td.new-date-changed { color: #1f7a3a; font-weight: 600; }
   .schedule-table td.new-date-same { color: #888; }
   .schedule-table tr.overdue-row td { background: #ffe4e4; }
@@ -1010,7 +1023,7 @@
 
   <!-- Equipment Reschedule modal -->
   <div class="modal-backdrop" id="eqptScheduleModal" style="z-index:65;">
-    <div class="modal" style="max-width: 1400px; width: 96vw;">
+    <div class="modal" style="max-width: 1800px; width: 98vw;">
       <div class="modal-head">
         <div>
           <h2 id="eqptScheduleTitle">Reschedule Equipment</h2>
@@ -1050,6 +1063,69 @@
         <button class="modal-close" onclick="closePordItemsModal()">&times;</button>
       </div>
       <div class="modal-body" id="pordItemsBody" style="max-height:72vh;overflow:auto;"></div>
+    </div>
+  </div>
+
+  <!-- Manpower Allocation modal (opens from Reschedule modal rows; admin/super_admin only) -->
+  <div class="modal-backdrop" id="manpowerModal" style="z-index:75;">
+    <div class="modal" style="max-width: 1100px; width: 94vw;">
+      <div class="modal-head">
+        <div>
+          <h2 id="manpowerTitle">Manpower Allocation</h2>
+          <div class="meta" id="manpowerMeta"></div>
+        </div>
+        <button class="modal-close" onclick="closeManpowerModal()">&times;</button>
+      </div>
+      <div class="modal-body" style="max-height:74vh;overflow:auto;">
+        <div style="display:flex;gap:14px;align-items:flex-end;margin-bottom:14px;padding:10px 12px;background:#f4f7ff;border:1px solid #cfd9f5;border-radius:6px;">
+          <label style="display:flex;flex-direction:column;font-size:11px;font-weight:600;color:#2a3b6b;">Allocation date
+            <input id="manpowerDate" type="date" style="padding:5px 8px;font-size:12px;margin-top:4px;border:1px solid #cfd9f5;border-radius:4px;" />
+          </label>
+          <label style="display:flex;flex-direction:column;font-size:11px;font-weight:600;color:#2a3b6b;min-width:200px;">Team
+            <select id="manpowerTeamSelect" style="padding:5px 8px;font-size:12px;margin-top:4px;border:1px solid #cfd9f5;border-radius:4px;">
+              <option value="">-- select team --</option>
+            </select>
+          </label>
+          <button id="manpowerLoadTeamBtn" class="auth-btn" type="button" onclick="manpowerLoadTeam_()">Load team members</button>
+          <span style="margin-left:auto;font-size:11px;color:#666;" id="manpowerSelCount">0 selected</span>
+        </div>
+        <div id="manpowerMembersBlock">
+          <div class="empty" style="padding:24px;text-align:center;color:#999;">Pick a date and team, then click <strong>Load team members</strong>.</div>
+        </div>
+        <div id="manpowerOtherTeamBlock" style="margin-top:18px;display:none;padding:10px 12px;background:#fff8ec;border:1px solid #f3d49a;border-radius:6px;">
+          <div style="font-size:12px;font-weight:600;color:#8a5a00;margin-bottom:6px;">Add member from another team (only members FREE on this date are listed)</div>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+            <select id="manpowerOtherTeamSelect" style="min-width:200px;padding:5px 8px;font-size:12px;border:1px solid #f3d49a;border-radius:4px;background:#fff;" onchange="manpowerLoadOtherTeamMembers_()">
+              <option value="">-- select another team --</option>
+            </select>
+            <button class="auth-btn" type="button" onclick="manpowerLoadOtherTeamMembers_()">Load members</button>
+            <select id="manpowerOtherMemberSelect" style="flex:1;min-width:240px;padding:5px 8px;font-size:12px;border:1px solid #f3d49a;border-radius:4px;background:#fff;">
+              <option value="">-- pick a team first --</option>
+            </select>
+            <button class="auth-btn" type="button" onclick="manpowerAddOther_()">+ Add</button>
+          </div>
+          <div id="manpowerOtherHint" style="margin-top:6px;font-size:11px;color:#8a5a00;"></div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:18px;justify-content:flex-end;align-items:center;">
+          <span id="manpowerStatusMsg" style="margin-right:auto;font-size:12px;color:#666;"></span>
+          <button class="auth-btn" type="button" onclick="closeManpowerModal()">Cancel</button>
+          <button class="auth-btn auth-btn-primary" type="button" onclick="saveManpowerAllocation_()">Save Allocation</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Allocation Detail popup (opens when Alloc Cost cell clicked in Reschedule modal) -->
+  <div class="modal-backdrop" id="allocDetailModal" style="z-index:78;">
+    <div class="modal" style="max-width: 1100px; width: 92vw;">
+      <div class="modal-head">
+        <div>
+          <h2 id="allocDetailTitle">Allocation Detail</h2>
+          <div class="meta" id="allocDetailMeta"></div>
+        </div>
+        <button class="modal-close" onclick="closeAllocDetailModal()">&times;</button>
+      </div>
+      <div class="modal-body" id="allocDetailBody" style="max-height:74vh;overflow:auto;"></div>
     </div>
   </div>
 
@@ -1340,10 +1416,768 @@ function openEqptScheduleModal(eqpt) {
   if (reasonInp) reasonInp.value = "";
   document.getElementById("eqptScheduleTitle").textContent = (canEdit ? "Reschedule: " : "View Schedule: ") + eqpt;
   document.getElementById("eqptScheduleStatus").textContent = bookings.length + " booking" + (bookings.length === 1 ? "" : "s") + " sorted by current Commit Start";
+  // Pre-fetch all manpower allocations (any date) so we can compute total
+  // allocation cost per booking row. Fire-and-forget; the render re-runs
+  // once the promise resolves so the cost column updates in-place.
+  if (typeof _manpowerLoadAllAllocations_ === "function") {
+    _manpowerLoadAllAllocations_().then(function(){
+      if (typeof renderEqptScheduleBody_ === "function") {
+        var modal = document.getElementById("eqptScheduleModal");
+        if (modal && modal.classList.contains("open")) renderEqptScheduleBody_();
+      }
+    }).catch(function(){});
+  }
   renderEqptScheduleBody_();
   document.getElementById("eqptScheduleModal").classList.add("open");
 }
 window.openEqptScheduleModal = openEqptScheduleModal;
+// ---- Manpower allocation modal pipeline ----
+var MANPOWER_STATE = { bookingKey: "", equipment: "", date: "", team: "", members: [] };
+var MANPOWER_ALLOC_CACHE = { byDate: {} };
+function _manpowerJsonp_(params) {
+  return new Promise(function(resolve, reject){
+    var cb = "__manpCb_" + Date.now() + "_" + Math.floor(Math.random() * 100000);
+    var script = document.createElement("script");
+    var done = false;
+    function finish(payload, err) {
+      if (done) return; done = true;
+      try { delete window[cb]; } catch(_) { window[cb] = undefined; }
+      if (script.parentNode) script.parentNode.removeChild(script);
+      if (err) reject(err); else resolve(payload || null);
+    }
+    window[cb] = function(payload){ finish(payload); };
+    script.onerror = function(){ finish(null, new Error("Manpower API failed")); };
+    var qs = new URLSearchParams();
+    Object.keys(params).forEach(function(k){ qs.set(k, params[k] == null ? "" : String(params[k])); });
+    qs.set("callback", cb);
+    qs.set("_", String(Date.now()));
+    script.src = INPUT_API_URL + (INPUT_API_URL.indexOf("?") >= 0 ? "&" : "?") + qs.toString();
+    document.head.appendChild(script);
+    setTimeout(function(){ finish(null, new Error("Manpower API timeout")); }, 25000);
+  });
+}
+function _manpowerLoadAllocations_(date) {
+  if (!date) return Promise.resolve([]);
+  return _manpowerJsonp_({ action: "list_allocations", date: date }).then(function(resp){
+    var arr = resp && Array.isArray(resp.allocations) ? resp.allocations : [];
+    MANPOWER_ALLOC_CACHE.byDate[date] = arr;
+    return arr;
+  }).catch(function(e){
+    console.warn("[Manpower] list_allocations failed:", e && e.message);
+    return [];
+  });
+}
+// Full-sheet fetch (no date filter). Drives the cost column in the
+// Reschedule modal. Cached in MANPOWER_ALLOC_CACHE.all so repeat opens
+// don't re-hit the network â€" call with force=true after a save to refresh.
+function _manpowerLoadAllAllocations_(force) {
+  if (!force && Array.isArray(MANPOWER_ALLOC_CACHE.all)) return Promise.resolve(MANPOWER_ALLOC_CACHE.all);
+  return _manpowerJsonp_({ action: "list_allocations" }).then(function(resp){
+    var arr = resp && Array.isArray(resp.allocations) ? resp.allocations : [];
+    MANPOWER_ALLOC_CACHE.all = arr;
+    // Also re-bucket by date so per-date lookups stay in sync.
+    var byDate = {};
+    arr.forEach(function(a){
+      var d = String(a.date || "").trim();
+      if (!d) return;
+      (byDate[d] = byDate[d] || []).push(a);
+    });
+    MANPOWER_ALLOC_CACHE.byDate = byDate;
+    return arr;
+  }).catch(function(e){
+    console.warn("[Manpower] list_allocations (all) failed:", e && e.message);
+    return [];
+  });
+}
+// Sum the day-rate of every member allocated to (booking_line_key, equipment)
+// across every date that booking covers. Returns 0 when no allocations or
+// no rate column in Team Master.
+function _manpowerCostForBooking_(bookingKey, equipment) {
+  if (!bookingKey || !equipment) return 0;
+  var allocs = (MANPOWER_ALLOC_CACHE && Array.isArray(MANPOWER_ALLOC_CACHE.all)) ? MANPOWER_ALLOC_CACHE.all : [];
+  if (!allocs.length) return 0;
+  var rateMap = _manpowerMembersByCode_();
+  var total = 0;
+  allocs.forEach(function(a){
+    if (String(a.equipment || "").trim() !== String(equipment).trim()) return;
+    if (String(a.booking_line_key || "").trim() !== String(bookingKey).trim()) return;
+    // Prefer the rate that was saved on the allocation row (historical);
+    // fall back to Team Master lookup for legacy rows without it.
+    var savedRate = num(a.rate);
+    if (savedRate > 0) {
+      total += savedRate;
+      return;
+    }
+    var code = String(a.emp_code || "").trim();
+    var m = rateMap.get(code);
+    var rate = m ? num(m.rate) : 0;
+    if (rate > 0) total += rate;
+  });
+  return total;
+}
+// Member-day count for a booking â€" useful for tooltips alongside cost.
+function _manpowerDaysForBooking_(bookingKey, equipment) {
+  if (!bookingKey || !equipment) return 0;
+  var allocs = (MANPOWER_ALLOC_CACHE && Array.isArray(MANPOWER_ALLOC_CACHE.all)) ? MANPOWER_ALLOC_CACHE.all : [];
+  if (!allocs.length) return 0;
+  return allocs.filter(function(a){
+    return String(a.equipment || "").trim() === String(equipment).trim() &&
+           String(a.booking_line_key || "").trim() === String(bookingKey).trim();
+  }).length;
+}
+// ---- Allocation detail popup ----
+// Opens when the user clicks an Alloc Cost cell in the Reschedule modal.
+// Lists every member allocated to this booking, grouped by date, with each
+// member's day-rate and the running total.
+function openAllocDetailModal(bookingKey, equipment) {
+  if (!bookingKey || !equipment) return;
+  var allocs = (MANPOWER_ALLOC_CACHE && Array.isArray(MANPOWER_ALLOC_CACHE.all)) ? MANPOWER_ALLOC_CACHE.all : [];
+  var rows = allocs.filter(function(a){
+    return String(a.equipment || "").trim() === String(equipment).trim() &&
+           String(a.booking_line_key || "").trim() === String(bookingKey).trim();
+  });
+  var titleEl = document.getElementById("allocDetailTitle");
+  var metaEl  = document.getElementById("allocDetailMeta");
+  var bodyEl  = document.getElementById("allocDetailBody");
+  if (titleEl) titleEl.textContent = "Allocation Detail: " + equipment;
+  var rateMap = _manpowerMembersByCode_();
+  if (!rows.length) {
+    if (metaEl) metaEl.textContent = "Booking: " + bookingKey;
+    if (bodyEl) bodyEl.innerHTML = '<div class="empty" style="padding:30px;text-align:center;color:#888;">No allocations recorded for this booking yet.</div>';
+    var modal0 = document.getElementById("allocDetailModal");
+    if (modal0) modal0.classList.add("open");
+    return;
+  }
+  // Aggregate stats
+  var dateSet = new Set();
+  var totalCost = 0;
+  rows.forEach(function(a){
+    if (a.date) dateSet.add(String(a.date).trim());
+    var savedR = num(a.rate);
+    if (savedR > 0) { totalCost += savedR; return; }
+    var m = rateMap.get(String(a.emp_code || "").trim());
+    if (m) totalCost += num(m.rate);
+  });
+  if (metaEl) {
+    metaEl.innerHTML = "Booking: <strong>" + esc(bookingKey) + "</strong>" +
+      " &middot; " + rows.length + " member-day(s)" +
+      " &middot; " + dateSet.size + " date(s)" +
+      " &middot; Total cost: <strong style=\"color:#0a6;\">â‚¹ " + fmt(totalCost, 0) + "</strong>";
+  }
+  // Group by date (ascending), then list members within each date
+  var byDate = new Map();
+  rows.forEach(function(a){
+    var d = String(a.date || "").trim();
+    if (!byDate.has(d)) byDate.set(d, []);
+    byDate.get(d).push(a);
+  });
+  var sortedDates = Array.from(byDate.keys()).sort();
+  var html = '<table class="pord-table" style="width:100%;font-size:12px;">' +
+    '<thead><tr>' +
+      '<th style="text-align:right;">#</th>' +
+      '<th>Date</th>' +
+      '<th>Member</th>' +
+      '<th>Emp Code</th>' +
+      '<th>From Team</th>' +
+      '<th>Original Team</th>' +
+      '<th style="text-align:right;">Rate</th>' +
+      '<th>Allocated By</th>' +
+      '<th>Allocated At</th>' +
+    '</tr></thead><tbody>';
+  var sl = 0;
+  sortedDates.forEach(function(d){
+    var dayRows = byDate.get(d) || [];
+    dayRows.sort(function(a,b){
+      return String(a.emp_name || "").localeCompare(String(b.emp_name || ""));
+    });
+    var daySubtotal = 0;
+    dayRows.forEach(function(a){
+      sl++;
+      var savedRR = num(a.rate);
+      var m = rateMap.get(String(a.emp_code || "").trim());
+      var rate = savedRR > 0 ? savedRR : (m ? num(m.rate) : 0);
+      daySubtotal += rate;
+      var allocAt = "";
+      if (a.allocated_at) {
+        var s = String(a.allocated_at);
+        allocAt = s.length >= 19 ? s.slice(0, 19).replace("T", " ") : s;
+      }
+      var fromTm = String(a.from_team || "").trim();
+      var origTm = String(a.original_team || "").trim();
+      var foreign = (fromTm && origTm && fromTm !== origTm) || (origTm && fromTm && origTm !== MANPOWER_STATE.team);
+      html +=
+        '<tr' + (foreign ? ' style="background:#fff8ec;"' : '') + '>' +
+          '<td class="num">' + sl + '</td>' +
+          '<td style="white-space:nowrap;">' + esc(fmtDateDMY(d)) + '</td>' +
+          '<td><strong>' + esc(a.emp_name || "-") + '</strong></td>' +
+          '<td>' + esc(a.emp_code || "-") + '</td>' +
+          '<td>' + esc(fromTm || "-") + '</td>' +
+          '<td>' + esc(origTm || "-") + '</td>' +
+          '<td class="num" style="font-weight:600;">' + (rate > 0 ? '₹ ' + fmt(rate, 0) : '<span style="color:#bbb;">-</span>') + '</td>' +
+          '<td>' + esc(a.allocated_by || "-") + '</td>' +
+          '<td style="font-size:11px;color:#666;">' + esc(allocAt || "-") + '</td>' +
+        '</tr>';
+    });
+    // Per-date subtotal row
+    html +=
+      '<tr style="background:#f4f7ff;font-weight:600;">' +
+        '<td colspan="6" style="text-align:right;">Subtotal for ' + esc(fmtDateDMY(d)) + ' (' + dayRows.length + ' member-day' + (dayRows.length === 1 ? '' : 's') + '):</td>' +
+        '<td class="num" style="color:#0a6;">₹ ' + fmt(daySubtotal, 0) + '</td>' +
+        '<td colspan="2"></td>' +
+      '</tr>';
+  });
+  html += '</tbody>' +
+    '<tfoot><tr style="background:#e8f7ef;font-weight:700;">' +
+      '<td colspan="6" style="text-align:right;">Grand Total:</td>' +
+      '<td class="num" style="color:#0a6;">₹ ' + fmt(totalCost, 0) + '</td>' +
+      '<td colspan="2"></td>' +
+    '</tr></tfoot>' +
+    '</table>';
+  if (bodyEl) bodyEl.innerHTML = html;
+  var modal = document.getElementById("allocDetailModal");
+  if (modal) modal.classList.add("open");
+}
+window.openAllocDetailModal = openAllocDetailModal;
+function closeAllocDetailModal() {
+  var m = document.getElementById("allocDetailModal");
+  if (m) m.classList.remove("open");
+}
+window.closeAllocDetailModal = closeAllocDetailModal;
+function _manpowerTeamCols_() {
+  var teamCol=null, nameCol=null, codeCol=null, statusCol=null;
+  if (Array.isArray(TEAM_MASTER_COLUMNS) && TEAM_MASTER_COLUMNS.length) {
+    function _find(cands, contains) {
+      var norm = function(s){ return String(s || "").toUpperCase().replace(/[^A-Z0-9]/g, ""); };
+      var candNorm = cands.map(norm);
+      for (var i = 0; i < TEAM_MASTER_COLUMNS.length; i++) {
+        var k = norm(TEAM_MASTER_COLUMNS[i]);
+        if (candNorm.indexOf(k) >= 0) return TEAM_MASTER_COLUMNS[i];
+      }
+      for (var j = 0; j < TEAM_MASTER_COLUMNS.length; j++) {
+        var k2 = norm(TEAM_MASTER_COLUMNS[j]);
+        if (contains.every(function(c){ return k2.indexOf(c) >= 0; })) return TEAM_MASTER_COLUMNS[j];
+      }
+      return null;
+    }
+    teamCol = _find(["TEAM", "TEAMNAME"], ["TEAM"]);
+    nameCol = _find(["MEMBERNAME", "EMPLOYEENAME", "NAME"], ["NAME"]);
+    codeCol = _find(["EMPLOYEECODE", "EMPCODE", "EMPID", "EMPLOYEEID", "CODE"], ["EMP", "CODE"]);
+    statusCol = _find(["STATUS"], ["STATUS"]);
+    var rateCol = _find(["RATE", "DAILYRATE", "PERDAYRATE", "DAYRATE", "WAGE", "WAGES", "SALARY"], ["RATE"]);
+    return { team: teamCol, name: nameCol, code: codeCol, status: statusCol, rate: rateCol };
+  }
+  return { team: teamCol, name: nameCol, code: codeCol, status: statusCol, rate: null };
+}
+function _manpowerActiveMembers_() {
+  var cols = _manpowerTeamCols_();
+  if (!cols.team || !cols.name) return [];
+  return (TEAM_MASTER_ROWS || []).filter(function(r){
+    if (cols.status) {
+      var st = String(r[cols.status] || "").trim().toUpperCase();
+      if (st === "INACTIVE" || st === "IN ACTIVE" || st === "INACTIV") return false;
+    }
+    return !!(r[cols.team] && r[cols.name]);
+  }).map(function(r){
+    var code = cols.code ? String(r[cols.code] || "").trim() : "";
+    var name = String(r[cols.name] || "").trim();
+    var rate = cols.rate ? num(r[cols.rate]) : 0;
+    return {
+      original_team: String(r[cols.team] || "").trim(),
+      emp_code: code || name,
+      emp_name: name,
+      rate: rate
+    };
+  });
+}
+// Build a lookup map (emp_code -> { emp_name, original_team, rate }) so the
+// Reschedule modal can attribute the right per-day rate to every allocated
+// member without re-iterating TEAM_MASTER_ROWS for each row render.
+function _manpowerMembersByCode_() {
+  var map = new Map();
+  _manpowerActiveMembers_().forEach(function(m){ map.set(m.emp_code, m); });
+  return map;
+}
+function _manpowerTeamList_() {
+  var set = new Set();
+  _manpowerActiveMembers_().forEach(function(m){ if (m.original_team) set.add(m.original_team); });
+  return Array.from(set).sort();
+}
+async function openManpowerAllocationModal_(line) {
+  if (!canReschedule_ || !canReschedule_()) { alert("Only Admin / Super Admin can allocate manpower."); return; }
+  if (!hasInputApi()) { alert("Manpower API not configured."); return; }
+  // Team Master rows are loaded lazily when the Team Master page is opened.
+  // For the manpower allocation modal we need them up-front to build the
+  // team dropdown, so trigger a fetch here if they aren't cached yet.
+  if ((!TEAM_MASTER_ROWS || !TEAM_MASTER_ROWS.length) && typeof loadTeamMasterData === "function") {
+    try { await loadTeamMasterData(false); } catch(e) { console.warn("Team Master pre-load failed:", e); }
+  }
+  var bookingKey = (line && line.lk) ? line.lk : "";
+  var equipment = (EQPT_SCHEDULE_STATE && EQPT_SCHEDULE_STATE.eqpt) || "";
+  // Allocation date is HARD-LOCKED to today â€" the planner can only stamp
+  // manpower for "today's work", never backdate or pre-fill future days.
+  var today = todayISOString_ ? todayISOString_() : "";
+  // Booking's SAVED commit range (not the proposed reschedule preview).
+  // LINE_CSTART / LINE_CEND hold the values currently persisted to the
+  // planning sheet; origStart / origEnd is the same data the reschedule
+  // modal snapshots at open. Using these (instead of newStart/newEnd)
+  // means an overdue booking whose proposed dates auto-clamp to today
+  // is still validated against its real â€” past â€” saved range.
+  var lk = line && line.lk ? line.lk : "";
+  var savedStart = lk && typeof getLineCStart === "function" ? getLineCStart(lk) : "";
+  var savedEnd   = lk && typeof getLineCEnd   === "function" ? getLineCEnd(lk)   : "";
+  var rangeStart = savedStart || (line && line.origStart) || "";
+  var rangeEnd   = savedEnd   || (line && line.origEnd)   || "";
+  MANPOWER_STATE = {
+    bookingKey: bookingKey, equipment: equipment, date: today,
+    rangeStart: rangeStart, rangeEnd: rangeEnd,
+    team: "", members: []
+  };
+  document.getElementById("manpowerTitle").textContent = "Manpower Allocation: " + equipment;
+  var meta = document.getElementById("manpowerMeta");
+  if (meta) {
+    var lineLbl = "";
+    if (line && line.line) {
+      var ll = line.line;
+      lineLbl = (ll.PORD_NO || "") + (ll.MC_NO ? " / MC " + ll.MC_NO : "") + (ll.SFG_NAME ? " - " + String(ll.SFG_NAME).slice(0, 40) : "");
+    }
+    var rangeTxt = "";
+    if (rangeStart || rangeEnd) {
+      rangeTxt = " / Schedule: " +
+                 (rangeStart ? fmtDateDMY(rangeStart) : "?") + " â†’ " +
+                 (rangeEnd ? fmtDateDMY(rangeEnd) : "?");
+    }
+    meta.textContent = "Booking: " + (lineLbl || "(no line context)") + rangeTxt;
+  }
+  // Lock the date picker to today (min=max=today + readonly so the
+  // user can neither type nor calendar-pick anything else).
+  var dateEl = document.getElementById("manpowerDate");
+  if (dateEl) {
+    dateEl.value = today;
+    dateEl.min = today;
+    dateEl.max = today;
+    dateEl.setAttribute("readonly", "readonly");
+    dateEl.title = "Allocation can only be made for today";
+  }
+  // Up-front guard: if today already falls outside the booking range,
+  // flash a warning in the modal so the user doesn't waste effort picking
+  // members only to be rejected at Save.
+  var statusElEarly = document.getElementById("manpowerStatusMsg");
+  if (statusElEarly) {
+    if (rangeStart && today < rangeStart) {
+      statusElEarly.innerHTML = '<span style="color:#c92a2a;font-weight:600;">Schedule range not matched with allocation date</span> â€” booking starts on ' + esc(fmtDateDMY(rangeStart));
+    } else if (rangeEnd && today > rangeEnd) {
+      statusElEarly.innerHTML = '<span style="color:#c92a2a;font-weight:600;">Schedule range not matched with allocation date</span> â€” booking ended on ' + esc(fmtDateDMY(rangeEnd));
+    } else {
+      statusElEarly.textContent = "";
+    }
+  }
+  var teamSel = document.getElementById("manpowerTeamSelect");
+  if (teamSel) {
+    var teams = _manpowerTeamList_();
+    teamSel.innerHTML = '<option value="">-- select team --</option>' +
+      teams.map(function(t){ return '<option value="' + esc(t) + '">' + esc(t) + '</option>'; }).join("");
+  }
+  document.getElementById("manpowerMembersBlock").innerHTML =
+    '<div class="empty" style="padding:24px;text-align:center;color:#999;">Pick a date and team, then click <strong>Load team members</strong>.</div>';
+  document.getElementById("manpowerOtherTeamBlock").style.display = "none";
+  document.getElementById("manpowerStatusMsg").textContent = "";
+  document.getElementById("manpowerSelCount").textContent = "0 selected";
+  document.getElementById("manpowerModal").classList.add("open");
+}
+window.openManpowerAllocationModal_ = openManpowerAllocationModal_;
+function closeManpowerModal() {
+  var m = document.getElementById("manpowerModal");
+  if (m) m.classList.remove("open");
+}
+window.closeManpowerModal = closeManpowerModal;
+async function manpowerLoadTeam_() {
+  var dateEl = document.getElementById("manpowerDate");
+  var teamSel = document.getElementById("manpowerTeamSelect");
+  var statusEl = document.getElementById("manpowerStatusMsg");
+  var date = dateEl ? dateEl.value : "";
+  var team = teamSel ? teamSel.value : "";
+  if (!date || !team) { if (statusEl) statusEl.textContent = "Pick a date and team first."; return; }
+  // Fallback â€" if Team Master never loaded (e.g., initial pre-load failed),
+  // try once more before giving up on the dropdown rendering.
+  if (!TEAM_MASTER_ROWS || !TEAM_MASTER_ROWS.length) {
+    if (statusEl) statusEl.textContent = "Loading Team Master...";
+    if (typeof loadTeamMasterData === "function") {
+      try { await loadTeamMasterData(true); } catch(e) {}
+    }
+  }
+  if (statusEl) statusEl.textContent = "Loading allocations...";
+  var allocs = await _manpowerLoadAllocations_(date);
+  var allocByEmp = new Map();
+  allocs.forEach(function(a){ if (a && a.emp_code) allocByEmp.set(String(a.emp_code).trim(), a); });
+  var allActive = _manpowerActiveMembers_();
+  var teamMembers = allActive.filter(function(m){ return m.original_team === team; });
+  var ownAllocByEmp = new Map();
+  allocs.forEach(function(a){
+    if (String(a.equipment || "").trim() === MANPOWER_STATE.equipment) {
+      ownAllocByEmp.set(String(a.emp_code).trim(), a);
+    }
+  });
+  MANPOWER_STATE.date = date;
+  MANPOWER_STATE.team = team;
+  MANPOWER_STATE.members = teamMembers.map(function(m){
+    var ownAlloc = ownAllocByEmp.get(m.emp_code);
+    var elsewhereAlloc = allocByEmp.get(m.emp_code);
+    var conflict = null;
+    if (elsewhereAlloc && String(elsewhereAlloc.equipment || "").trim() !== MANPOWER_STATE.equipment) {
+      conflict = elsewhereAlloc;
+    }
+    return {
+      emp_code: m.emp_code, emp_name: m.emp_name, original_team: m.original_team,
+      from_team: ownAlloc ? (ownAlloc.from_team || team) : team,
+      checked: !!ownAlloc && !conflict, conflict: conflict
+    };
+  });
+  ownAllocByEmp.forEach(function(a, code){
+    if (MANPOWER_STATE.members.some(function(m){ return m.emp_code === code; })) return;
+    MANPOWER_STATE.members.push({
+      emp_code: code, emp_name: a.emp_name || code,
+      original_team: a.original_team || "", from_team: a.from_team || a.original_team || "",
+      checked: true, conflict: null, foreign: true
+    });
+  });
+  _manpowerRenderMembers_();
+  _manpowerRefreshOtherTeamPicker_(allocByEmp, team);
+  if (statusEl) statusEl.textContent = MANPOWER_STATE.members.length + " member(s) loaded";
+}
+window.manpowerLoadTeam_ = manpowerLoadTeam_;
+function _manpowerRenderMembers_() {
+  var block = document.getElementById("manpowerMembersBlock");
+  if (!block) return;
+  var ms = MANPOWER_STATE.members;
+  if (!ms.length) {
+    block.innerHTML = '<div class="empty" style="padding:24px;text-align:center;color:#999;">No active members in this team.</div>';
+    _manpowerUpdateCount_(); return;
+  }
+  var rowsHtml = ms.map(function(m, i){
+    var disabled = !!m.conflict;
+    var rowBg = m.conflict ? "background:#ffe4e4;" : (m.foreign ? "background:#fff8ec;" : "");
+    var rightLabel = "";
+    if (m.conflict) {
+      rightLabel = '<span style="color:#c92a2a;font-weight:600;font-size:11px;">Already on ' + esc(m.conflict.equipment || "?") + '</span>';
+    } else if (m.foreign) {
+      rightLabel = '<span style="color:#8a5a00;font-size:11px;">from ' + esc(m.original_team || "?") + '</span>';
+    } else {
+      rightLabel = '<span style="color:#2a5;font-size:11px;">Free</span>';
+    }
+    return '<tr style="' + rowBg + '">' +
+      '<td style="padding:6px 8px;width:30px;"><input type="checkbox" class="manp-chk" data-idx="' + i + '"' +
+        (m.checked ? ' checked' : '') + (disabled ? ' disabled title="Already allocated elsewhere"' : '') + ' /></td>' +
+      '<td style="padding:6px 8px;font-size:12px;"><strong>' + esc(m.emp_name) + '</strong>' +
+        (m.emp_code && m.emp_code !== m.emp_name ? ' <span style="color:#888;font-size:11px;">(' + esc(m.emp_code) + ')</span>' : '') + '</td>' +
+      '<td style="padding:6px 8px;font-size:11px;color:#555;">' + esc(m.original_team) + '</td>' +
+      '<td style="padding:6px 8px;text-align:right;">' + rightLabel + '</td>' +
+      '<td style="padding:6px 8px;text-align:right;">' +
+        (m.foreign ? '<button class="auth-btn" style="padding:2px 8px;font-size:11px;" type="button" onclick="manpowerRemoveForeign_(' + i + ')">Remove</button>' : '') +
+      '</td>' +
+    '</tr>';
+  }).join("");
+  block.innerHTML =
+    '<table style="width:100%;border-collapse:collapse;font-size:12px;">' +
+      '<thead><tr style="background:#f3f4f6;">' +
+        '<th style="padding:6px 8px;text-align:left;width:30px;"><input type="checkbox" id="manpowerSelectAll" title="Select / clear all eligible members" /></th>' +
+        '<th style="padding:6px 8px;text-align:left;">Member</th>' +
+        '<th style="padding:6px 8px;text-align:left;">Team</th>' +
+        '<th style="padding:6px 8px;text-align:right;">Status</th>' +
+        '<th style="padding:6px 8px;text-align:right;"></th>' +
+      '</tr></thead><tbody>' + rowsHtml + '</tbody></table>';
+  block.querySelectorAll(".manp-chk").forEach(function(chk){
+    chk.onchange = function(){
+      var idx = parseInt(chk.getAttribute("data-idx"), 10);
+      if (!isNaN(idx) && MANPOWER_STATE.members[idx]) {
+        MANPOWER_STATE.members[idx].checked = chk.checked;
+        _manpowerUpdateCount_();
+        _manpowerSyncSelectAll_();
+        // Toggling primary-team members changes how many foreign slots
+        // are free â€" refresh the picker hint to reflect that.
+        var allocs = MANPOWER_ALLOC_CACHE.byDate[MANPOWER_STATE.date] || [];
+        var allocByEmp = new Map();
+        allocs.forEach(function(a){ if (a && a.emp_code) allocByEmp.set(String(a.emp_code).trim(), a); });
+        _manpowerRefreshOtherTeamPicker_(allocByEmp, MANPOWER_STATE.team);
+      }
+    };
+  });
+  // Master "Select All" â€" toggles every NON-conflict member at once. Conflict
+  // rows stay locked because they're already allocated elsewhere.
+  var master = block.querySelector("#manpowerSelectAll");
+  if (master) {
+    master.onclick = function(e){ e.stopPropagation(); };
+    master.onchange = function(){
+      var want = master.checked;
+      MANPOWER_STATE.members.forEach(function(m, i){
+        if (m.conflict) return; // can't toggle a conflicted row
+        m.checked = want;
+      });
+      // Update DOM checkboxes without re-rendering the whole table.
+      block.querySelectorAll(".manp-chk").forEach(function(chk){
+        var idx = parseInt(chk.getAttribute("data-idx"), 10);
+        if (isNaN(idx)) return;
+        var m = MANPOWER_STATE.members[idx];
+        if (m && !m.conflict) chk.checked = want;
+      });
+      _manpowerUpdateCount_();
+    };
+  }
+  _manpowerSyncSelectAll_();
+  _manpowerUpdateCount_();
+}
+// Reflect the per-row check state on the master checkbox â€" full / empty /
+// indeterminate. Called after any row toggle or fresh render.
+function _manpowerSyncSelectAll_() {
+  var master = document.getElementById("manpowerSelectAll");
+  if (!master) return;
+  var eligible = MANPOWER_STATE.members.filter(function(m){ return !m.conflict; });
+  if (!eligible.length) {
+    master.checked = false;
+    master.indeterminate = false;
+    master.disabled = true;
+    return;
+  }
+  master.disabled = false;
+  var checkedCount = eligible.filter(function(m){ return m.checked; }).length;
+  if (checkedCount === 0) {
+    master.checked = false;
+    master.indeterminate = false;
+  } else if (checkedCount === eligible.length) {
+    master.checked = true;
+    master.indeterminate = false;
+  } else {
+    master.checked = false;
+    master.indeterminate = true;
+  }
+}
+function _manpowerUpdateCount_() {
+  var c = document.getElementById("manpowerSelCount");
+  if (!c) return;
+  var sel = MANPOWER_STATE.members.filter(function(m){ return m.checked && !m.conflict; }).length;
+  c.textContent = sel + " selected";
+}
+function _manpowerRefreshOtherTeamPicker_(allocByEmp, currentTeam) {
+  var block = document.getElementById("manpowerOtherTeamBlock");
+  var teamSel = document.getElementById("manpowerOtherTeamSelect");
+  var memberSel = document.getElementById("manpowerOtherMemberSelect");
+  var hint = document.getElementById("manpowerOtherHint");
+  if (!block || !teamSel || !memberSel) return;
+  // Push current slot status above the team list so the user knows
+  // up-front how many foreign substitutes they can add.
+  var slotInfo = _manpowerForeignSlots_();
+  if (hint) {
+    if (slotInfo.missing === 0) {
+      hint.innerHTML = '<span style="color:#888;">All primary-team members are selected. Un-select someone to allow a foreign substitute.</span>';
+    } else if (slotInfo.free === 0) {
+      hint.innerHTML = '<span style="color:#c92a2a;font-weight:600;">Limit reached: ' + slotInfo.used + ' of ' + slotInfo.missing + ' foreign slots used.</span>';
+    } else {
+      hint.innerHTML = '<span style="color:#2a5;font-weight:600;">Foreign slots available: ' + slotInfo.free + ' of ' + slotInfo.missing + '</span> (1 per un-selected / conflicting primary-team member).';
+    }
+  }
+  // Step 1: build list of OTHER teams that have at least one FREE active
+  // member on this date. We compute the pool up-front so a team is only
+  // listed when there's actually someone to add from it.
+  var allActive = _manpowerActiveMembers_();
+  var poolByTeam = new Map();
+  allActive.forEach(function(m){
+    if (m.original_team === currentTeam) return;
+    if (allocByEmp.has(m.emp_code)) return;
+    if (MANPOWER_STATE.members.some(function(x){ return x.emp_code === m.emp_code; })) return;
+    if (!poolByTeam.has(m.original_team)) poolByTeam.set(m.original_team, []);
+    poolByTeam.get(m.original_team).push(m);
+  });
+  var teams = Array.from(poolByTeam.keys()).sort();
+  // Preserve current selection if possible.
+  var prevTeam = teamSel.value;
+  if (!teams.length) {
+    teamSel.innerHTML = '<option value="">No teams with free members on this date</option>';
+    memberSel.innerHTML = '<option value="">-- no free members --</option>';
+    if (hint) hint.textContent = "";
+    block.style.display = "";
+    return;
+  }
+  teamSel.innerHTML = '<option value="">-- select another team --</option>' +
+    teams.map(function(t){
+      var n = (poolByTeam.get(t) || []).length;
+      return '<option value="' + esc(t) + '"' + (t === prevTeam ? ' selected' : '') +
+             '>' + esc(t) + ' (' + n + ' free)</option>';
+    }).join("");
+  if (prevTeam && poolByTeam.has(prevTeam)) {
+    manpowerLoadOtherTeamMembers_();
+  } else {
+    memberSel.innerHTML = '<option value="">-- pick a team first --</option>';
+    if (hint) hint.textContent = "";
+  }
+  block.style.display = "";
+}
+// Populate the member dropdown based on the currently selected "other"
+// team. Pool comes from MANPOWER_ALLOC_CACHE so the FREE-on-this-date
+// check stays in sync with the latest allocations.
+function manpowerLoadOtherTeamMembers_() {
+  var teamSel = document.getElementById("manpowerOtherTeamSelect");
+  var memberSel = document.getElementById("manpowerOtherMemberSelect");
+  var hint = document.getElementById("manpowerOtherHint");
+  if (!teamSel || !memberSel) return;
+  var team = teamSel.value;
+  if (!team) {
+    memberSel.innerHTML = '<option value="">-- pick a team first --</option>';
+    if (hint) hint.textContent = "";
+    return;
+  }
+  var allocs = MANPOWER_ALLOC_CACHE.byDate[MANPOWER_STATE.date] || [];
+  var allocByEmp = new Map();
+  allocs.forEach(function(a){ if (a && a.emp_code) allocByEmp.set(String(a.emp_code).trim(), a); });
+  var allActive = _manpowerActiveMembers_();
+  var members = allActive.filter(function(m){
+    if (m.original_team !== team) return false;
+    if (allocByEmp.has(m.emp_code)) return false;
+    if (MANPOWER_STATE.members.some(function(x){ return x.emp_code === m.emp_code; })) return false;
+    return true;
+  });
+  if (!members.length) {
+    memberSel.innerHTML = '<option value="">No free members in ' + esc(team) + ' on this date</option>';
+    if (hint) hint.textContent = "All members of " + team + " are already allocated or added.";
+    return;
+  }
+  memberSel.innerHTML = '<option value="">-- pick a member --</option>' +
+    members.map(function(m){
+      return '<option value="' + esc(m.emp_code) + '">' + esc(m.emp_name) +
+             (m.emp_code && m.emp_code !== m.emp_name ? ' (' + esc(m.emp_code) + ')' : '') + '</option>';
+    }).join("");
+  if (hint) hint.textContent = members.length + " free member(s) in " + team + ".";
+}
+window.manpowerLoadOtherTeamMembers_ = manpowerLoadOtherTeamMembers_;
+// Count how many primary-team members are NOT currently allocated (i.e.,
+// unchecked by the user OR locked due to a conflict). That number is the
+// maximum we let the user backfill from other teams â€" 1:1 replacement.
+function _manpowerForeignSlots_() {
+  var missing = MANPOWER_STATE.members.filter(function(m){
+    return !m.foreign && m.original_team === MANPOWER_STATE.team && (!m.checked || m.conflict);
+  }).length;
+  var used = MANPOWER_STATE.members.filter(function(m){ return m.foreign; }).length;
+  return { missing: missing, used: used, free: Math.max(0, missing - used) };
+}
+function manpowerAddOther_() {
+  var sel = document.getElementById("manpowerOtherMemberSelect");
+  if (!sel || !sel.value) return;
+  // Hard cap: foreign additions can't exceed the number of primary-team
+  // members the user has un-selected (or that are locked out as conflicts).
+  var slots = _manpowerForeignSlots_();
+  if (slots.free <= 0) {
+    alert("You can add at most " + slots.missing + " member(s) from other teams" +
+          " (one per un-selected / conflicting member of the primary team).\n\n" +
+          "Already added: " + slots.used + ". Un-select a member from " + MANPOWER_STATE.team +
+          " first, or remove an existing foreign member.");
+    return;
+  }
+  var code = sel.value;
+  var m = _manpowerActiveMembers_().find(function(x){ return x.emp_code === code; });
+  if (!m) return;
+  MANPOWER_STATE.members.push({
+    emp_code: m.emp_code, emp_name: m.emp_name, original_team: m.original_team,
+    from_team: m.original_team, checked: true, conflict: null, foreign: true
+  });
+  _manpowerRenderMembers_();
+  var allocs = MANPOWER_ALLOC_CACHE.byDate[MANPOWER_STATE.date] || [];
+  var allocByEmp = new Map();
+  allocs.forEach(function(a){ if (a && a.emp_code) allocByEmp.set(String(a.emp_code).trim(), a); });
+  _manpowerRefreshOtherTeamPicker_(allocByEmp, MANPOWER_STATE.team);
+}
+window.manpowerAddOther_ = manpowerAddOther_;
+function manpowerRemoveForeign_(idx) {
+  if (!MANPOWER_STATE.members[idx]) return;
+  MANPOWER_STATE.members.splice(idx, 1);
+  _manpowerRenderMembers_();
+  var allocs = MANPOWER_ALLOC_CACHE.byDate[MANPOWER_STATE.date] || [];
+  var allocByEmp = new Map();
+  allocs.forEach(function(a){ if (a && a.emp_code) allocByEmp.set(String(a.emp_code).trim(), a); });
+  _manpowerRefreshOtherTeamPicker_(allocByEmp, MANPOWER_STATE.team);
+}
+window.manpowerRemoveForeign_ = manpowerRemoveForeign_;
+async function saveManpowerAllocation_() {
+  if (!canReschedule_ || !canReschedule_()) { alert("Only Admin / Super Admin can save allocations."); return; }
+  var date = MANPOWER_STATE.date;
+  var equipment = MANPOWER_STATE.equipment;
+  if (!date || !equipment) { alert("Date / equipment missing."); return; }
+  // Range guard: today must sit inside the booking's commit range.
+  // Lexicographic compare works because all three dates are YYYY-MM-DD.
+  var rs = MANPOWER_STATE.rangeStart || "";
+  var re = MANPOWER_STATE.rangeEnd   || "";
+  if (rs && re) {
+    if (date < rs || date > re) {
+      alert("SCHEDULE RANGE NOT MATCHED WITH ALLOCATION DATE\n\n" +
+            "Allocation date (today): " + fmtDateDMY(date) + "\n" +
+            "Booking saved schedule: " + fmtDateDMY(rs) + " â†’ " + fmtDateDMY(re) + "\n\n" +
+            (date > re
+              ? "This booking has already ended. Push commit_end forward (or use Reschedule) before allocating manpower for today."
+              : "This booking has not started yet. Wait until " + fmtDateDMY(rs) + " or move commit_start earlier."));
+      var statusEl0 = document.getElementById("manpowerStatusMsg");
+      if (statusEl0) statusEl0.textContent = "Schedule range not matched with allocation date.";
+      return;
+    }
+  } else if (rs) {
+    if (date < rs) {
+      alert("SCHEDULE RANGE NOT MATCHED WITH ALLOCATION DATE\n\nBooking starts on " + fmtDateDMY(rs));
+      return;
+    }
+  } else if (re) {
+    if (date > re) {
+      alert("SCHEDULE RANGE NOT MATCHED WITH ALLOCATION DATE\n\nBooking ends on " + fmtDateDMY(re));
+      return;
+    }
+  }
+  var checked = MANPOWER_STATE.members.filter(function(m){ return m.checked && !m.conflict; });
+  if (!checked.length) {
+    if (!confirm("No members are selected. This will CLEAR existing allocations for this date + equipment. Continue?")) return;
+  }
+  var by = "";
+  try {
+    var s = typeof loadSession === "function" ? loadSession() : null;
+    by = s && s.username ? s.username : "";
+  } catch(_) {}
+  // Capture each member's day-rate AT THE TIME OF ALLOCATION so the cost
+  // remains historically correct even if Team Master rates change later.
+  var rateMap = _manpowerMembersByCode_();
+  var items = checked.map(function(m){
+    var lookup = rateMap.get(m.emp_code);
+    var rate = lookup ? num(lookup.rate) : 0;
+    return {
+      emp_code: m.emp_code, emp_name: m.emp_name,
+      from_team: m.from_team || m.original_team,
+      original_team: m.original_team,
+      booking_line_key: MANPOWER_STATE.bookingKey,
+      rate: rate
+    };
+  });
+  var statusEl = document.getElementById("manpowerStatusMsg");
+  if (statusEl) statusEl.textContent = "Saving...";
+  var body = new URLSearchParams();
+  body.set("action", "bulk_set_allocations");
+  body.set("date", date);
+  body.set("equipment", equipment);
+  body.set("booking_line_key", MANPOWER_STATE.bookingKey || "");
+  body.set("items", JSON.stringify(items));
+  body.set("allocated_by", by);
+  try {
+    await fetch(INPUT_API_URL, { method: "POST", mode: "no-cors", body: body });
+  } catch(e) {
+    if (statusEl) statusEl.textContent = "Save failed: " + (e && e.message || e);
+    return;
+  }
+  if (statusEl) statusEl.textContent = "Saved " + items.length + " member(s).";
+  showFilterToast("Manpower allocated: " + items.length + " member(s) on " + fmtDateDMY(date) + " for " + equipment);
+  setTimeout(function(){ _manpowerLoadAllocations_(date); }, 600);
+  setTimeout(function(){
+    _manpowerLoadAllAllocations_(true).then(function(){
+      var modal = document.getElementById("eqptScheduleModal");
+      if (modal && modal.classList.contains("open") && typeof renderEqptScheduleBody_ === "function") {
+        renderEqptScheduleBody_();
+      }
+    });
+  }, 900);
+  setTimeout(closeManpowerModal, 800);
+}
+window.saveManpowerAllocation_ = saveManpowerAllocation_;
 function closeEqptScheduleModal() {
   document.getElementById("eqptScheduleModal").classList.remove("open");
 }
@@ -1463,6 +2297,50 @@ function renderEqptScheduleBody_() {
       '<td class="' + (freeBefore > 0 ? 'num free-before-gap' : 'num') + '" title="Blank days before this booking in the current schedule">' + esc(String(freeBefore)) + '</td>' +
       '<td class="' + rcCellCls + '" title="Times this booking has been pushed forward manually">' + esc(rcTxt) + '</td>' +
       reasonCell +
+      '<td class="manpower-cell" style="text-align:right;white-space:nowrap;">' +
+        (canEdit
+          ? '<button class="reschedule-btn manpower-alloc-btn" data-idx="' + i + '" title="Open manpower allocation for this booking">Allocate</button>'
+          : '<span style="color:#bbb;font-size:11px;">&mdash;</span>') +
+      '</td>' +
+      (function(){
+        // Compute total allocation cost (Member rate-per-day x days) on the fly.
+        var cost = typeof _manpowerCostForBooking_ === "function" ? _manpowerCostForBooking_(p.lk, EQPT_SCHEDULE_STATE.eqpt) : 0;
+        var days = typeof _manpowerDaysForBooking_ === "function" ? _manpowerDaysForBooking_(p.lk, EQPT_SCHEDULE_STATE.eqpt) : 0;
+        if (cost > 0) {
+          return '<td class="alloc-cost-cell alloc-cost-link" data-bk="' + esc(p.lk) + '"' +
+                 ' style="text-align:right;white-space:nowrap;color:#0a6;font-weight:700;cursor:pointer;text-decoration:underline dotted;"' +
+                 ' title="' + esc(days + " member-day(s) allocated. Click to see breakdown.") + '">₹ ' + fmt(cost, 0) + '</td>';
+        }
+        // Diagnostic dash â€" tells the user exactly what's missing so we
+        // don't silently hide a misconfiguration. Three failure modes:
+        //   1) No allocations fetched / cache empty â†’ "fetching..."
+        //   2) Allocations exist but none for this booking â†’ days = 0
+        //   3) Allocations exist for booking but rate column missing /
+        //      members have rate 0 â†’ days > 0 but cost = 0
+        var allCache = (typeof MANPOWER_ALLOC_CACHE !== "undefined" && Array.isArray(MANPOWER_ALLOC_CACHE.all)) ? MANPOWER_ALLOC_CACHE.all : null;
+        var diag = "";
+        var clickable = false;
+        if (!allCache) {
+          diag = "Loading allocationsâ€¦";
+        } else if (days === 0) {
+          diag = "No members allocated to this booking yet";
+        } else {
+          var rcol = (typeof _manpowerTeamCols_ === "function") ? _manpowerTeamCols_().rate : null;
+          if (!rcol) {
+            diag = days + " member-day(s) â€” but no \"Rate\" column found in Team Master. Add a column called Rate / Daily Rate / Wage.";
+          } else {
+            diag = days + " member-day(s) â€” members have no rate set in Team Master (column \"" + rcol + "\").";
+          }
+          clickable = true; // let the user click to see who is allocated even if cost is 0
+        }
+        var cls = clickable ? "alloc-cost-cell alloc-cost-link" : "";
+        var dataAttr = clickable ? ' data-bk="' + esc(p.lk) + '"' : '';
+        var style = clickable
+          ? 'text-align:right;white-space:nowrap;color:#c87f00;cursor:pointer;text-decoration:underline dotted;font-size:11px;'
+          : 'text-align:right;color:#bbb;font-size:11px;';
+        return '<td class="' + cls + '"' + dataAttr + ' style="' + style + '" title="' + esc(diag) + '">' +
+               (days > 0 ? days + ' md' : '&mdash;') + '</td>';
+      })() +
       '<td style="text-align:right;white-space:nowrap;">' +
         '<button class="reorder-btn" data-move="up"   data-idx="' + i + '"' + upDisabled + ' title="' + (canEdit ? "Move up" : "Read-only") + '">&#9650;</button>' +
         '<button class="reorder-btn" data-move="down" data-idx="' + i + '"' + downDisabled + ' title="' + (canEdit ? "Move down" : "Read-only") + '">&#9660;</button>' +
@@ -1470,7 +2348,7 @@ function renderEqptScheduleBody_() {
     '</tr>';
   }).join("");
   body.innerHTML =
-    '<div style="overflow-x:auto;">' +
+    '<div style="overflow:auto;max-height:74vh;border:1px solid #eef0f2;border-radius:6px;">' +
     '<table class="schedule-table">' +
       '<thead><tr>' +
         '<th>SL</th>' +
@@ -1486,11 +2364,30 @@ function renderEqptScheduleBody_() {
         '<th style="text-align:right;">Free Before</th>' +
         '<th style="text-align:right;" title="How many times this booking has been forward-pushed">Reschedule #</th>' +
         '<th>Last Reason</th>' +
+        '<th style="text-align:right;">Manpower</th>' +
+        '<th style="text-align:right;" title="Total cost = sum of allocated members’ day-rates over every date they were assigned to this booking">Alloc Cost</th>' +
         '<th style="text-align:right;">Reorder</th>' +
       '</tr></thead>' +
       '<tbody>' + rowsHtml + '</tbody>' +
     '</table>' +
     '</div>';
+  // Manpower allocation buttons - open the per-booking allocation modal.
+  body.querySelectorAll(".manpower-alloc-btn").forEach(function(btn){
+    btn.onclick = function(){
+      var idx = parseInt(btn.getAttribute("data-idx"), 10);
+      if (isNaN(idx)) return;
+      var p = proposed && proposed[idx];
+      if (p && typeof openManpowerAllocationModal_ === "function") openManpowerAllocationModal_(p);
+    };
+  });
+  // Allocation cost cell click - open detail breakdown popup
+  body.querySelectorAll(".alloc-cost-link").forEach(function(td){
+    td.onclick = function(){
+      var bk = td.getAttribute("data-bk");
+      var eq = EQPT_SCHEDULE_STATE && EQPT_SCHEDULE_STATE.eqpt;
+      if (bk && eq && typeof openAllocDetailModal === "function") openAllocDetailModal(bk, eq);
+    };
+  });
   body.querySelectorAll(".reorder-btn").forEach(function(btn){
     btn.onclick = function(){
       if (btn.disabled) return;
@@ -1680,6 +2577,10 @@ document.addEventListener("DOMContentLoaded", function(){
   if (sm) sm.onclick = function(e){ if (e.target.id === "eqptScheduleModal") closeEqptScheduleModal(); };
   var pim = document.getElementById("pordItemsModal");
   if (pim) pim.onclick = function(e){ if (e.target.id === "pordItemsModal") closePordItemsModal(); };
+  var mpm = document.getElementById("manpowerModal");
+  if (mpm) mpm.onclick = function(e){ if (e.target.id === "manpowerModal") closeManpowerModal(); };
+  var adm = document.getElementById("allocDetailModal");
+  if (adm) adm.onclick = function(e){ if (e.target.id === "allocDetailModal") closeAllocDetailModal(); };
 });
 
 // ---- Rollup: which EQPTs / HODs are assigned across each BOM's lines? ----
@@ -5210,6 +6111,8 @@ document.addEventListener("keydown", function(e){
     var um = document.getElementById("userPanelModal"); if (um) um.classList.remove("open");
     var sm = document.getElementById("eqptScheduleModal"); if (sm) sm.classList.remove("open");
     var pim = document.getElementById("pordItemsModal"); if (pim) pim.classList.remove("open");
+    var mpm = document.getElementById("manpowerModal"); if (mpm) mpm.classList.remove("open");
+    var adm = document.getElementById("allocDetailModal"); if (adm) adm.classList.remove("open");
   }
 });
 
