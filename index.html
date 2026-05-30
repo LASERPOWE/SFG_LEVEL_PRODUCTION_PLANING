@@ -220,6 +220,8 @@
   .commit-cell input[type="date"] { width: 130px; padding: 2px 4px; border: 1px solid #d9c2dd; border-radius: 4px; background: #fff; font-size: 11px; }
   .commit-cell input[type="date"]:disabled { background: #f3f4f6; color: #888; cursor: not-allowed; }
   .commit-by-name { margin-top: 3px; font-size: 10px; color: #6b3a78; font-style: italic; white-space: nowrap; }
+  .pord-link { color: #2563eb; text-decoration: none; font-weight: 600; cursor: pointer; }
+  .pord-link:hover { text-decoration: underline; color: #1e3a8a; }
   .commit-by-name.commit-by-empty { color: #b8a4be; font-style: normal; }
   .line-eqpt-select, .line-hod-select { width: 130px; padding: 3px 5px; font-size: 11px; border: 1px solid #d6d8db; border-radius: 4px; background: #fff; cursor: pointer; font-family: inherit; }
   .line-eqpt-select:focus, .line-hod-select:focus { outline: none; border-color: #4a7dd6; box-shadow: 0 0 0 2px rgba(74,125,214,0.15); }
@@ -866,8 +868,14 @@
         <label>Search
           <input id="mcStatusSearch" type="text" placeholder="BOM ID, item, name..." oninput="renderMcStatusTable()" />
         </label>
-        <label class="check"><input type="checkbox" id="mcStatusBalanceOnly" onchange="renderMcStatusTable()" /> Balance &gt; 0 only</label>
-        <button class="clear-filter-btn" type="button" onclick="clearMcStatusSearch()">Clear Filters</button>
+        <label>Balance status
+          <select id="mcStatusBalanceMode" onchange="renderMcStatusTable()">
+            <option value="pending" selected>Pending (balance &gt; 0)</option>
+            <option value="done">Done (balance = 0)</option>
+            <option value="all">All</option>
+          </select>
+        </label>
+        <button class="clear-filter-btn" type="button" onclick="clearMcStatusSearch()">Clear Search</button>
         <span id="mcStatusMeta" style="margin-left:auto;font-size:11px;color:#666;"></span>
       </div>
       <div class="table-wrap">
@@ -900,13 +908,23 @@
   </div>
   <!-- MC Status child detail popup -->
   <div class="modal-backdrop" id="mcStatusModal" style="z-index:58;">
-    <div class="modal" style="max-width: 1180px;">
+    <div class="modal" style="max-width: 1700px; width: 96vw;">
       <div class="modal-head">
         <div>
           <h2 id="mcStatusModalTitle">MC Status Details</h2>
           <div class="meta" id="mcStatusModalMeta"></div>
         </div>
         <button class="modal-close" onclick="closeMcStatusModal()">&times;</button>
+      </div>
+      <div style="padding:10px 16px;background:#f7f8fa;border-bottom:1px solid #e6e8eb;display:flex;align-items:center;gap:10px;font-size:12px;">
+        <label style="display:flex;align-items:center;gap:6px;font-weight:600;color:#444;">Balance status:
+          <select id="mcStatusChildBalanceMode" onchange="renderMcStatusChildModalBody_()" style="padding:3px 6px;font-size:12px;border:1px solid #cfd9f5;border-radius:4px;">
+            <option value="pending" selected>Pending (balance &gt; 0)</option>
+            <option value="done">Done (balance = 0)</option>
+            <option value="all">All</option>
+          </select>
+        </label>
+        <span id="mcStatusChildModalCount" style="margin-left:auto;color:#666;"></span>
       </div>
       <div class="modal-body" id="mcStatusModalBody"></div>
     </div>
@@ -1018,6 +1036,20 @@
           <button id="eqptScheduleApplyBtn" class="auth-btn auth-btn-primary" type="button" onclick="applyEqptSchedule()">Apply New Schedule</button>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- Production Order items breakdown (opens when a PORD No is clicked) -->
+  <div class="modal-backdrop" id="pordItemsModal" style="z-index:70;">
+    <div class="modal" style="max-width: 1400px; width: 94vw;">
+      <div class="modal-head">
+        <div>
+          <h2 id="pordItemsTitle">Production Order</h2>
+          <div class="meta" id="pordItemsMeta"></div>
+        </div>
+        <button class="modal-close" onclick="closePordItemsModal()">&times;</button>
+      </div>
+      <div class="modal-body" id="pordItemsBody" style="max-height:72vh;overflow:auto;"></div>
     </div>
   </div>
 
@@ -1646,6 +1678,8 @@ window.applyEqptSchedule = applyEqptSchedule;
 document.addEventListener("DOMContentLoaded", function(){
   var sm = document.getElementById("eqptScheduleModal");
   if (sm) sm.onclick = function(e){ if (e.target.id === "eqptScheduleModal") closeEqptScheduleModal(); };
+  var pim = document.getElementById("pordItemsModal");
+  if (pim) pim.onclick = function(e){ if (e.target.id === "pordItemsModal") closePordItemsModal(); };
 });
 
 // ---- Rollup: which EQPTs / HODs are assigned across each BOM's lines? ----
@@ -2421,7 +2455,11 @@ function renderMcStatusTable() {
   if (!head || !body) return;
   var qEl = document.getElementById("mcStatusSearch");
   var q = qEl ? String(qEl.value || "").trim().toLowerCase() : "";
-  var balOnly = !!(document.getElementById("mcStatusBalanceOnly") && document.getElementById("mcStatusBalanceOnly").checked);
+  // Three-way balance filter: "pending" (default, balance > 0), "done"
+  // (balance == 0), or "all". Defaults to "pending" so the page is always
+  // useful even before the user touches the dropdown.
+  var balModeEl = document.getElementById("mcStatusBalanceMode");
+  var balMode = balModeEl ? String(balModeEl.value || "pending") : "pending";
   var rows = MC_STATUS_ROWS.filter(function(r){
     if (!q) return true;
     return MC_STATUS_COLUMNS.some(function(c){
@@ -2456,7 +2494,12 @@ function renderMcStatusTable() {
   }
 
   var groups = buildMcStatusGroups_(rows, bomCol, itemCodeCol, itemNameCol, qtyCol);
-  if (balOnly) groups = groups.filter(function(g){ return g.balance > 0.0005; });
+  if (balMode === "pending") {
+    groups = groups.filter(function(g){ return g.balance > 0.0005; });
+  } else if (balMode === "done") {
+    groups = groups.filter(function(g){ return g.balance <= 0.0005; });
+  }
+  // balMode === "all" leaves the groups untouched.
   MC_STATUS_GROUPS = groups;
 
   // KPI panel: same shape as Page 1's KPI row. Numbers are computed off the
@@ -2629,10 +2672,26 @@ function buildMcStatusGroups_(rows, bomCol, itemCodeCol, itemNameCol, qtyCol) {
 
 function renderMcStatusChildTable_(rows, visibleCols) {
   var qtyCol = findMcStatusCol_(["NET MC", "NET_MC", "NET MC QTY", "NET_MC_QTY", "MC_NET_QTY"], ["NET", "MC"]);
+  // Read the CHILD-modal's own balance-mode dropdown so users can flip
+  // between Pending / Done / All without changing the page-level filter.
+  var _bmEl = document.getElementById("mcStatusChildBalanceMode")
+              || document.getElementById("mcStatusBalanceMode");
+  var _bm = _bmEl ? String(_bmEl.value || "pending") : "pending";
+  if (qtyCol && _bm !== "all") {
+    rows = rows.filter(function(r){
+      var net = num(r[qtyCol]);
+      if (net <= 0) return false;
+      var key = mcStatusRowKey_(r);
+      var done = !!MC_DONE[key];
+      var pd = done ? net : getMcStatusManualPd_(key);
+      var bal = Math.max(0, net - pd);
+      if (_bm === "pending") return bal > 0.0005;
+      if (_bm === "done")    return bal <= 0.0005;
+      return true;
+    });
+  }
   // Layout: source columns up to (and including) "Net MC" appear first, then
-  // the 8 manual-input columns, then any remaining source columns. This puts
-  // the inputs right next to the qty number that drives them so the planner
-  // doesn't have to scroll all the way right to enter Production Done Qty.
+  // the 8 manual-input columns, then any remaining source columns.
   var splitIdx = qtyCol ? visibleCols.indexOf(qtyCol) : -1;
   var leftCols, rightCols;
   if (splitIdx >= 0) {
@@ -2642,7 +2701,91 @@ function renderMcStatusChildTable_(rows, visibleCols) {
     leftCols = visibleCols.slice();
     rightCols = [];
   }
-  return '<div style="overflow:auto;max-height:360px;"><table class="team-master-table">' +
+  // Detect party (ACC_NAME) and MC NO columns so we can group like Page 1's
+  // drill-down (party-group â†’ mc-block â†’ flat line table). If neither is
+  // present in the source columns, fall back to the original flat table.
+  var partyCol = findMcStatusCol_(["ACC_NAME", "ACC NAME", "PARTY", "PARTY NAME", "CUSTOMER"], ["ACC", "NAME"]);
+  var mcNoCol  = findMcStatusCol_(["MC NO", "MC_NO", "MCNO", "MC NUMBER", "MC_NUMBER"], ["MC", "NO"]);
+  if (!partyCol) {
+    return '<div style="overflow:auto;max-height:72vh;">' +
+           renderMcStatusFlatTable_(rows, leftCols, rightCols, qtyCol) +
+           '</div>';
+  }
+  if (!rows.length) {
+    return '<div class="empty" style="padding:20px;text-align:center;color:#888;">No matching lines for this BOM under the current balance filter.</div>';
+  }
+  // Group rows by party then MC NO.
+  var partyMap = new Map();
+  rows.forEach(function(r){
+    var party = String(r[partyCol] == null ? "" : r[partyCol]).trim() || "(No Party)";
+    var mc = mcNoCol ? (String(r[mcNoCol] == null ? "" : r[mcNoCol]).trim() || "-") : "-";
+    if (!partyMap.has(party)) partyMap.set(party, new Map());
+    var mcMap = partyMap.get(party);
+    if (!mcMap.has(mc)) mcMap.set(mc, []);
+    mcMap.get(mc).push(r);
+  });
+  // Aggregate per party + sort by descending balance (largest pending first).
+  function _aggregate(rs){
+    var net = 0, done = 0;
+    rs.forEach(function(r){
+      var n = num(r[qtyCol]);
+      var key = mcStatusRowKey_(r);
+      var d = !!MC_DONE[key];
+      var pd = d ? n : getMcStatusManualPd_(key);
+      net += n;
+      done += pd;
+    });
+    return { net: net, done: done, bal: Math.max(0, net - done) };
+  }
+  var partyArr = Array.from(partyMap.entries()).map(function(entry){
+    var party = entry[0], mcMap = entry[1];
+    var allLines = [];
+    mcMap.forEach(function(arr){ arr.forEach(function(r){ allLines.push(r); }); });
+    var agg = _aggregate(allLines);
+    return { party: party, mcMap: mcMap, lineCount: allLines.length,
+             mcCount: mcMap.size,
+             totalNet: agg.net, totalDone: agg.done, totalBal: agg.bal };
+  }).sort(function(a, b){ return b.totalBal - a.totalBal; });
+  var html = '<div style="overflow:auto;max-height:72vh;">';
+  partyArr.forEach(function(p){
+    html += '<div class="party-group open"><div class="party-head">' +
+            '<span>' + esc(p.party) + '</span>' +
+            '<span class="right">' + p.mcCount + ' MC / ' + p.lineCount + ' line(s) / Net <strong>' +
+            fmt(p.totalNet, 3) + '</strong> / Done ' + fmt(p.totalDone, 3) +
+            ' / Balance <strong style="color:#b03030;">' + fmt(p.totalBal, 3) + '</strong>' +
+            '</span></div><div class="party-body">';
+    var mcArr = Array.from(p.mcMap.entries()).map(function(pair){
+      var agg = _aggregate(pair[1]);
+      return { mc: pair[0], rows: pair[1], net: agg.net, done: agg.done, bal: agg.bal };
+    }).sort(function(a, b){ return b.bal - a.bal; });
+    mcArr.forEach(function(m){
+      html += '<div class="mc-block"><div class="mc-head">MC ' + esc(m.mc) +
+              ' &nbsp; <span style="font-weight:400;color:#666;">- ' + m.rows.length +
+              ' line(s) / Net ' + fmt(m.net, 3) + ' / Done ' + fmt(m.done, 3) +
+              ' / Balance <strong style="color:#b03030;">' + fmt(m.bal, 3) + '</strong></span></div>' +
+              renderMcStatusFlatTable_(m.rows, leftCols, rightCols, qtyCol) +
+              '</div>';
+    });
+    html += '</div></div>';
+  });
+  html += '</div>';
+  // Wire party-head clicks to toggle open/close after the body is injected.
+  setTimeout(function(){
+    var mb = document.getElementById("mcStatusModalBody");
+    if (!mb) return;
+    mb.querySelectorAll(".party-head").forEach(function(h){
+      h.onclick = function(){ h.parentElement.classList.toggle("open"); };
+    });
+  }, 0);
+  return html;
+}
+// Flat per-MC table extracted from the original child-table renderer. Takes
+// the pre-split leftCols/rightCols + the qty column so the layout (source
+// columns up to Net MC â†’ manual input columns â†’ remaining source columns)
+// stays consistent regardless of whether we render grouped or flat.
+function renderMcStatusFlatTable_(rows, leftCols, rightCols, qtyCol) {
+  return '<div style="overflow-x:auto;margin-bottom:8px;">' +
+    '<table class="team-master-table">' +
     '<thead><tr>' +
       leftCols.map(function(c){ return '<th>' + esc(c) + '</th>'; }).join("") +
       '<th class="mc-input-col">Done</th>' +
@@ -2696,12 +2839,27 @@ function renderMcStatusChildTable_(rows, visibleCols) {
         '<td class="mc-input-col muted small">' + esc(cBy || "-") + '</td>' +
         rightCols.map(function(c){ return '<td>' + esc(r[c] == null ? "" : r[c]) + '</td>'; }).join("") +
       '</tr>';
-    }).join("") + '</tbody></table></div>';
+    }).join("") + '</tbody></table>' +
+    '</div>';
 }
 
-function openMcStatusChildModal(idx) {
+// Re-render only the child modal body using the current child-modal
+// balance-mode dropdown selection. Used by the dropdown's onchange.
+function renderMcStatusChildModalBody_() {
+  var idx = MC_STATUS_MODAL_GROUP_INDEX;
+  if (idx == null || !MC_STATUS_GROUPS || !MC_STATUS_GROUPS[idx]) return;
+  openMcStatusChildModal(idx, true);
+}
+window.renderMcStatusChildModalBody_ = renderMcStatusChildModalBody_;
+function openMcStatusChildModal(idx, keepModeDropdown) {
   var g = MC_STATUS_GROUPS[idx];
   if (!g) return;
+  // Reset the child-modal dropdown to "pending" on a FRESH open. When
+  // re-rendering after the user changed the dropdown, preserve it.
+  if (!keepModeDropdown) {
+    var _resetEl = document.getElementById("mcStatusChildBalanceMode");
+    if (_resetEl) _resetEl.value = "pending";
+  }
   var visibleCols = MC_STATUS_COLUMNS.filter(function(c){ return String(c).indexOf("__") !== 0; });
   // Truncate at "INSPECTION HOD" â€" the planner only needs the columns up to
   // (but NOT including) Inspection HOD; everything after is downstream
@@ -2720,6 +2878,13 @@ function openMcStatusChildModal(idx) {
   if (body) body.innerHTML = renderMcStatusChildTable_(g.rows, visibleCols);
   wireMcStatusInputs_();
   MC_STATUS_MODAL_GROUP_INDEX = idx;
+  // Update the row-count badge in the child toolbar so users see how many
+  // rows the current balance-mode filter is showing.
+  var _cntEl = document.getElementById("mcStatusChildModalCount");
+  if (_cntEl && body) {
+    var _shown = body.querySelectorAll("tbody tr").length;
+    _cntEl.textContent = _shown + " of " + g.rows.length + " line" + (g.rows.length === 1 ? "" : "s");
+  }
   var modal = document.getElementById("mcStatusModal");
   if (modal) modal.classList.add("open");
 }
@@ -2735,8 +2900,8 @@ window.closeMcStatusModal = closeMcStatusModal;
 function clearMcStatusSearch() {
   var qEl = document.getElementById("mcStatusSearch");
   if (qEl) qEl.value = "";
-  var boEl = document.getElementById("mcStatusBalanceOnly");
-  if (boEl) boEl.checked = false;
+  var bmEl = document.getElementById("mcStatusBalanceMode");
+  if (bmEl) bmEl.value = "pending";
   renderMcStatusTable();
 }
 window.clearMcStatusSearch = clearMcStatusSearch;
@@ -2910,7 +3075,9 @@ function wireMcStatusInputs_() {
       saveMcStatusInput_(key);
       refreshMcStatusAfterInput_();
     };
-    inp.oninput = function(){ update(false); };
+    // Only commit + re-render on commit events (blur / Enter). Wiring
+    // oninput as well destroys the input mid-typing (refreshMcStatus...
+    // tears down the modal body so the user only ever gets one digit in).
     inp.onchange = function(){ update(true); };
   });
   body.querySelectorAll(".mc-status-eqpt-select").forEach(function(sel){
@@ -3480,7 +3647,7 @@ function buildPivotStatic(rows, netKey) {
 }
 
 function buildLinesStatic(rows, netKey, dateKey) {
-  var keep = ["PORD_NO", "PORD_DATE", "MC_NO", "ACC_NAME", "SFG_CODE", "SFG_NAME", "SFG_BOM", "SFG_UM", "FG_ITEM_NAME", "FG_LEVEL_4_NAME", "FG_NET_ORDERQTY", "FG_PRODUCTION_QTY", "FG_BALANCE_TO_PRODUCTION", "SFG_REQUIRED_AG_BAL TO PRD FG", "CONTRACT_VRNO", "APPROVE_STATUS"];
+  var keep = ["PORD_NO", "PORD_DATE", "MC_NO", "ACC_NAME", "SFG_CODE", "SFG_NAME", "SFG_BOM", "SFG_UM", "SFG_LEVEL_3_NAME", "SFG_LEVEL_4_NAME", "FG_ITEM_NAME", "FG_LEVEL_4_NAME", "FG_NET_ORDERQTY", "FG_PRODUCTION_QTY", "FG_BALANCE_TO_PRODUCTION", "SFG_REQUIRED_AG_BAL TO PRD FG", "CONTRACT_VRNO", "APPROVE_STATUS"];
   return rows.map(function(r){
     var row = {};
     keep.forEach(function(k){ row[k] = r[k]; });
@@ -4717,14 +4884,137 @@ function renderPordTable(lines, um) {
       var v = l[c.key];
       if (c.num) return '<td class="num">' + (v == null || v === "" ? "-" : fmt(num(v), 3)) + '</td>';
       if (c.key === "FG_ITEM_NAME") return '<td class="fg-item-cell" title="' + esc(v) + '">' + esc(v) + '</td>';
+      if (c.key === "PORD_NO" && v) {
+        // Clickable PORD No â€" opens a sub-popup listing ALL items belonging
+        // to this production order (across all BOMs / MCs), with SFG L4 +
+        // commit dates + aggregate totals.
+        return '<td><a href="javascript:void(0)" class="pord-link" data-pord="' + esc(v) +
+               '" title="Click to see all items in this Production Order">' + esc(v) + '</a></td>';
+      }
       return '<td>' + esc(v) + '</td>';
     }).join("") + '</tr>';
   }).join("");
   return '<div class="pord-wrap"><table class="pord-table"><thead><tr>' + cols.map(function(c){return '<th' + (c.num ? ' style="text-align:right;"' : '') + '>' + esc(c.label) + '</th>';}).join("") + '</tr></thead><tbody>' + rowsHtml + '</tbody></table></div>';
 }
+// ---- PORD items breakdown popup ----
+// Opens when the user clicks any PORD No link in the drill-down per-MC
+// table. Shows every line in LINES_ALL whose PORD_NO matches, plus a
+// header summary (item count, distinct SFG codes, earliest commit_start,
+// latest commit_end, latest target close date).
+function openPordItemsModal(pord) {
+  if (!pord) return;
+  var src = (typeof LINES_ALL !== "undefined" && LINES_ALL && LINES_ALL.length) ? LINES_ALL : LINES;
+  var rows = (src || []).filter(function(l){ return l && String(l.PORD_NO || "").trim() === String(pord).trim(); });
+  var titleEl = document.getElementById("pordItemsTitle");
+  var metaEl  = document.getElementById("pordItemsMeta");
+  var bodyEl  = document.getElementById("pordItemsBody");
+  if (titleEl) titleEl.textContent = "Production Order: " + pord;
+  if (!rows.length) {
+    if (metaEl) metaEl.textContent = "No items found for this Production Order in current data scope.";
+    if (bodyEl) bodyEl.innerHTML = '<div class="empty" style="padding:20px;text-align:center;color:#888;">No matching items.</div>';
+  } else {
+    // Aggregates
+    var distinctSfg = new Set();
+    var distinctMc  = new Set();
+    var distinctParty = new Set();
+    var minStart = "", maxEnd = "", maxTarget = "";
+    rows.forEach(function(l){
+      var lk = lineKey(l);
+      if (l.SFG_CODE) distinctSfg.add(l.SFG_CODE);
+      if (l.MC_NO)    distinctMc.add(l.MC_NO);
+      if (l.ACC_NAME) distinctParty.add(l.ACC_NAME);
+      var cs = getLineCStart(lk);
+      var ce = getLineCEnd(lk);
+      var td = (typeof getLineDateFromRow === "function") ? getLineDateFromRow(l) : "";
+      if (cs && (!minStart || cs < minStart)) minStart = cs;
+      if (ce && (!maxEnd   || ce > maxEnd))   maxEnd   = ce;
+      if (td && (!maxTarget|| td > maxTarget)) maxTarget = td;
+    });
+    if (metaEl) {
+      metaEl.innerHTML =
+        "<strong>" + rows.length + "</strong> item(s) / " +
+        distinctSfg.size + " distinct SFG code(s) / " +
+        distinctMc.size + " MC number(s) / " +
+        distinctParty.size + " party(ies)" +
+        (minStart ? " / Earliest start <strong>" + esc(fmtDateDMY(minStart)) + "</strong>" : "") +
+        (maxEnd   ? " / Latest end <strong>" + esc(fmtDateDMY(maxEnd)) + "</strong>" : "") +
+        (maxTarget? " / Latest target <strong>" + esc(fmtDateDMY(maxTarget)) + "</strong>" : "");
+    }
+    // Sort by commit_start (ascending; blanks last) so earliest planned
+    // items are at the top.
+    var sorted = rows.slice().sort(function(a, b){
+      var as = getLineCStart(lineKey(a)) || "9999-12-31";
+      var bs = getLineCStart(lineKey(b)) || "9999-12-31";
+      return as < bs ? -1 : as > bs ? 1 : 0;
+    });
+    var todayISO = (typeof todayISOString_ === "function") ? todayISOString_() : "";
+    var rowsHtml = sorted.map(function(l, i){
+      var lk = lineKey(l);
+      var cs = getLineCStart(lk);
+      var ce = getLineCEnd(lk);
+      var td = (typeof getLineDateFromRow === "function") ? getLineDateFromRow(l) : "";
+      var endOverdue = ce && todayISO && ce < todayISO;
+      // SFG Balance = SFG Net Order Qty â€" Production Done Qty (manual).
+      // Done tick snaps PD to net so balance lands on 0.
+      var sfgNet = num(l.SFG_NET_ORD_QTY);
+      var pdNow = (typeof isLineDone === "function" && isLineDone(l)) ? sfgNet : (typeof getLinePDManual === "function" ? getLinePDManual(lineKey(l)) : 0);
+      var sfgBal = Math.max(0, sfgNet - pdNow);
+      var balTxt = sfgNet > 0 ? fmt(sfgBal, 3) : "-";
+      var balCls = sfgBal > 0.0005 ? "num sfg-balance-cell" : "num sfg-balance-cell bal-zero";
+      return '<tr>' +
+        '<td class="num">' + (i + 1) + '</td>' +
+        '<td>' + esc(l.SFG_CODE || "-") + '</td>' +
+        '<td title="' + esc(l.SFG_NAME || "") + '">' + esc((l.SFG_NAME || "-").slice(0, 50)) + '</td>' +
+        '<td>' + esc(l.SFG_LEVEL_3_NAME || "-") + '</td>' +
+        '<td>' + esc(l.SFG_LEVEL_4_NAME || "-") + '</td>' +
+        '<td>' + esc(l.MC_NO || "-") + '</td>' +
+        '<td class="num">' + fmt(sfgNet, 3) + ' ' + esc(l.SFG_UM || "") + '</td>' +
+        '<td class="' + balCls + '">' + esc(balTxt) + '</td>' +
+        '<td>' + (cs ? esc(fmtDateDMY(cs)) : '<span style="color:#bbb;">-</span>') + '</td>' +
+        '<td' + (endOverdue ? ' style="color:#c92a2a;font-weight:600;"' : '') + '>' +
+          (ce ? esc(fmtDateDMY(ce)) : '<span style="color:#bbb;">-</span>') + '</td>' +
+        '<td>' + (td ? esc(fmtDateDMY(td)) : '<span style="color:#bbb;">-</span>') + '</td>' +
+      '</tr>';
+    }).join("");
+    if (bodyEl) {
+      bodyEl.innerHTML =
+        '<table class="pord-table" style="width:100%;font-size:12px;">' +
+          '<thead><tr>' +
+            '<th style="text-align:right;">#</th>' +
+            '<th>SFG Code</th>' +
+            '<th>SFG Name</th>' +
+            '<th>SFG L3</th>' +
+            '<th>SFG L4</th>' +
+            '<th>MC No</th>' +
+            '<th style="text-align:right;">SFG Net Qty</th>' +
+            '<th style="text-align:right;">SFG Balance</th>' +
+            '<th>Commit Start</th>' +
+            '<th>Commit End</th>' +
+            '<th>Target Close</th>' +
+          '</tr></thead>' +
+          '<tbody>' + rowsHtml + '</tbody>' +
+        '</table>';
+    }
+  }
+  var modal = document.getElementById("pordItemsModal");
+  if (modal) modal.classList.add("open");
+}
+window.openPordItemsModal = openPordItemsModal;
+function closePordItemsModal() {
+  var modal = document.getElementById("pordItemsModal");
+  if (modal) modal.classList.remove("open");
+}
+window.closePordItemsModal = closePordItemsModal;
 function wireDoneTicksGlobal() {
   var content = document.getElementById("drillContent");
   if (!content) return;
+  content.querySelectorAll(".pord-link").forEach(function(a){
+    a.onclick = function(e){
+      e.stopPropagation();
+      var p = a.getAttribute("data-pord");
+      if (p && typeof openPordItemsModal === "function") openPordItemsModal(p);
+    };
+  });
   content.querySelectorAll(".line-done-chk").forEach(function(chk){
     chk.onclick = function(e){ e.stopPropagation(); };
     chk.onchange = function(){
@@ -4919,6 +5209,7 @@ document.addEventListener("keydown", function(e){
     var lm = document.getElementById("loginModal"); if (lm) lm.classList.remove("open");
     var um = document.getElementById("userPanelModal"); if (um) um.classList.remove("open");
     var sm = document.getElementById("eqptScheduleModal"); if (sm) sm.classList.remove("open");
+    var pim = document.getElementById("pordItemsModal"); if (pim) pim.classList.remove("open");
   }
 });
 
