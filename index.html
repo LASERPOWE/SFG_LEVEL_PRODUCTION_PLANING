@@ -10,6 +10,9 @@
   body { padding: 16px 18px 60px; }
   h1 { font-size: 22px; margin: 0 0 4px; }
   .sub { color: #6b6b6b; font-size: 12px; margin-bottom: 18px; }
+  .refresh-btn.refresh-btn-hard { background: linear-gradient(135deg, #d9480f, #f76707) !important; border-color: #c2410c !important; color: #fff !important; margin-left: 6px; }
+  .refresh-btn.refresh-btn-hard:hover { background: linear-gradient(135deg, #c2410c, #ea580c) !important; }
+  .refresh-btn.refresh-btn-hard:disabled { opacity: 0.6; cursor: progress; }
   .refresh-btn { padding: 6px 14px; font-size: 12px; border: 1px solid #4a7dd6; border-radius: 6px; background: #4a7dd6; color: #fff; cursor: pointer; margin-left: 10px; }
   .refresh-btn:hover { background: #3a6ac0; }
   .refresh-btn:disabled { opacity: 0.6; cursor: wait; }
@@ -660,6 +663,7 @@
   </div>
   <h1>SFG BOM Requirements <span style="font-weight: 400; font-size: 14px; color: #666;">- Static GitHub Pages</span>
     <button class="refresh-btn" id="refreshBtn" onclick="refreshActivePage(true)">Refresh</button>
+    <button class="refresh-btn refresh-btn-hard" id="hardRefreshBtn" type="button" onclick="hardRefreshAll_()" title="Clear all caches, drop cookies / service workers and reload the page from the server. Use this if data looks stuck or stale after a deploy.">â†» Hard Refresh</button>
     <span class="page-tabs">
       <button class="page-tab active" id="dashboardPageBtn" type="button" onclick="showDashboardPage()">SFG Dashboard</button>
       <button class="page-tab" id="teamMasterPageBtn" type="button" onclick="showTeamMasterPage()">Team Master</button>
@@ -3269,6 +3273,55 @@ function refreshActivePage(force) {
   return loadData(!!force);
 }
 window.refreshActivePage = refreshActivePage;
+// Hard refresh: wipe every client cache we control, ask the browser to
+// drop its own caches (service-worker + Cache Storage where available),
+// then force a server-side reload of the page itself. Use this after an
+// Apps Script redeploy or when data looks suspiciously stuck.
+async function hardRefreshAll_() {
+  var btn = document.getElementById("hardRefreshBtn");
+  if (btn) { btn.disabled = true; var orig = btn.textContent; btn.textContent = "Clearingâ€¦"; }
+  try {
+    // 1) In-memory caches the dashboard maintains
+    try {
+      if (typeof MANPOWER_ALLOC_CACHE !== "undefined") {
+        MANPOWER_ALLOC_CACHE.byDate = {};
+        MANPOWER_ALLOC_CACHE.all = null;
+      }
+      if (typeof TEAM_MASTER_ROWS !== "undefined") TEAM_MASTER_ROWS.length = 0;
+      if (typeof TEAM_MASTER_COLUMNS !== "undefined") TEAM_MASTER_COLUMNS.length = 0;
+      if (typeof MC_STATUS_ROWS !== "undefined") MC_STATUS_ROWS.length = 0;
+      if (typeof MC_STATUS_COLUMNS !== "undefined") MC_STATUS_COLUMNS.length = 0;
+      if (typeof MC_STATUS_GROUPS !== "undefined") MC_STATUS_GROUPS.length = 0;
+      if (typeof LOCAL_RECENT !== "undefined") Object.keys(LOCAL_RECENT).forEach(function(k){ delete LOCAL_RECENT[k]; });
+    } catch(e) { console.warn("hard-refresh: in-memory cache reset failed", e); }
+    // 2) Service worker registrations (if any installed) â€" unregister so
+    //    the next load comes straight from the network.
+    try {
+      if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+        var regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map(function(r){ return r.unregister(); }));
+      }
+    } catch(e) { console.warn("hard-refresh: service worker unregister failed", e); }
+    // 3) Cache Storage (the actual cached responses for PWA-style sites)
+    try {
+      if (window.caches && caches.keys) {
+        var keys = await caches.keys();
+        await Promise.all(keys.map(function(k){ return caches.delete(k); }));
+      }
+    } catch(e) { console.warn("hard-refresh: Cache Storage clear failed", e); }
+    // 4) Bypass HTTP cache on the next navigation by appending a cache-buster
+    var u = new URL(window.location.href);
+    u.searchParams.set("__hr", String(Date.now()));
+    // 5) Reload â€" location.reload(true) is non-standard but still respected
+    //    by older browsers; the cache-buster handles modern browsers.
+    if (btn) btn.textContent = "Reloadingâ€¦";
+    setTimeout(function(){ window.location.replace(u.toString()); }, 250);
+  } catch(e) {
+    if (btn) { btn.disabled = false; btn.textContent = orig || "â†» Hard Refresh"; }
+    alert("Hard refresh failed: " + (e && e.message ? e.message : e));
+  }
+}
+window.hardRefreshAll_ = hardRefreshAll_;
 
 function setPageTabState_() {
   var dashBtn = document.getElementById("dashboardPageBtn");
