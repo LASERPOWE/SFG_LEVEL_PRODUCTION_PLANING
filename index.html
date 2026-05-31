@@ -877,23 +877,23 @@
     <!-- KPI row, same layout class as Page 1 (.kpis grid) so the MC Status
          view feels like a sibling of the SFG Dashboard. -->
     <div class="kpis" id="mcStatusKpis"></div>
-    <!-- Side card: Top BOMs by Balance â€" mirrors the Equipment / HOD / Party
-         balance cards on Page 1. -->
+    <!-- Party-wise PO status (replaces the older BOM-wise top card) -->
     <div class="row dashboard-status-row" style="grid-template-columns: 1fr 1fr;">
       <div class="card">
-        <h3>Top BOMs by Balance</h3>
+        <h3>Party-wise Net MC &amp; Bal % to PO Issue</h3>
         <div class="equipment-block-wrap">
           <table class="equipment-block-table">
             <thead>
               <tr>
-                <th>BOM ID</th>
-                <th>Item</th>
-                <th style="text-align:right;">Lines</th>
-                <th style="text-align:right;">Balance</th>
+                <th>Party</th>
+                <th style="text-align:right;">BOMs</th>
+                <th style="text-align:right;">Net MC Qty</th>
+                <th style="text-align:right;">Bal to PO Issue</th>
+                <th style="text-align:right;">% (Bal / Net MC)</th>
               </tr>
             </thead>
-            <tbody id="mcStatusTopBody">
-              <tr><td colspan="4" class="empty">No data yet.</td></tr>
+            <tbody id="mcStatusPartyBody">
+              <tr><td colspan="5" class="empty">No data yet.</td></tr>
             </tbody>
           </table>
         </div>
@@ -918,6 +918,10 @@
             <option value="all">All</option>
           </select>
         </label>
+        <label title="Show only BOMs whose % (Bal / Net MC) is at LEAST this value. Leave blank to skip.">Min % Bal
+          <input id="mcStatusMinBalPct" type="number" min="0" max="100" step="1" placeholder="e.g. 50" oninput="renderMcStatusTable()" style="width:80px;" />
+        </label>
+        <button class="user-pending-btn" id="mcBalToPoIssueBtn" type="button" onclick="toggleMcBalToPoIssue_()" title="Show only rows where BAL % TO PRODUCTION ORDER ISSUE > 0 (material still pending against issued POs)">Balance to PO Issue</button>
         <button class="clear-filter-btn" type="button" onclick="clearMcStatusSearch()">Clear Search</button>
         <span id="mcStatusMeta" style="margin-left:auto;font-size:11px;color:#666;"></span>
       </div>
@@ -3444,16 +3448,36 @@ window.loadMcStatusData = loadMcStatusData;
 // Module-level sort state for the MC Status pivot â€" mirrors the SORT object
 // used by the SFG dashboard so the column-click sorting feels identical.
 var MC_STATUS_SORT = { key: "qty", asc: false };
+// Toggle for the "Balance to PO Issue" filter button (Page 3 MC Status).
+var MC_BAL_TO_PO_ISSUE_MODE = false;
+function toggleMcBalToPoIssue_() {
+  MC_BAL_TO_PO_ISSUE_MODE = !MC_BAL_TO_PO_ISSUE_MODE;
+  var btn = document.getElementById("mcBalToPoIssueBtn");
+  if (btn) btn.classList.toggle("active", MC_BAL_TO_PO_ISSUE_MODE);
+  if (typeof showFilterToast === "function") {
+    showFilterToast(MC_BAL_TO_PO_ISSUE_MODE
+      ? "Showing only rows with Balance to PO Issue > 0"
+      : "Balance to PO Issue filter cleared");
+  }
+  renderMcStatusTable();
+}
+window.toggleMcBalToPoIssue_ = toggleMcBalToPoIssue_;
 function renderMcStatusTable() {
   var head = document.getElementById("mcStatusHead");
   var body = document.getElementById("mcStatusBody");
   var metaEl = document.getElementById("mcStatusMeta");
   var kpiEl = document.getElementById("mcStatusKpis");
-  var topBody = document.getElementById("mcStatusTopBody");
   var progressWrap = document.getElementById("mcStatusProgressWrap");
   if (!head || !body) return;
   var qEl = document.getElementById("mcStatusSearch");
   var q = qEl ? String(qEl.value || "").trim().toLowerCase() : "";
+  // "Balance to PO Issue" filter applies AFTER groups are built (because the
+  // formula Net MC - Production Order Issued is a per-BOM aggregate).
+  var balPoOnly = !!MC_BAL_TO_PO_ISSUE_MODE;
+  // Min % Bal filter: optional numeric threshold. Empty / 0 = no filter.
+  var minPctEl = document.getElementById("mcStatusMinBalPct");
+  var minPct = minPctEl ? parseFloat(minPctEl.value) : NaN;
+  if (isNaN(minPct) || minPct < 0) minPct = 0;
   // Three-way balance filter: "pending" (default, balance > 0), "done"
   // (balance == 0), or "all". Defaults to "pending" so the page is always
   // useful even before the user touches the dropdown.
@@ -3499,6 +3523,15 @@ function renderMcStatusTable() {
     groups = groups.filter(function(g){ return g.balance <= 0.0005; });
   }
   // balMode === "all" leaves the groups untouched.
+  // "Balance to PO Issue" toggle uses the derived formula (Net MC -
+  // Production Order Issued > 0), not the sheet's raw column.
+  if (balPoOnly) {
+    groups = groups.filter(function(g){ return g.balToPo > 0.0005; });
+  }
+  // Min % Bal threshold: keep only BOMs whose % (Bal / Net MC) >= threshold.
+  if (minPct > 0) {
+    groups = groups.filter(function(g){ return g.balPoPct >= minPct - 0.0005; });
+  }
   MC_STATUS_GROUPS = groups;
 
   // KPI panel: same shape as Page 1's KPI row. Numbers are computed off the
@@ -3522,21 +3555,55 @@ function renderMcStatusTable() {
     }).join("");
   }
 
-  // Top BOMs by Balance side card â€" mirrors the Equipment Blocking side
-  // table on Page 1. Click filters the pivot to that BOM ID.
-  if (topBody) {
-    var top10 = groups.slice().sort(function(a,b){return b.balance - a.balance;}).slice(0, 10);
-    if (!top10.length || top10[0].balance <= 0.0005) {
-      topBody.innerHTML = '<tr><td colspan="4" class="empty">No pending balances.</td></tr>';
+  // Party-wise Net MC + Bal-to-PO-Issue side card (replaces the older
+  // Top BOMs by Balance card). Aggregates across all rows that hit the
+  // CURRENT search filter so the party numbers stay in sync with the
+  // pivot below. Uses the raw MC STATUS rows (not the BOM-grouped values)
+  // because we need the per-row ACC_NAME / Party column.
+  var partyBody = document.getElementById("mcStatusPartyBody");
+  if (partyBody) {
+    var partyCol = findMcStatusCol_(["ACC_NAME", "ACC NAME", "PARTY", "PARTY NAME", "CUSTOMER", "CUSTOMER NAME"], ["ACC", "NAME"])
+                || findMcStatusCol_(["PARTY", "CUSTOMER"], ["PARTY"]);
+    var poIssuedCol = findMcStatusCol_(
+      ["PRODUCTION ORDER ISSUED", "PRODUCTION_ORDER_ISSUED", "PRODUCTION ORDER QTY", "PRODUCTION_ORDER_QTY", "PROD ORDER QTY", "PROD_ORDER_QTY", "PO ISSUED", "PO_ISSUED", "PO QTY", "PO_QTY"],
+      ["PRODUCTION", "ORDER"]
+    );
+    if (!partyCol) {
+      partyBody.innerHTML = '<tr><td colspan="5" class="empty">No Party / ACC_NAME column detected in MC STATUS sheet.</td></tr>';
     } else {
-      topBody.innerHTML = top10.map(function(g){
-        return '<tr class="eqpt-row" onclick="document.getElementById(\'mcStatusSearch\').value=' + JSON.stringify(g.bomId || "") + ';renderMcStatusTable();" title="Click to filter pivot by this BOM">' +
-          '<td><strong>' + esc(g.bomId || "-") + '</strong></td>' +
-          '<td style="font-size:11px;color:#444;">' + esc((g.itemName || "").slice(0, 36)) + '</td>' +
-          '<td class="num">' + fmt(g.lines, 0) + '</td>' +
-          '<td class="num bal-neg" style="font-weight:700;">' + fmt(g.balance, 0) + '</td>' +
-        '</tr>';
-      }).join("");
+      var pmap = new Map();
+      rows.forEach(function(r){
+        var party = String(r[partyCol] == null ? "" : r[partyCol]).trim() || "(No Party)";
+        var netQ = num(r[qtyCol]);
+        var poQ = poIssuedCol ? num(r[poIssuedCol]) : 0;
+        var bomKey = String(r[bomCol] == null ? "" : r[bomCol]).trim() + "||" + String(r[itemCodeCol] == null ? "" : r[itemCodeCol]).trim();
+        if (!pmap.has(party)) pmap.set(party, { party: party, qty: 0, poQty: 0, boms: new Set() });
+        var pg = pmap.get(party);
+        pg.qty += netQ;
+        pg.poQty += poQ;
+        if (bomKey.length > 2) pg.boms.add(bomKey);
+      });
+      var parr = Array.from(pmap.values()).map(function(p){
+        p.balToPo = Math.max(0, p.qty - p.poQty);
+        p.balPct = p.qty > 0 ? (p.balToPo / p.qty) * 100 : 0;
+        p.bomCount = p.boms.size;
+        return p;
+      }).sort(function(a,b){ return b.qty - a.qty; });
+      if (!parr.length) {
+        partyBody.innerHTML = '<tr><td colspan="5" class="empty">No data yet.</td></tr>';
+      } else {
+        partyBody.innerHTML = parr.map(function(p){
+          var pctCls = p.balPct > 0.0005 ? "num bal-neg" : "num";
+          var balCls = p.balToPo > 0.0005 ? "num bal-neg" : "num";
+          return '<tr class="eqpt-row" onclick="document.getElementById(\'mcStatusSearch\').value=' + JSON.stringify(p.party) + ';renderMcStatusTable();" title="Click to filter pivot by this Party">' +
+            '<td><strong>' + esc(p.party) + '</strong></td>' +
+            '<td class="num">' + fmt(p.bomCount, 0) + '</td>' +
+            '<td class="num">' + fmt(p.qty, 0) + '</td>' +
+            '<td class="' + balCls + '"><strong>' + (p.balToPo > 0.0005 ? fmt(p.balToPo, 0) : '<span style="color:#bbb;">-</span>') + '</strong></td>' +
+            '<td class="' + pctCls + '"><strong>' + (p.qty > 0 ? p.balPct.toFixed(1) + "%" : "-") + '</strong></td>' +
+          '</tr>';
+        }).join("");
+      }
     }
   }
 
@@ -3588,7 +3655,10 @@ function renderMcStatusTable() {
     { k: "lines",    label: "Lines", num: true },
     { k: "qty",      label: "Net MC Qty", num: true },
     { k: "prodDone", label: "Production Done", num: true },
-    { k: "balance",  label: "Balance", num: true, primary: true }
+    { k: "balance",  label: "Balance", num: true, primary: true },
+    { k: "poQty",    label: "Production Order Issued", num: true },
+    { k: "balToPo",  label: "Bal to PO Issue", num: true },
+    { k: "balPoPct", label: "% (Bal / Net MC)", num: true }
   ];
   head.innerHTML = heads.map(function(h){
     var cls = (sortKey === h.k ? "sorted " + (sortAsc ? "asc" : "") : "") + (h.primary ? " primary" : "");
@@ -3604,7 +3674,7 @@ function renderMcStatusTable() {
   });
 
   if (!groups.length) {
-    body.innerHTML = '<tr><td colspan="7" class="empty">No matching MC status rows.</td></tr>';
+    body.innerHTML = '<tr><td colspan="10" class="empty">No matching MC status rows.</td></tr>';
   } else {
     body.innerHTML = groups.map(function(g, idx){
       var balCls = g.balance > 0.0005 ? "num sfg-balance-cell" : "num sfg-balance-cell bal-zero";
@@ -3616,6 +3686,19 @@ function renderMcStatusTable() {
           '</div>' +
           '<span>' + fmt(g.prodDone, 0) + '</span>' +
         '</div>';
+      // PO-related cells. A blank "Production Order Issued" cell still
+      // shows â€" but Bal to PO Issue + % now reflect the formula even when
+      // PO Issued is 0 (i.e. "100% pending against PO" rather than a dash).
+      var poQtyTxt = g.poQty > 0 ? fmt(g.poQty, 0) : '<span style="color:#bbb;">-</span>';
+      var balPoTxt = g.balToPo > 0 ? fmt(g.balToPo, 0) : '<span style="color:#bbb;">-</span>';
+      var balPoPctTxt;
+      if (g.qty > 0) {
+        balPoPctTxt = g.balPoPct.toFixed(1) + "%";
+      } else {
+        balPoPctTxt = '<span style="color:#bbb;">-</span>';
+      }
+      var balPoCls = g.balToPo > 0 ? "num bal-neg" : "num";
+      var pctCls = g.balPoPct > 0 ? "num bal-neg" : "num";
       return '<tr class="party-row" onclick="openMcStatusChildModal(' + idx + ')" title="Click to view child rows">' +
         '<td><strong>' + esc(g.bomId || "-") + '</strong></td>' +
         '<td>' + esc(g.itemCode || "-") + '</td>' +
@@ -3624,6 +3707,9 @@ function renderMcStatusTable() {
         '<td class="num"><strong>' + fmt(g.qty, 0) + '</strong></td>' +
         '<td class="num">' + doneBar + '</td>' +
         '<td class="' + balCls + '"><strong>' + fmt(g.balance, 0) + '</strong></td>' +
+        '<td class="num">' + poQtyTxt + '</td>' +
+        '<td class="' + balPoCls + '"><strong>' + balPoTxt + '</strong></td>' +
+        '<td class="' + pctCls + '">' + balPoPctTxt + '</td>' +
       '</tr>';
     }).join("");
   }
@@ -3650,13 +3736,25 @@ function findMcStatusCol_(exactNames, containsAll) {
 }
 
 function buildMcStatusGroups_(rows, bomCol, itemCodeCol, itemNameCol, qtyCol) {
+  // Auto-detect "Production Order Issued" column (sheet may label it
+  // "Production Order Qty"). Bal-to-PO is no longer read from the sheet's
+  // own column â€" it's now derived as Net MC Qty â€" Production Order Issued,
+  // per the planner's formula. % is Bal / Net MC * 100.
+  var poIssuedCol = findMcStatusCol_(
+    ["PRODUCTION ORDER ISSUED", "PRODUCTION_ORDER_ISSUED", "PRODUCTION ORDER QTY", "PRODUCTION_ORDER_QTY", "PROD ORDER QTY", "PROD_ORDER_QTY", "PO ISSUED", "PO_ISSUED", "PO QTY", "PO_QTY"],
+    ["PRODUCTION", "ORDER"]
+  );
   var map = new Map();
   rows.forEach(function(r){
     var bomId = String(r[bomCol] == null ? "" : r[bomCol]).trim();
     var itemCode = String(r[itemCodeCol] == null ? "" : r[itemCodeCol]).trim();
     var itemName = String(r[itemNameCol] == null ? "" : r[itemNameCol]).trim();
     var key = bomId + "||" + itemCode + "||" + itemName;
-    if (!map.has(key)) map.set(key, { bomId: bomId, itemCode: itemCode, itemName: itemName, qty: 0, prodDone: 0, balance: 0, lines: 0, rows: [] });
+    if (!map.has(key)) map.set(key, {
+      bomId: bomId, itemCode: itemCode, itemName: itemName,
+      qty: 0, prodDone: 0, balance: 0, lines: 0, rows: [],
+      poQty: 0, balToPo: 0, balPoPct: 0
+    });
     var g = map.get(key);
     var lineQty = num(r[qtyCol]);
     var lineDone = getMcStatusProdDone_(r, qtyCol);
@@ -3664,8 +3762,17 @@ function buildMcStatusGroups_(rows, bomCol, itemCodeCol, itemNameCol, qtyCol) {
     g.prodDone += lineDone;
     g.lines += 1;
     g.rows.push(r);
+    if (poIssuedCol) g.poQty += num(r[poIssuedCol]);
   });
-  map.forEach(function(g){ g.balance = Math.max(0, g.qty - g.prodDone); });
+  map.forEach(function(g){
+    g.balance = Math.max(0, g.qty - g.prodDone);
+    // Derived formula: Bal to PO Issued = Net MC Qty â€" Production Order Issued
+    // (clamped to 0 so over-issued POs don't show negative).
+    g.balToPo = Math.max(0, g.qty - g.poQty);
+    // % Bal vs Net MC: how much of the Net MC requirement is still pending
+    // against issued POs.
+    g.balPoPct = g.qty > 0 ? (g.balToPo / g.qty) * 100 : 0;
+  });
   return Array.from(map.values()).sort(function(a,b){ return b.qty - a.qty; });
 }
 
@@ -3901,6 +4008,13 @@ function clearMcStatusSearch() {
   if (qEl) qEl.value = "";
   var bmEl = document.getElementById("mcStatusBalanceMode");
   if (bmEl) bmEl.value = "pending";
+  // Reset the Balance-to-PO-Issue toggle too â€" Clear Search should leave
+  // the user with a clean default view.
+  MC_BAL_TO_PO_ISSUE_MODE = false;
+  var btn = document.getElementById("mcBalToPoIssueBtn");
+  if (btn) btn.classList.remove("active");
+  var minPctEl = document.getElementById("mcStatusMinBalPct");
+  if (minPctEl) minPctEl.value = "";
   renderMcStatusTable();
 }
 window.clearMcStatusSearch = clearMcStatusSearch;
