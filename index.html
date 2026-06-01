@@ -282,6 +282,17 @@
   .equipment-block-table tr.eqpt-row-overdue:hover td { background: #ffd1d1; }
   .equipment-block-table tr.eqpt-row-overdue td:first-child { box-shadow: inset 4px 0 0 #c92a2a; }
   .equipment-block-table td.overdue-danger-cell { background: #ffc9c9 !important; color: #8a2020; font-weight: 800; font-size: 13px; }
+  /* Machine stopped (no work today): subtle yellow tint + left-edge marker
+     so the row reads as a warning without competing with overdue red. */
+  .equipment-block-table tr.eqpt-row-stopped:not(.eqpt-row-overdue) td { background: #fff7d6; }
+  .equipment-block-table tr.eqpt-row-stopped:not(.eqpt-row-overdue):hover td { background: #ffeebd; }
+  .equipment-block-table tr.eqpt-row-stopped td:first-child { box-shadow: inset 4px 0 0 #d4a106; }
+  /* Sortable headers â€" cursor + hover + active highlight + arrow. */
+  .equipment-block-table th.sortable { cursor: pointer; user-select: none; position: relative; padding-right: 18px; }
+  .equipment-block-table th.sortable:hover { background: #e6edf8; color: #1f3b62; }
+  .equipment-block-table th.sortable.sort-active { background: #dfeaff; color: #1f3b62; }
+  .equipment-block-table th.sortable .sort-arrow { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); font-size: 10px; color: #4a7dd6; opacity: 0.45; }
+  .equipment-block-table th.sortable.sort-active .sort-arrow { opacity: 1; font-weight: 700; }
   /* Generic "selected row" indicator for click-toggle highlight. Applies to
      every <tbody> row across the dashboard. The blue left-rule + tinted bg
      persists until the user clicks the same row again (toggle off) or clicks
@@ -719,14 +730,14 @@
           <table class="equipment-block-table">
             <thead>
               <tr>
-                <th>EQPT</th>
-                <th style="text-align:right;">Balance Qty</th>
-                <th title="Earliest upcoming commit range (commit_start to commit_end) for this equipment â€" only lines with remaining SFG balance > 0 are considered">1st Schedule</th>
-                <th>Blocked Till</th>
-                <th style="text-align:right;">Days</th>
-                <th style="text-align:right;">Free Days</th>
-                <th style="text-align:right;">Overdue</th>
-                <th style="text-align:right;" title="Total manpower allocation cost for today (sum of rates of every member allocated to this equipment today)">Today&#39;s Alloc Cost</th>
+                <th class="sortable" data-sort-table="eqpt" data-sort-key="eqpt">EQPT<span class="sort-arrow"></span></th>
+                <th class="sortable" data-sort-table="eqpt" data-sort-key="balance" style="text-align:right;">Balance Qty<span class="sort-arrow"></span></th>
+                <th class="sortable" data-sort-table="eqpt" data-sort-key="firstSched" title="Earliest upcoming commit range (commit_start to commit_end) for this equipment â€" only lines with remaining SFG balance &gt; 0 are considered. Yellow MACHINE STOPPED badge means the first booking starts AFTER today (no work today).">1st Schedule<span class="sort-arrow"></span></th>
+                <th class="sortable" data-sort-table="eqpt" data-sort-key="blockedTill">Blocked Till<span class="sort-arrow"></span></th>
+                <th class="sortable" data-sort-table="eqpt" data-sort-key="days" style="text-align:right;">Days<span class="sort-arrow"></span></th>
+                <th class="sortable" data-sort-table="eqpt" data-sort-key="freeDays" style="text-align:right;">Free Days<span class="sort-arrow"></span></th>
+                <th class="sortable" data-sort-table="eqpt" data-sort-key="overdue" style="text-align:right;">Overdue<span class="sort-arrow"></span></th>
+                <th class="sortable" data-sort-table="eqpt" data-sort-key="todayCost" style="text-align:right;" title="Total manpower allocation cost for today (sum of rates of every member allocated to this equipment today)">Today&#39;s Alloc Cost<span class="sort-arrow"></span></th>
               </tr>
             </thead>
             <tbody id="equipmentBlockBody">
@@ -742,9 +753,9 @@
           <table class="equipment-block-table hod-balance-table">
             <thead>
               <tr>
-                <th>HOD</th>
-                <th style="text-align:right;">Open Lines</th>
-                <th style="text-align:right;">Balance Qty</th>
+                <th class="sortable" data-sort-table="hod" data-sort-key="hod">HOD<span class="sort-arrow"></span></th>
+                <th class="sortable" data-sort-table="hod" data-sort-key="lines" style="text-align:right;">Open Lines<span class="sort-arrow"></span></th>
+                <th class="sortable" data-sort-table="hod" data-sort-key="balance" style="text-align:right;">Balance Qty<span class="sort-arrow"></span></th>
               </tr>
             </thead>
             <tbody id="hodBalanceBody">
@@ -759,11 +770,11 @@
           <table class="equipment-block-table">
             <thead>
               <tr>
-                <th>Party</th>
-                <th style="text-align:right;">Open Lines</th>
-                <th style="text-align:right;">Balance Qty</th>
-                <th>Max End Date</th>
-                <th style="text-align:right;">Overdue</th>
+                <th class="sortable" data-sort-table="party" data-sort-key="party">Party<span class="sort-arrow"></span></th>
+                <th class="sortable" data-sort-table="party" data-sort-key="lines" style="text-align:right;">Open Lines<span class="sort-arrow"></span></th>
+                <th class="sortable" data-sort-table="party" data-sort-key="balance" style="text-align:right;">Balance Qty<span class="sort-arrow"></span></th>
+                <th class="sortable" data-sort-table="party" data-sort-key="maxDate">Max End Date<span class="sort-arrow"></span></th>
+                <th class="sortable" data-sort-table="party" data-sort-key="overdue" style="text-align:right;">Overdue<span class="sort-arrow"></span></th>
               </tr>
             </thead>
             <tbody id="partyBalanceBody">
@@ -5239,10 +5250,86 @@ function countFreeDaysForEqpt_(ranges, todayIso, maxIso) {
   return Math.max(totalSpan - booked, 0);
 }
 
+// ---------- Sortable header state ----------
+// Each side table (Equipment / HOD / Party) keeps a single active sort key.
+// When `key` is null we fall back to that table's hand-tuned multi-criteria
+// default sort (e.g. overdue-first for Equipment). Once the user clicks any
+// header we switch to a single-key sort with explicit direction.
+var EQPT_SORT  = { key: null, asc: false };
+var HOD_SORT   = { key: null, asc: false };
+var PARTY_SORT = { key: null, asc: false };
+
+// Cycle a sort state in response to a header click. Same key â†’ flip direction;
+// different key â†’ default to descending for numeric/date columns, ascending
+// for text columns. The numericKeys whitelist controls that default.
+function _toggleSort_(state, key, numericKeys) {
+  if (state.key === key) {
+    state.asc = !state.asc;
+  } else {
+    state.key = key;
+    state.asc = numericKeys.indexOf(key) === -1; // text â†’ asc, num/date â†’ desc
+  }
+}
+
+// Reflect the active sort on every <th> in a table: a small triangle (â–²/â–¼)
+// next to the active column, faint default arrow elsewhere.
+function _renderSortArrows_(thead, state) {
+  if (!thead) return;
+  thead.querySelectorAll("th.sortable").forEach(function(th){
+    var k = th.getAttribute("data-sort-key");
+    var arrow = th.querySelector(".sort-arrow");
+    if (!arrow) return;
+    if (state.key === k) {
+      arrow.textContent = state.asc ? "▲" : "▼";
+      th.classList.add("sort-active");
+    } else {
+      arrow.textContent = "↕";
+      th.classList.remove("sort-active");
+    }
+  });
+}
+
+// Wire click-to-sort on every sortable header in a table. Idempotent â€" safe
+// to call on every render; we just (re)bind the handlers each time.
+function _bindSortableHeaders_(tableSel, state, numericKeys, rerender) {
+  var thead = document.querySelector(tableSel + " thead");
+  if (!thead) return;
+  thead.querySelectorAll("th.sortable").forEach(function(th){
+    th.onclick = function(){
+      var key = th.getAttribute("data-sort-key");
+      if (!key) return;
+      _toggleSort_(state, key, numericKeys);
+      rerender();
+    };
+  });
+  _renderSortArrows_(thead, state);
+}
+// Lexicographic comparator used for date strings + general text.
+function _cmpAny_(a, b) {
+  if (a == null && b == null) return 0;
+  if (a == null) return 1;   // blanks always sink
+  if (b == null) return -1;
+  if (typeof a === "number" && typeof b === "number") return a - b;
+  var as = String(a), bs = String(b);
+  return as < bs ? -1 : as > bs ? 1 : 0;
+}
 function renderEquipmentBlockTable(filteredRows, filterCtx) {
   var body = document.getElementById("equipmentBlockBody");
   var foot = document.getElementById("equipmentBlockFoot");
   if (!body) return;
+  // Wire sortable headers (idempotent) + paint arrows for the active sort.
+  var eqptThead = body && body.parentElement ? body.parentElement.querySelector("thead") : null;
+  if (eqptThead) {
+    eqptThead.querySelectorAll("th.sortable").forEach(function(th){
+      th.onclick = function(){
+        var key = th.getAttribute("data-sort-key");
+        if (!key) return;
+        _toggleSort_(EQPT_SORT, key, ["balance","firstSched","blockedTill","days","freeDays","overdue","todayCost"]);
+        renderEquipmentBlockTable(filteredRows, filterCtx);
+      };
+    });
+    _renderSortArrows_(eqptThead, EQPT_SORT);
+  }
   var map = new Map();
   var todayISO = (typeof todayISOString_ === "function") ? todayISOString_() : "";
   var useFiltered = Array.isArray(filteredRows);
@@ -5287,14 +5374,51 @@ function renderEquipmentBlockTable(filteredRows, filterCtx) {
       if (d && todayISO && d < todayISO) g.overdue += 1;
     });
   }
-  // Default sort: most overdue lines first.
-  var rows = Array.from(map.values()).sort(function(a,b){
-    if (a.overdue !== b.overdue) return b.overdue - a.overdue;
-    if (a.maxDate && b.maxDate && a.maxDate !== b.maxDate) return b.maxDate.localeCompare(a.maxDate);
-    if (a.maxDate && !b.maxDate) return -1;
-    if (!a.maxDate && b.maxDate) return 1;
-    return b.balance - a.balance;
+  // Pre-compute derived fields used by sortable headers so every comparison
+  // is O(1). 1st-schedule start is the earliest balance-bearing booking; we
+  // cache it on the row so both the cell and the column sort use the same.
+  Array.from(map.values()).forEach(function(r){
+    var wb = (r.bookedRanges || []).filter(function(b){ return num(b.balance) > 0.0005; });
+    if (wb.length) {
+      wb.sort(function(a, b){ return a.start < b.start ? -1 : a.start > b.start ? 1 : 0; });
+      r._firstStart = wb[0].start;
+    } else {
+      r._firstStart = "";
+    }
+    r._days = daysUntilISO(r.maxDate); // null â†’ blank
+    r._freeDays = r.maxDate ? countFreeDaysForEqpt_(r.bookedRanges, todayISO, r.maxDate) : 0;
+    var todayCostFn0 = (typeof _manpowerCostForEqptOnDate_ === "function") ? _manpowerCostForEqptOnDate_ : null;
+    r._todayCost = todayCostFn0 ? todayCostFn0(r.eqpt, todayISO) : 0;
   });
+  var rows = Array.from(map.values());
+  if (EQPT_SORT.key) {
+    var dir = EQPT_SORT.asc ? 1 : -1;
+    rows.sort(function(a, b){
+      var av, bv;
+      switch (EQPT_SORT.key) {
+        case "eqpt":         av = String(a.eqpt || "").toLowerCase(); bv = String(b.eqpt || "").toLowerCase(); break;
+        case "balance":      av = a.balance;       bv = b.balance;       break;
+        case "firstSched":   av = a._firstStart || ""; bv = b._firstStart || ""; break;
+        case "blockedTill":  av = a.maxDate || "";    bv = b.maxDate || "";    break;
+        case "days":         av = a._days == null ? Number.POSITIVE_INFINITY : a._days; bv = b._days == null ? Number.POSITIVE_INFINITY : b._days; break;
+        case "freeDays":     av = a._freeDays;     bv = b._freeDays;     break;
+        case "overdue":      av = a.overdue;       bv = b.overdue;       break;
+        case "todayCost":    av = a._todayCost;    bv = b._todayCost;    break;
+        default:             av = a.balance;       bv = b.balance;
+      }
+      var c = _cmpAny_(av, bv);
+      return c * dir;
+    });
+  } else {
+    // Hand-tuned default: overdue first, then latest blocked-till, then balance.
+    rows.sort(function(a,b){
+      if (a.overdue !== b.overdue) return b.overdue - a.overdue;
+      if (a.maxDate && b.maxDate && a.maxDate !== b.maxDate) return b.maxDate.localeCompare(a.maxDate);
+      if (a.maxDate && !b.maxDate) return -1;
+      if (!a.maxDate && b.maxDate) return 1;
+      return b.balance - a.balance;
+    });
+  }
   if (!rows.length) {
     body.innerHTML = '<tr><td colspan="8" class="empty">Assign EQPT in drill-down to see blocking status.</td></tr>';
     if (foot) foot.innerHTML = "";
@@ -5340,7 +5464,11 @@ function renderEquipmentBlockTable(filteredRows, filterCtx) {
     // equipment, picked from bookings that still have SFG balance > 0.
     // If multiple lines share the same start date, the one that ends first
     // wins so the column reflects the tightest upcoming slot.
+    // Additionally, when the earliest range starts AFTER today we flag the
+    // machine as STOPPED â€" it has work coming but nothing scheduled today,
+    // so the user can spot idle equipment from one glance at the table.
     var firstSchedHtml;
+    var machineStopped = false;
     var withBalance = (r.bookedRanges || []).filter(function(b){ return num(b.balance) > 0.0005; });
     if (withBalance.length) {
       withBalance.sort(function(a, b){
@@ -5348,12 +5476,20 @@ function renderEquipmentBlockTable(filteredRows, filterCtx) {
         return a.end < b.end ? -1 : a.end > b.end ? 1 : 0;
       });
       var fs = withBalance[0];
-      firstSchedHtml = '<td style="white-space:nowrap;font-size:11px;color:#333;" title="Earliest upcoming booking with remaining balance">' +
-        esc(fmtDateDMY(fs.start)) + ' &rarr; ' + esc(fmtDateDMY(fs.end)) + '</td>';
+      machineStopped = !!(todayISO && fs.start && fs.start > todayISO);
+      var stoppedBadge = machineStopped
+        ? ' <span style="background:#ffe066;color:#664400;padding:2px 6px;border-radius:3px;font-size:10px;font-weight:800;letter-spacing:0.3px;white-space:nowrap;" title="Machine has no work today â€" first booking starts ' + esc(fmtDateDMY(fs.start)) + '">MACHINE STOPPED</span>'
+        : '';
+      var cellBg = machineStopped ? 'background:#fff7d6;' : '';
+      firstSchedHtml = '<td style="white-space:nowrap;font-size:11px;color:#333;' + cellBg + '" title="Earliest upcoming booking with remaining balance">' +
+        esc(fmtDateDMY(fs.start)) + ' &rarr; ' + esc(fmtDateDMY(fs.end)) + stoppedBadge + '</td>';
     } else {
       firstSchedHtml = '<td style="color:#bbb;">&mdash;</td>';
     }
-    return '<tr class="' + rowCls + '" data-eqpt="' + esc(r.eqpt) + '" title="Click name to filter pivot by EQPT = ' + esc(r.eqpt) + (r.overdue > 0 ? ' â€” ' + r.overdue + ' overdue line(s)' : '') + '">' +
+    // Row class gains an "eqpt-row-stopped" hint so any future styling can
+    // tint the whole row; for now we set a subtle yellow first-cell border.
+    var stoppedRowCls = machineStopped ? ' eqpt-row-stopped' : '';
+    return '<tr class="' + rowCls + stoppedRowCls + '" data-eqpt="' + esc(r.eqpt) + '" title="Click name to filter pivot by EQPT = ' + esc(r.eqpt) + (machineStopped ? ' â€” NO WORK SCHEDULED FOR TODAY' : '') + (r.overdue > 0 ? ' â€” ' + r.overdue + ' overdue line(s)' : '') + '">' +
       '<td><strong>' + esc(r.eqpt) + '</strong>' + btnHtml + '</td>' +
       '<td class="num">' + fmt(r.balance, 3) + '</td>' +
       firstSchedHtml +
@@ -5486,6 +5622,18 @@ function makeChart(id, type, labels, data, opts) {
 function renderHodBalanceTable(filteredRows, filterCtx) {
   var body = document.getElementById("hodBalanceBody");
   if (!body) return;
+  var hodThead = body && body.parentElement ? body.parentElement.querySelector("thead") : null;
+  if (hodThead) {
+    hodThead.querySelectorAll("th.sortable").forEach(function(th){
+      th.onclick = function(){
+        var key = th.getAttribute("data-sort-key");
+        if (!key) return;
+        _toggleSort_(HOD_SORT, key, ["lines","balance"]);
+        renderHodBalanceTable(filteredRows, filterCtx);
+      };
+    });
+    _renderSortArrows_(hodThead, HOD_SORT);
+  }
   var map = new Map();
   var useFiltered = Array.isArray(filteredRows);
   var src = [];
@@ -5512,13 +5660,23 @@ function renderHodBalanceTable(filteredRows, filterCtx) {
       g.balance += balance;
     });
   }
-  // Sort by balance descending; push "(Not Assigned)" to the bottom regardless
-  // of magnitude so the named HODs lead the table.
+  // (Not Assigned) always sinks to the bottom regardless of which column the
+  // user sorts by â€" it's a pseudo-row, not a real HOD.
   var rows = Array.from(map.values()).sort(function(a, b){
     var aBlank = a.hod === "(Not Assigned)";
     var bBlank = b.hod === "(Not Assigned)";
-    if (aBlank && !bBlank) return 1;
-    if (!aBlank && bBlank) return -1;
+    if (aBlank !== bBlank) return aBlank ? 1 : -1;
+    if (HOD_SORT.key) {
+      var dir = HOD_SORT.asc ? 1 : -1;
+      var av, bv;
+      switch (HOD_SORT.key) {
+        case "hod":     av = String(a.hod || "").toLowerCase(); bv = String(b.hod || "").toLowerCase(); break;
+        case "lines":   av = a.lines;   bv = b.lines;   break;
+        case "balance": av = a.balance; bv = b.balance; break;
+        default:        av = a.balance; bv = b.balance;
+      }
+      return _cmpAny_(av, bv) * dir;
+    }
     return b.balance - a.balance;
   });
   if (!rows.length) {
@@ -5568,6 +5726,19 @@ function renderHodBalanceTable(filteredRows, filterCtx) {
 function renderPartyBalanceTable(filteredRows, filterCtx) {
   var body = document.getElementById("partyBalanceBody");
   if (!body) return;
+  // Party table doesn't have a unique class â€" derive the thead from the body's parent table.
+  var partyThead = body && body.parentElement ? body.parentElement.querySelector("thead") : null;
+  if (partyThead) {
+    partyThead.querySelectorAll("th.sortable").forEach(function(th){
+      th.onclick = function(){
+        var key = th.getAttribute("data-sort-key");
+        if (!key) return;
+        _toggleSort_(PARTY_SORT, key, ["lines","balance","maxDate","overdue"]);
+        renderPartyBalanceTable(filteredRows, filterCtx);
+      };
+    });
+    _renderSortArrows_(partyThead, PARTY_SORT);
+  }
   var map = new Map();
   var todayISO = (typeof todayISOString_ === "function") ? todayISOString_() : "";
   var useFiltered = Array.isArray(filteredRows);
@@ -5598,9 +5769,26 @@ function renderPartyBalanceTable(filteredRows, filterCtx) {
       if (cend && todayISO && cend < todayISO) g.overdue += 1;
     });
   }
-  // Sort: overdue parties first (more overdue = higher), then by max end date
-  // desc (soonest deadline at top within same overdue count), then by balance.
+  // (No Party) pseudo-row always sinks to the bottom. Real parties then sort
+  // by the user-picked column, or by the multi-criteria default if no header
+  // has been clicked yet.
   var rows = Array.from(map.values()).sort(function(a, b){
+    var aBlank = a.party === "(No Party)";
+    var bBlank = b.party === "(No Party)";
+    if (aBlank !== bBlank) return aBlank ? 1 : -1;
+    if (PARTY_SORT.key) {
+      var dir = PARTY_SORT.asc ? 1 : -1;
+      var av, bv;
+      switch (PARTY_SORT.key) {
+        case "party":   av = String(a.party || "").toLowerCase(); bv = String(b.party || "").toLowerCase(); break;
+        case "lines":   av = a.lines;   bv = b.lines;   break;
+        case "balance": av = a.balance; bv = b.balance; break;
+        case "maxDate": av = a.maxDate || ""; bv = b.maxDate || ""; break;
+        case "overdue": av = a.overdue; bv = b.overdue; break;
+        default:        av = a.balance; bv = b.balance;
+      }
+      return _cmpAny_(av, bv) * dir;
+    }
     if (a.overdue !== b.overdue) return b.overdue - a.overdue;
     if (a.maxDate && b.maxDate && a.maxDate !== b.maxDate) return b.maxDate.localeCompare(a.maxDate);
     if (a.maxDate && !b.maxDate) return -1;
