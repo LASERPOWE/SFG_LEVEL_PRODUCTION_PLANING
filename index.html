@@ -287,6 +287,73 @@
   .equipment-block-table tr.eqpt-row-stopped:not(.eqpt-row-overdue) td { background: #fff7d6; }
   .equipment-block-table tr.eqpt-row-stopped:not(.eqpt-row-overdue):hover td { background: #ffeebd; }
   .equipment-block-table tr.eqpt-row-stopped td:first-child { box-shadow: inset 4px 0 0 #d4a106; }
+  /* Print to PDF button â€" emerald palette so it stands apart from Refresh / Export. */
+  .print-pdf-btn { background: #0f9d58; color: #fff; border: 1px solid #0a7d46; border-radius: 4px; padding: 4px 10px; font-size: 11px; cursor: pointer; font-weight: 600; }
+  .print-pdf-btn:hover { background: #0a7d46; }
+  /* Print-only header is hidden on screen and shown only by the @media print block. */
+  #printHeader { display: none; }
+  /* ===========================================================
+     PRINT MEDIA â€" applies ONLY when the user invokes Print.
+     Hides interactive chrome, prints the active dashboard view
+     with whatever filters are currently applied. */
+  @media print {
+    @page { size: A4 landscape; margin: 10mm; }
+    body { background: #fff !important; font-size: 10px; color: #000; }
+    .topbar, .page-tabs, .refresh-btn, .refresh-btn-hard, .clear-filter-btn,
+    .clear-btn, .user-pending-btn, .admin-pending-btn, .reschedule-btn,
+    .modal-backdrop, .filter-toast, #drillModal, #eqptScheduleModal,
+    #manpowerModal, #allocDetailModal, #pordItemsModal, #userPanelModal,
+    #loginModal, #filterEditorModal, .filters, #rowCount,
+    #teamMasterContent, #mcStatusContent,
+    button:not(.print-pdf-btn) {
+      display: none !important;
+    }
+    #printHeader {
+      display: block !important;
+      margin-bottom: 10px;
+      padding: 6px 0;
+      border-bottom: 2px solid #333;
+    }
+    #printHeader h1 { font-size: 14px; margin: 0 0 4px 0; }
+    #printHeader .meta { font-size: 9px; color: #333; line-height: 1.5; }
+    #printHeader .meta strong { color: #000; }
+    .card { box-shadow: none !important; border: 1px solid #ccc; page-break-inside: avoid; margin-bottom: 8px; padding: 6px !important; }
+    .card h3 { font-size: 11px !important; margin-bottom: 4px !important; }
+    .row.dashboard-status-row { grid-template-columns: 1fr 1fr 1fr !important; gap: 6px !important; }
+    .equipment-block-wrap, .pord-balance-wrap { max-height: none !important; overflow: visible !important; }
+    .equipment-block-table th, .equipment-block-table td,
+    .pord-balance-table th, .pord-balance-table td {
+      padding: 3px 4px !important; font-size: 9px !important;
+    }
+    .pivot-side-wrap { display: block !important; }
+    .pord-balance-card { position: static !important; max-height: none !important; }
+    #pivot { font-size: 9px; }
+    #pivot th, #pivot td { padding: 2px 4px !important; }
+    table { page-break-inside: auto; }
+    tr { page-break-inside: avoid; page-break-after: auto; }
+    thead { display: table-header-group; }
+    tfoot { display: table-footer-group; }
+    .kpi-card { box-shadow: none !important; border: 1px solid #ccc !important; }
+    a, a:visited { color: #000; text-decoration: none; }
+    tr.highlight-row { background: transparent !important; }
+  }
+  /* Pivot + PORD-balance side-by-side wrapper. Pivot stays the wide
+     primary table; the PORD card sticks at 280px on the right. On narrow
+     viewports (<1100px) the PORD card wraps below to keep the pivot
+     fully usable. */
+  .pivot-side-wrap { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 14px; align-items: start; }
+  @media (max-width: 1100px) {
+    .pivot-side-wrap { grid-template-columns: 1fr; }
+  }
+  .pord-balance-card { position: sticky; top: 10px; max-height: calc(100vh - 30px); display: flex; flex-direction: column; }
+  .pord-balance-wrap { overflow-y: auto; flex: 1; border: 1px solid #e6e8eb; border-radius: 6px; }
+  .pord-balance-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  .pord-balance-table th { background: #f3f4f6; padding: 6px 8px; border-bottom: 1px solid #d6d8db; text-align: left; font-weight: 600; white-space: nowrap; position: sticky; top: 0; z-index: 1; }
+  .pord-balance-table td { padding: 5px 8px; border-bottom: 1px solid #eef0f2; vertical-align: top; }
+  .pord-balance-table tr:last-child td { border-bottom: none; }
+  .pord-balance-table tr.pord-row { cursor: pointer; }
+  .pord-balance-table tr.pord-row:hover { background: #f1f6ff; }
+  .pord-balance-table tr.pord-row-active td { background: #dfeaff; font-weight: 700; }
   /* Sortable headers â€" cursor + hover + active highlight + arrow. */
   .equipment-block-table th.sortable { cursor: pointer; user-select: none; position: relative; padding-right: 18px; }
   .equipment-block-table th.sortable:hover { background: #e6edf8; color: #1f3b62; }
@@ -721,6 +788,10 @@
   <div id="loading" class="loading">Fetching live data from Google Sheets...</div>
 
   <div id="content" style="display:none">
+    <div id="printHeader">
+      <h1>SFG Production Planning Dashboard</h1>
+      <div class="meta" id="printHeaderMeta"></div>
+    </div>
     <div class="kpis" id="kpis"></div>
 
     <div class="row dashboard-status-row">
@@ -785,6 +856,7 @@
       </div>
     </div>
 
+    <div class="pivot-side-wrap">
     <div class="card">
       <h3>SFG BOM Requirements (Pivot) <span class="hint">- click any row to drill down; Production Done = sum of per-line entries in drill-down; Balance = SFG Net Qty &minus; Production Done</span></h3>
       <div class="filters">
@@ -832,6 +904,7 @@
         <label class="check"><input type="checkbox" id="fltBalanceNonzero" checked /> Balance non-zero only</label>
         <button class="clear-filter-btn" type="button" onclick="clearFilters()">Clear Filters</button>
         <button class="clear-btn" type="button" onclick="exportFilteredData()">Export Data</button>
+        <button class="print-pdf-btn" type="button" onclick="printDashboardPdf_()" title="Print the dashboard to PDF with the filters currently applied. Pick &quot;Save as PDF&quot; in the print dialog.">Print PDF</button>
         <button class="user-pending-btn" id="userPendingBtn" type="button" onclick="toggleUserPendingMode()" title="Show lines where HOD assigned + APPROVED but EQPT / Commit Start / Commit End is missing">User's Job Pending</button>
         <button class="admin-pending-btn" id="adminPendingBtn" type="button" onclick="toggleAdminPendingMode()" title="Show lines where HOD is not assigned and APPROVE_STATUS is APPROVED">Admin's Job Pending</button>
 
@@ -844,6 +917,24 @@
           <tfoot id="pivot-foot"></tfoot>
         </table>
       </div>
+    </div>
+    <div class="card pord-balance-card">
+      <h3 style="font-size:14px;margin-bottom:8px;">PORD-wise SFG Balance</h3>
+      <div class="pord-balance-wrap">
+        <table class="pord-balance-table">
+          <thead>
+            <tr>
+              <th class="sortable" data-sort-table="pordbal" data-sort-key="pord">PORD No<span class="sort-arrow"></span></th>
+              <th class="sortable" data-sort-table="pordbal" data-sort-key="balance" style="text-align:right;">SFG Balance<span class="sort-arrow"></span></th>
+            </tr>
+          </thead>
+          <tbody id="pordBalanceBody">
+            <tr><td colspan="2" class="empty">Loading...</td></tr>
+          </tbody>
+          <tfoot id="pordBalanceFoot"></tfoot>
+        </table>
+      </div>
+    </div>
     </div>
   </div>
 
@@ -1594,20 +1685,53 @@ function _manpowerDaysForBooking_(bookingKey, equipment) {
            String(a.booking_line_key || "").trim() === String(bookingKey).trim();
   }).length;
 }
+// Look up the booking line for a given booking_line_key. Returns null when
+// the line is unknown (e.g. it has been removed from the ERP feed since the
+// allocation was saved). Cached on every call â€" the lines array is small
+// enough that rebuilding the map a few times per render is cheap and avoids
+// stale entries when lines are added or removed.
+function _manpowerLineByBookingKey_() {
+  var src = (typeof LINES_ALL !== "undefined" && LINES_ALL && LINES_ALL.length)
+      ? LINES_ALL
+      : (Array.isArray(LINES) ? LINES : []);
+  var byKey = new Map();
+  src.forEach(function(l){ if (l) byKey.set(lineKey(l), l); });
+  return byKey;
+}
+// True when the allocation should NOT contribute to today's cost â€" its
+// booking line is either Done-ticked or fully produced (net minus
+// prod_done <= 0). Keeps the Equipment Blocking Status "Today's Alloc Cost"
+// column aligned with the rest of the dashboard: once nothing is left to
+// produce on a line, its manpower bill is treated as closed.
+function _manpowerAllocLineExhausted_(a, linesByKey) {
+  var bk = String((a && a.booking_line_key) || "").trim();
+  if (!bk) return false; // legacy allocations with no key â€" keep counting
+  var l = linesByKey.get(bk);
+  if (!l) return false;  // line vanished â€" keep counting (don't silently drop)
+  if (typeof isLineDone === "function" && isLineDone(l)) return true;
+  var net = num(l.SFG_NET_ORD_QTY);
+  if (net <= 0) return false;
+  var pd = (typeof getLineProdDone === "function") ? getLineProdDone(l) : 0;
+  return Math.max(0, net - pd) <= 0.0005;
+}
 // Sum the day-rate of every member allocated to (equipment) on a SPECIFIC date.
 // Used by the Equipment Blocking Status table to show today's allocation cost
 // per equipment. Returns 0 when no allocations recorded for that date.
+// Allocations whose booking line has 0 balance left (Done or fully produced)
+// are excluded so the column does not bill machines for completed work.
 function _manpowerCostForEqptOnDate_(equipment, dateISO) {
   if (!equipment || !dateISO) return 0;
   var allocs = (MANPOWER_ALLOC_CACHE && Array.isArray(MANPOWER_ALLOC_CACHE.all)) ? MANPOWER_ALLOC_CACHE.all : [];
   if (!allocs.length) return 0;
   var rateMap = _manpowerMembersByCode_();
+  var linesByKey = _manpowerLineByBookingKey_();
   var eqptTrim = String(equipment).trim();
   var dateTrim = String(dateISO).trim();
   var total = 0;
   allocs.forEach(function(a){
     if (String(a.equipment || "").trim() !== eqptTrim) return;
     if (String(a.date || "").trim() !== dateTrim) return;
+    if (_manpowerAllocLineExhausted_(a, linesByKey)) return;
     // Prefer the rate stamped on the allocation row; fall back to current
     // Team Master rate for legacy rows that never stored it.
     var savedRate = num(a.rate);
@@ -1618,16 +1742,21 @@ function _manpowerCostForEqptOnDate_(equipment, dateISO) {
   });
   return total;
 }
-// How many members allocated to (equipment) on a specific date â€" tooltip helper.
+// How many members allocated to (equipment) on a specific date â€" tooltip
+// helper. Applies the same zero-balance exclusion so the count + cost stay
+// in sync.
 function _manpowerMembersForEqptOnDate_(equipment, dateISO) {
   if (!equipment || !dateISO) return 0;
   var allocs = (MANPOWER_ALLOC_CACHE && Array.isArray(MANPOWER_ALLOC_CACHE.all)) ? MANPOWER_ALLOC_CACHE.all : [];
   if (!allocs.length) return 0;
+  var linesByKey = _manpowerLineByBookingKey_();
   var eqptTrim = String(equipment).trim();
   var dateTrim = String(dateISO).trim();
   return allocs.filter(function(a){
-    return String(a.equipment || "").trim() === eqptTrim &&
-           String(a.date || "").trim() === dateTrim;
+    if (String(a.equipment || "").trim() !== eqptTrim) return false;
+    if (String(a.date || "").trim() !== dateTrim) return false;
+    if (_manpowerAllocLineExhausted_(a, linesByKey)) return false;
+    return true;
   }).length;
 }
 // ---- Allocation detail popup ----
@@ -2416,6 +2545,12 @@ function renderEqptScheduleBody_() {
     // at a glance without opening the drill-down.
     var partyName = line.ACC_NAME || "-";
     var fgItem = line.FG_ITEM_NAME || "-";
+    // SFG Level rollup: show L3 / L4 in a single column so the planner can
+    // identify the product family without opening drill-down. Falls back
+    // gracefully when one or both levels are blank.
+    var sfgL3 = String(line.SFG_LEVEL_3_NAME || "").trim();
+    var sfgL4 = String(line.SFG_LEVEL_4_NAME || "").trim();
+    var sfgLevelTxt = (sfgL3 && sfgL4) ? (sfgL3 + " / " + sfgL4) : (sfgL3 || sfgL4 || "-");
     // Balance qty (FG_BALANCE_HOD = SFG_REQUIRED_AG_BAL TO PRD FG) and HOD name
     // for this booking so the planner can see what's pending and who owns it.
     var balQty = num(line["SFG_REQUIRED_AG_BAL TO PRD FG"]);
@@ -2475,6 +2610,7 @@ function renderEqptScheduleBody_() {
       '<td>' + esc(partyName) + '</td>' +
       '<td>' + esc(fgItem) + '</td>' +
       '<td title="' + esc(sfgItem) + '">' + esc(sfgItem || "â€”") + '</td>' +
+      '<td title="' + esc(sfgLevelTxt) + '">' + esc(sfgLevelTxt) + '</td>' +
       '<td class="num">' + esc(balTxt) + '</td>' +
       '<td>' + esc(hodName) + '</td>' +
       '<td class="num">' + p.currentDurationDays + ' day' + (p.currentDurationDays === 1 ? '' : 's') + '</td>' +
@@ -2547,6 +2683,7 @@ function renderEqptScheduleBody_() {
         '<th>Party</th>' +
         '<th>FG Item</th>' +
         '<th>SFG Item</th>' +
+        '<th>SFG Level</th>' +
         '<th style="text-align:right;">Balance Qty</th>' +
         '<th>HOD</th>' +
         '<th style="text-align:right;">Duration</th>' +
@@ -2607,7 +2744,7 @@ function renderEqptScheduleBody_() {
       var label = isStart ? "Commit Start" : "Commit End";
       var oldVal = isStart ? item.origStart : item.origEnd;
       var newVal = inp.value || "";
-      if (!canInputChange_(oldVal || "", newVal || "", label, colKey)) {
+      if (!canInputChange_(oldVal || "", newVal || "", label, colKey, item.lk)) {
         inp.value = oldVal || "";
         return;
       }
@@ -2956,6 +3093,57 @@ function csvEscape_(v) {
   if (/[",\r\n]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
   return s;
 }
+// Print the current SFG Dashboard view to PDF.
+// Pulls active filter values from the live form, drops them into the
+// print-only header, then triggers the browser print dialog. The user
+// picks "Save as PDF" as the destination. CSS @media print hides every
+// interactive control so the result is a clean snapshot of what is on
+// screen right now.
+function printDashboardPdf_() {
+  var meta = document.getElementById("printHeaderMeta");
+  if (meta) {
+    var bits = [];
+    var now = new Date();
+    var dateStr = String(now.getDate()).padStart(2, "0") + "-" +
+                  String(now.getMonth() + 1).padStart(2, "0") + "-" +
+                  now.getFullYear() + " " +
+                  String(now.getHours()).padStart(2, "0") + ":" +
+                  String(now.getMinutes()).padStart(2, "0");
+    bits.push("<strong>Generated:</strong> " + dateStr);
+    try {
+      var sess = typeof loadSession === "function" ? loadSession() : null;
+      if (sess && sess.username) bits.push("<strong>By:</strong> " + esc(sess.username));
+    } catch(_) {}
+    function v(id) { var el = document.getElementById(id); return el ? String(el.value || "").trim() : ""; }
+    function c(id) { var el = document.getElementById(id); return !!(el && el.checked); }
+    var filterBits = [];
+    var fmap = [
+      ["fltUm", "Unit"], ["fltL3", "L3"], ["fltL4", "L4"],
+      ["fltEqpt", "EQPT"], ["fltHod", "HOD"], ["fltParty", "Party"],
+      ["fltApprove", "Approve"], ["fltCStart", "Commit Start"], ["fltCEnd", "Commit End"],
+      ["fltRangeStart", "Date From"], ["fltRangeEnd", "Date To"],
+      ["fltSearch", "Search"]
+    ];
+    fmap.forEach(function(pair){
+      var val = v(pair[0]);
+      if (val) filterBits.push("<strong>" + pair[1] + ":</strong> " + esc(val));
+    });
+    if (c("fltNonzero")) filterBits.push("Non-zero only");
+    if (c("fltBalanceNonzero")) filterBits.push("Balance non-zero only");
+    if (typeof USER_PENDING_MODE !== "undefined" && USER_PENDING_MODE) filterBits.push("User Job Pending");
+    if (typeof ADMIN_PENDING_MODE !== "undefined" && ADMIN_PENDING_MODE) filterBits.push("Admin Job Pending");
+    if (filterBits.length) {
+      bits.push("<strong>Filters:</strong> " + filterBits.join(" &middot; "));
+    } else {
+      bits.push("<em>No filters applied (showing all data)</em>");
+    }
+    var rcEl = document.getElementById("rowCount");
+    if (rcEl && rcEl.textContent.trim()) bits.push(rcEl.textContent.trim());
+    meta.innerHTML = bits.join("<br/>");
+  }
+  setTimeout(function(){ window.print(); }, 50);
+}
+window.printDashboardPdf_ = printDashboardPdf_;
 function exportFilteredData() {
   var rows = LAST_FILTERED_BOMS || [];
   var ctx = LAST_FILTER_CONTEXT || {};
@@ -5715,6 +5903,110 @@ function renderHodBalanceTable(filteredRows, filterCtx) {
   });
 }
 
+// PORD-wise SFG Balance side card â€" sticky to the right of the main pivot.
+// Aggregates per-line SFG balance (SFG_NET_ORD_QTY - getLineProdDone) by
+// PORD_NO across every BOM that survived the active pivot filters. Lines
+// with zero remaining balance or Done-tick are skipped so the card always
+// shows ACTIONABLE orders.
+var PORDBAL_SORT = { key: null, asc: false };
+var PORDBAL_ACTIVE = "";
+function renderPordBalanceTable(filteredRows, filterCtx) {
+  var body = document.getElementById("pordBalanceBody");
+  var foot = document.getElementById("pordBalanceFoot");
+  if (!body) return;
+  // Wire sortable headers â€" delegate via tbody parent.
+  var thead = body && body.parentElement ? body.parentElement.querySelector("thead") : null;
+  if (thead) {
+    thead.querySelectorAll("th.sortable").forEach(function(th){
+      th.onclick = function(){
+        var key = th.getAttribute("data-sort-key");
+        if (!key) return;
+        _toggleSort_(PORDBAL_SORT, key, ["balance"]);
+        renderPordBalanceTable(filteredRows, filterCtx);
+      };
+    });
+    _renderSortArrows_(thead, PORDBAL_SORT);
+  }
+  var map = new Map();
+  var useFiltered = Array.isArray(filteredRows);
+  var src = [];
+  if (useFiltered) {
+    filteredRows.forEach(function(r){
+      (LINES_BY_BOM.get(prodKey(r)) || []).forEach(function(l){ src.push(l); });
+    });
+  } else {
+    src = Array.isArray(LINES) ? LINES.slice() : [];
+  }
+  src.forEach(function(l){
+    if (!l) return;
+    if (num(l["SFG_REQUIRED_AG_BAL TO PRD FG"]) <= 0) return;
+    if (useFiltered && filterCtx && !lineMatchesActiveFilters_(l, filterCtx)) return;
+    if (isLineDone(l)) return;
+    var pord = String(l.PORD_NO || "").trim();
+    if (!pord) return;
+    var net = num(l.SFG_NET_ORD_QTY);
+    var pd = (typeof getLineProdDone === "function") ? getLineProdDone(l) : 0;
+    var balance = Math.max(0, net - pd);
+    if (balance <= 0.0005) return;
+    if (!map.has(pord)) map.set(pord, { pord: pord, balance: 0 });
+    map.get(pord).balance += balance;
+  });
+  var rows = Array.from(map.values());
+  if (PORDBAL_SORT.key) {
+    var dir = PORDBAL_SORT.asc ? 1 : -1;
+    rows.sort(function(a, b){
+      var av, bv;
+      if (PORDBAL_SORT.key === "pord") { av = String(a.pord || "").toLowerCase(); bv = String(b.pord || "").toLowerCase(); }
+      else { av = a.balance; bv = b.balance; }
+      return _cmpAny_(av, bv) * dir;
+    });
+  } else {
+    rows.sort(function(a, b){ return b.balance - a.balance; });
+  }
+  if (!rows.length) {
+    body.innerHTML = '<tr><td colspan="2" class="empty" style="padding:18px;text-align:center;color:#888;">No open PORDs.</td></tr>';
+    if (foot) foot.innerHTML = "";
+    return;
+  }
+  var total = 0;
+  body.innerHTML = rows.map(function(r){
+    total += r.balance;
+    var isActive = PORDBAL_ACTIVE && PORDBAL_ACTIVE === r.pord;
+    return '<tr class="pord-row' + (isActive ? ' pord-row-active' : '') + '" data-pord="' + esc(r.pord) + '" title="Click to filter pivot by ' + esc(r.pord) + '">' +
+      '<td><strong>' + esc(r.pord) + '</strong></td>' +
+      '<td class="num" style="text-align:right;font-weight:600;">' + fmt(r.balance, 3) + '</td>' +
+    '</tr>';
+  }).join("");
+  if (foot) {
+    foot.innerHTML =
+      '<tr style="background:#e8f7ef;font-weight:700;">' +
+        '<td><strong>' + rows.length + ' PORD(s)</strong></td>' +
+        '<td class="num" style="text-align:right;color:#0a6;"><strong>' + fmt(total, 3) + '</strong></td>' +
+      '</tr>';
+  }
+  // Click row: drop PORD_NO into the global search and re-render. Second
+  // click on the SAME row clears the search.
+  body.querySelectorAll("tr.pord-row").forEach(function(tr){
+    tr.onclick = function(){
+      var pn = tr.getAttribute("data-pord");
+      if (!pn) return;
+      var searchEl = document.getElementById("fltSearch");
+      if (!searchEl) return;
+      if (PORDBAL_ACTIVE === pn) {
+        // Toggle off
+        searchEl.value = "";
+        PORDBAL_ACTIVE = "";
+        showFilterToast && showFilterToast("Cleared: PORD search");
+      } else {
+        searchEl.value = pn;
+        PORDBAL_ACTIVE = pn;
+        showFilterToast && showFilterToast("Filtered: PORD = " + pn);
+      }
+      if (typeof renderTable === "function") renderTable();
+    };
+  });
+}
+
 // Party-wise balance table (sibling to HOD balance).
 // Aggregates per-line balance by ACC_NAME (party) and reports:
 //   - open line count
@@ -5984,6 +6276,7 @@ function renderTable(opts) {
     renderEquipmentBlockTable(LAST_FILTERED_BOMS, filterCtx);
     renderHodBalanceTable(LAST_FILTERED_BOMS, filterCtx);
     renderPartyBalanceTable(LAST_FILTERED_BOMS, filterCtx);
+    renderPordBalanceTable(LAST_FILTERED_BOMS, filterCtx);
   }
 
   filtered = filtered.slice().sort(function(a,b){
@@ -6573,7 +6866,7 @@ function wireDoneTicksGlobal() {
       var lk = tr.getAttribute("data-lk") || "";
       var oldVal = chk.checked ? "" : "1";
       var newVal = chk.checked ? "1" : "";
-      if (!canInputChange_(oldVal, newVal, "Done", "done")) {
+      if (!canInputChange_(oldVal, newVal, "Done", "done", lk)) {
         chk.checked = !chk.checked;
         return;
       }
@@ -6603,7 +6896,7 @@ function wireDoneTicksGlobal() {
       var prev = getLinePDManual(lk);
       var oldPermissionVal = prev > 0 ? String(prev) : "";
       var newPermissionVal = (nv != null && !isNaN(nv) && nv > 0) ? String(nv) : "";
-      if (!canInputChange_(oldPermissionVal, newPermissionVal, "Production Done Qty", "prod_done")) {
+      if (!canInputChange_(oldPermissionVal, newPermissionVal, "Production Done Qty", "prod_done", lk)) {
         inp.value = prev > 0 ? String(prev) : "";
         return;
       }
@@ -6628,7 +6921,7 @@ function wireDoneTicksGlobal() {
       var lk = tr.getAttribute("data-lk") || "";
       var oldVal = getLineEqpt(lk) || "";
       var newVal = sel.value || "";
-      if (!canInputChange_(oldVal, newVal, "EQPT", "eqpt")) {
+      if (!canInputChange_(oldVal, newVal, "EQPT", "eqpt", lk)) {
         sel.value = oldVal;
         return;
       }
@@ -6668,7 +6961,7 @@ function wireDoneTicksGlobal() {
       var tr = sel.closest("tr"); if (!tr) return;
       var lk = tr.getAttribute("data-lk") || "";
       var oldVal = getLineHod(lk) || "";
-      if (!canInputChange_(oldVal, sel.value || "", "HOD", "hod")) {
+      if (!canInputChange_(oldVal, sel.value || "", "HOD", "hod", lk)) {
         sel.value = oldVal;
         return;
       }
@@ -6684,7 +6977,7 @@ function wireDoneTicksGlobal() {
       var tr = sel.closest("tr"); if (!tr) return;
       var lk = tr.getAttribute("data-lk") || "";
       var oldVal = getLineConsume(lk) || "";
-      if (!canInputChange_(oldVal, sel.value || "", "Consume from", "consume_from")) {
+      if (!canInputChange_(oldVal, sel.value || "", "Consume from", "consume_from", lk)) {
         sel.value = oldVal;
         return;
       }
@@ -6717,7 +7010,7 @@ function wireDoneTicksGlobal() {
       }
       var newVal = inp.value || "";
       var oldVal = isStart ? getLineCStart(lk) : getLineCEnd(lk);
-      if (!canInputChange_(oldVal || "", newVal || "", isStart ? "Commit Start" : "Commit End", isStart ? "commit_start" : "commit_end")) {
+      if (!canInputChange_(oldVal || "", newVal || "", isStart ? "Commit Start" : "Commit End", isStart ? "commit_start" : "commit_end", lk)) {
         inp.value = oldVal || "";
         return;
       }
@@ -7413,8 +7706,33 @@ function hasAnyColumnRight_(name) {
 function isBlankInputValue_(v) {
   return v == null || String(v).trim() === "" || String(v).trim() === "0";
 }
-function canInputChange_(oldVal, newVal, label, colKey) {
+// True when the line behind `lk` carries APPROVE_STATUS == "UNAPPROVED" in
+// the ERP feed. Used by canInputChange_ to block manual edits until the
+// production order has been approved. Iterates LINES_ALL on demand â€" the
+// pivot has a few hundred lines at most so the cost is negligible.
+function _isLkUnapproved_(lk) {
+  if (!lk) return false;
+  var src = (typeof LINES_ALL !== "undefined" && LINES_ALL && LINES_ALL.length)
+      ? LINES_ALL
+      : (Array.isArray(LINES) ? LINES : []);
+  for (var i = 0; i < src.length; i++) {
+    if (lineKey(src[i]) === lk) {
+      var st = String((src[i] && src[i].APPROVE_STATUS) || "").trim().toUpperCase();
+      return st === "UNAPPROVED";
+    }
+  }
+  return false;
+}
+function canInputChange_(oldVal, newVal, label, colKey, lk) {
   if (isSuperAdmin()) return true;
+  // UNAPPROVED guard: lines whose Production Order is still un-approved
+  // cannot accept ANY planning input (Done, PD qty, EQPT, HOD, Consume,
+  // commit dates). Caller passes the per-line key when it has one; calls
+  // without a key (e.g., legacy paths) skip this check.
+  if (lk && _isLkUnapproved_(lk)) {
+    alert("Cannot change " + label + " -- Production Order is UNAPPROVED. Get the order APPROVED first, then enter manual planning input.");
+    return false;
+  }
   if (!hasInputRight_("view", colKey)) {
     alert("You do not have view access for input columns.");
     return false;
