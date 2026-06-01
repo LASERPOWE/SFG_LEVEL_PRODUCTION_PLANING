@@ -1122,6 +1122,13 @@
               <option value="">-- select team --</option>
             </select>
           </label>
+          <label style="display:flex;flex-direction:column;font-size:11px;font-weight:600;color:#2a3b6b;min-width:170px;" title="Shift is required before saving the allocation">Shift <span style="color:#c92a2a;">*</span>
+            <select id="manpowerShiftSelect" style="padding:5px 8px;font-size:12px;margin-top:4px;border:1px solid #cfd9f5;border-radius:4px;">
+              <option value="">-- select shift --</option>
+              <option value="day_shift">Day Shift (8am - 8pm)</option>
+              <option value="night_shift">Night Shift (8pm - 8am)</option>
+            </select>
+          </label>
           <button id="manpowerLoadTeamBtn" class="auth-btn" type="button" onclick="manpowerLoadTeam_()">Load team members</button>
           <span style="margin-left:auto;font-size:11px;color:#666;" id="manpowerSelCount">0 selected</span>
         </div>
@@ -1810,7 +1817,7 @@ async function openManpowerAllocationModal_(line) {
   MANPOWER_STATE = {
     bookingKey: bookingKey, equipment: equipment, date: today,
     rangeStart: rangeStart, rangeEnd: rangeEnd,
-    team: "", members: []
+    team: "", shift: "", members: []
   };
   document.getElementById("manpowerTitle").textContent = "Manpower Allocation: " + equipment;
   var meta = document.getElementById("manpowerMeta");
@@ -1857,8 +1864,11 @@ async function openManpowerAllocationModal_(line) {
     teamSel.innerHTML = '<option value="">-- select team --</option>' +
       teams.map(function(t){ return '<option value="' + esc(t) + '">' + esc(t) + '</option>'; }).join("");
   }
+  // Reset Shift to "-- select shift --" so each open forces an explicit pick.
+  var shiftSel = document.getElementById("manpowerShiftSelect");
+  if (shiftSel) shiftSel.value = "";
   document.getElementById("manpowerMembersBlock").innerHTML =
-    '<div class="empty" style="padding:24px;text-align:center;color:#999;">Pick a date and team, then click <strong>Load team members</strong>.</div>';
+    '<div class="empty" style="padding:24px;text-align:center;color:#999;">Pick a date, team and shift, then click <strong>Load team members</strong>.</div>';
   document.getElementById("manpowerOtherTeamBlock").style.display = "none";
   document.getElementById("manpowerStatusMsg").textContent = "";
   document.getElementById("manpowerSelCount").textContent = "0 selected";
@@ -1938,7 +1948,8 @@ function _manpowerRenderMembers_() {
     var rowBg = m.conflict ? "background:#ffe4e4;" : (m.foreign ? "background:#fff8ec;" : "");
     var rightLabel = "";
     if (m.conflict) {
-      rightLabel = '<span style="color:#c92a2a;font-weight:600;font-size:11px;">Already on ' + esc(m.conflict.equipment || "?") + '</span>';
+      var conflictShift = m.conflict.shift ? " (" + (m.conflict.shift === "day_shift" ? "Day" : m.conflict.shift === "night_shift" ? "Night" : esc(m.conflict.shift)) + ")" : "";
+      rightLabel = '<span style="color:#c92a2a;font-weight:600;font-size:11px;">Already on ' + esc(m.conflict.equipment || "?") + conflictShift + '</span>';
     } else if (m.foreign) {
       rightLabel = '<span style="color:#8a5a00;font-size:11px;">from ' + esc(m.original_team || "?") + '</span>';
     } else {
@@ -2206,9 +2217,19 @@ async function saveManpowerAllocation_() {
       return;
     }
   }
+  // Mandatory shift: every allocation must be tagged Day or Night so the
+  // conflict check + cost reporting can distinguish 8am-8pm vs 8pm-8am.
+  var shiftEl = document.getElementById("manpowerShiftSelect");
+  var shiftVal = shiftEl ? String(shiftEl.value || "").trim() : "";
+  if (!shiftVal) {
+    alert("Please select a Shift (Day or Night) before saving the allocation.");
+    if (shiftEl) shiftEl.focus();
+    return;
+  }
+  MANPOWER_STATE.shift = shiftVal;
   var checked = MANPOWER_STATE.members.filter(function(m){ return m.checked && !m.conflict; });
   if (!checked.length) {
-    if (!confirm("No members are selected. This will CLEAR existing allocations for this date + equipment. Continue?")) return;
+    if (!confirm("No members are selected. This will CLEAR existing allocations for this date + equipment + shift. Continue?")) return;
   }
   var by = "";
   try {
@@ -2226,6 +2247,7 @@ async function saveManpowerAllocation_() {
       from_team: m.from_team || m.original_team,
       original_team: m.original_team,
       booking_line_key: MANPOWER_STATE.bookingKey,
+      shift: shiftVal,
       rate: rate
     };
   });
@@ -2235,6 +2257,7 @@ async function saveManpowerAllocation_() {
   body.set("action", "bulk_set_allocations");
   body.set("date", date);
   body.set("equipment", equipment);
+  body.set("shift", shiftVal);
   body.set("booking_line_key", MANPOWER_STATE.bookingKey || "");
   body.set("items", JSON.stringify(items));
   body.set("allocated_by", by);

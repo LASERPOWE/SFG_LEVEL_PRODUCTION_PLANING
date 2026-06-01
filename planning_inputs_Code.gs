@@ -573,7 +573,7 @@ function listUsersPublic_() {
 // can show "already allocated to X" inline.
 var ALLOC_SHEET_NAME = 'MANPOWER_ALLOCATIONS';
 var ALLOC_HEADERS = [
-  'id',                // composite key: date|equipment|emp_code
+  'id',                // composite key: date|equipment|emp_code|shift
   'date',              // YYYY-MM-DD
   'equipment',
   'booking_line_key',  // line_id of the Reschedule booking that triggered this allocation
@@ -583,7 +583,8 @@ var ALLOC_HEADERS = [
   'original_team',     // team this employee belongs to per TEAM MASTER_MANPOWER
   'allocated_at',
   'allocated_by',
-  'rate'               // member day-rate captured AT ALLOCATION TIME (so cost is historically accurate even if Team Master rate changes later)
+  'rate',              // member day-rate captured AT ALLOCATION TIME (so cost is historically accurate even if Team Master rate changes later)
+  'shift'              // 'day_shift' (8am-8pm) | 'night_shift' (8pm-8am) | '' (legacy rows)
 ];
 
 function getAllocSheet_() {
@@ -601,8 +602,14 @@ function getAllocSheet_() {
   return sh;
 }
 
-function _allocId_(date, equipment, empCode) {
-  return String(date || '').trim() + '|' + String(equipment || '').trim() + '|' + String(empCode || '').trim();
+function _allocId_(date, equipment, empCode, shift) {
+  // Shift is part of the primary key so the same employee can legitimately
+  // hold separate Day and Night allocations on the same date + equipment
+  // (relevant during peak hand-offs) without overwriting each other.
+  return String(date || '').trim() + '|' +
+         String(equipment || '').trim() + '|' +
+         String(empCode || '').trim() + '|' +
+         String(shift || '').trim();
 }
 
 function readAllocations_() {
@@ -650,24 +657,31 @@ function listAllocations_(date) {
   return { status: 'ok', allocations: rows };
 }
 
-function _findAllocRow_(sh, date, equipment, empCode) {
+function _findAllocRow_(sh, date, equipment, empCode, shift) {
   var last = sh.getLastRow();
   if (last < 2) return 0;
   var data = sh.getRange(2, 1, last - 1, ALLOC_HEADERS.length).getValues();
-  var wantId = _allocId_(date, equipment, empCode);
+  var wantId = _allocId_(date, equipment, empCode, shift);
   for (var i = 0; i < data.length; i++) {
     if (String(data[i][0] || '').trim() === wantId) return i + 2;
   }
   return 0;
 }
 
-function _findAllocConflict_(sh, date, equipment, empCode) {
+function _findAllocConflict_(sh, date, equipment, empCode, shift) {
+  // Conflict = same date + same emp + same shift on a DIFFERENT equipment.
+  // Different shifts (Day vs Night) on different equipment for the same
+  // employee are allowed (a hand-off scenario) â€" so we require shifts to
+  // match before flagging a clash. Legacy rows without a shift value are
+  // treated as 'any' to preserve old behaviour for un-migrated data.
   var last = sh.getLastRow();
   if (last < 2) return null;
   var data = sh.getRange(2, 1, last - 1, ALLOC_HEADERS.length).getValues();
   var d = String(date || '').trim();
   var eq = String(equipment || '').trim();
   var emp = String(empCode || '').trim();
+  var sh_ = String(shift || '').trim();
+  var shiftIdx = ALLOC_HEADERS.indexOf('shift');
   for (var i = 0; i < data.length; i++) {
     var rowDate = data[i][1];
     if (rowDate instanceof Date) {
@@ -679,18 +693,22 @@ function _findAllocConflict_(sh, date, equipment, empCode) {
     }
     var rowEq = String(data[i][2] || '').trim();
     var rowEmp = String(data[i][4] || '').trim();
-    if (rowDate === d && rowEmp === emp && rowEq !== eq) {
-      return {
-        id: data[i][0],
-        date: rowDate,
-        equipment: rowEq,
-        booking_line_key: data[i][3],
-        emp_code: rowEmp,
-        emp_name: data[i][5],
-        from_team: data[i][6],
-        original_team: data[i][7]
-      };
-    }
+    var rowShift = shiftIdx >= 0 ? String(data[i][shiftIdx] || '').trim() : '';
+    if (rowDate !== d || rowEmp !== emp || rowEq === eq) continue;
+    // Shift-aware clash: only flag when both rows declare the same shift
+    // OR when either side is blank (legacy rows still block to be safe).
+    if (sh_ && rowShift && sh_ !== rowShift) continue;
+    return {
+      id: data[i][0],
+      date: rowDate,
+      equipment: rowEq,
+      booking_line_key: data[i][3],
+      emp_code: rowEmp,
+      emp_name: data[i][5],
+      from_team: data[i][6],
+      original_team: data[i][7],
+      shift: rowShift
+    };
   }
   return null;
 }
@@ -699,17 +717,19 @@ function upsertAllocation_(p) {
   var date = String(p.date || '').trim();
   var equipment = String(p.equipment || '').trim();
   var empCode = String(p.emp_code || '').trim();
+  var shift = String(p.shift || '').trim();
   if (!date || !equipment || !empCode) {
     return { status: 'error', message: 'date, equipment and emp_code are required' };
   }
   var sh = getAllocSheet_();
-  var conflict = _findAllocConflict_(sh, date, equipment, empCode);
+  var conflict = _findAllocConflict_(sh, date, equipment, empCode, shift);
   if (conflict) {
-    return { status: 'conflict', message: 'Already allocated to ' + conflict.equipment, conflict: conflict };
+    var shiftLabel = conflict.shift ? ' (' + conflict.shift + ')' : '';
+    return { status: 'conflict', message: 'Already allocated to ' + conflict.equipment + shiftLabel, conflict: conflict };
   }
-  var row = _findAllocRow_(sh, date, equipment, empCode);
+  var row = _findAllocRow_(sh, date, equipment, empCode, shift);
   if (!row) row = sh.getLastRow() + 1;
-  var id = _allocId_(date, equipment, empCode);
+  var id = _allocId_(date, equipment, empCode, shift);
   var rateVal = 0;
   if (p.rate != null && p.rate !== '') {
     rateVal = parseFloat(p.rate);
@@ -724,7 +744,8 @@ function upsertAllocation_(p) {
     String(p.original_team || ''),
     p.allocated_at || new Date().toISOString(),
     String(p.allocated_by || ''),
-    rateVal
+    rateVal,
+    shift
   ];
   sh.getRange(row, 1, 1, ALLOC_HEADERS.length).setValues([values]);
   return { status: 'ok', id: id, row_number: row };
@@ -734,14 +755,15 @@ function deleteAllocation_(p) {
   var date = String(p.date || '').trim();
   var equipment = String(p.equipment || '').trim();
   var empCode = String(p.emp_code || '').trim();
+  var shift = String(p.shift || '').trim();
   if (!date || !equipment || !empCode) {
     return { status: 'error', message: 'date, equipment and emp_code are required' };
   }
   var sh = getAllocSheet_();
-  var row = _findAllocRow_(sh, date, equipment, empCode);
+  var row = _findAllocRow_(sh, date, equipment, empCode, shift);
   if (!row) return { status: 'ok', message: 'No matching allocation; nothing to delete' };
   sh.deleteRow(row);
-  return { status: 'ok', deleted: _allocId_(date, equipment, empCode) };
+  return { status: 'ok', deleted: _allocId_(date, equipment, empCode, shift) };
 }
 
 // Bulk replace: wipe all allocations for (date, equipment) and re-insert
@@ -750,6 +772,7 @@ function deleteAllocation_(p) {
 function bulkSetAllocations_(p) {
   var date = String(p.date || '').trim();
   var equipment = String(p.equipment || '').trim();
+  var shift = String(p.shift || '').trim();
   if (!date || !equipment) {
     return { status: 'error', message: 'date and equipment are required' };
   }
@@ -757,6 +780,7 @@ function bulkSetAllocations_(p) {
   try { items = JSON.parse(String(p.items || '[]')); } catch(e) { items = []; }
   if (!Array.isArray(items)) items = [];
   var sh = getAllocSheet_();
+  var shiftIdx = ALLOC_HEADERS.indexOf('shift');
   var last = sh.getLastRow();
   if (last >= 2) {
     var data = sh.getRange(2, 1, last - 1, ALLOC_HEADERS.length).getValues();
@@ -770,7 +794,10 @@ function bulkSetAllocations_(p) {
         rd = String(rd || '').trim().slice(0, 10);
       }
       var req = String(data[i][2] || '').trim();
-      if (rd === date && req === equipment) {
+      var rowShift = (shiftIdx >= 0) ? String(data[i][shiftIdx] || '').trim() : '';
+      // Wipe only (date + equipment + shift) â€" leaves the other shift's
+      // allocations untouched so Day and Night can be saved independently.
+      if (rd === date && req === equipment && rowShift === shift) {
         sh.deleteRow(i + 2);
       }
     }
@@ -781,12 +808,13 @@ function bulkSetAllocations_(p) {
     var it = items[k] || {};
     var ec = String(it.emp_code || '').trim();
     if (!ec) continue;
-    var conf = _findAllocConflict_(sh, date, equipment, ec);
+    var itShift = String(it.shift || shift || '').trim();
+    var conf = _findAllocConflict_(sh, date, equipment, ec, itShift);
     if (conf) {
       conflicts.push({ emp_code: ec, emp_name: it.emp_name || '', conflict: conf });
       continue;
     }
-    var id = _allocId_(date, equipment, ec);
+    var id = _allocId_(date, equipment, ec, itShift);
     var row = sh.getLastRow() + 1;
     var itRate = 0;
     if (it.rate != null && it.rate !== '') {
@@ -802,7 +830,8 @@ function bulkSetAllocations_(p) {
       String(it.original_team || ''),
       new Date().toISOString(),
       String(p.allocated_by || ''),
-      itRate
+      itRate,
+      itShift
     ]]);
     inserted.push(id);
   }
