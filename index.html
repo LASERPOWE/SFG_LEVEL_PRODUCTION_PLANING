@@ -1132,6 +1132,12 @@
           <button id="manpowerLoadTeamBtn" class="auth-btn" type="button" onclick="manpowerLoadTeam_()">Load team members</button>
           <span style="margin-left:auto;font-size:11px;color:#666;" id="manpowerSelCount">0 selected</span>
         </div>
+        <div id="manpowerSearchBar" style="display:none;margin-bottom:8px;align-items:center;gap:8px;">
+          <label style="font-size:11px;color:#555;font-weight:600;">Search member</label>
+          <input id="manpowerMemberSearch" type="text" placeholder="Type name or employee code..." style="flex:1;max-width:340px;padding:5px 10px;font-size:12px;border:1px solid #cfd9f5;border-radius:4px;" oninput="_manpowerOnSearch_()" />
+          <button class="auth-btn" type="button" style="padding:3px 10px;font-size:11px;" onclick="_manpowerClearSearch_()">Clear</button>
+          <span id="manpowerSearchHint" style="font-size:11px;color:#888;"></span>
+        </div>
         <div id="manpowerMembersBlock">
           <div class="empty" style="padding:24px;text-align:center;color:#999;">Pick a date and team, then click <strong>Load team members</strong>.</div>
         </div>
@@ -1663,6 +1669,7 @@ function openAllocDetailModal(bookingKey, equipment) {
     '<thead><tr>' +
       '<th style="text-align:right;">#</th>' +
       '<th>Date</th>' +
+      '<th>Shift</th>' +
       '<th>Member</th>' +
       '<th>Emp Code</th>' +
       '<th>From Team</th>' +
@@ -1692,10 +1699,21 @@ function openAllocDetailModal(bookingKey, equipment) {
       var fromTm = String(a.from_team || "").trim();
       var origTm = String(a.original_team || "").trim();
       var foreign = (fromTm && origTm && fromTm !== origTm) || (origTm && fromTm && origTm !== MANPOWER_STATE.team);
+      // Shift label: pretty-print day_shift / night_shift, blank/legacy â†’ dash.
+      var rawShift = String(a.shift || "").trim().toLowerCase();
+      var shiftLabel, shiftStyle;
+      if (rawShift === "day_shift") {
+        shiftLabel = "Day"; shiftStyle = "color:#b67000;font-weight:600;";
+      } else if (rawShift === "night_shift") {
+        shiftLabel = "Night"; shiftStyle = "color:#26408b;font-weight:600;";
+      } else {
+        shiftLabel = "&mdash;"; shiftStyle = "color:#bbb;";
+      }
       html +=
         '<tr' + (foreign ? ' style="background:#fff8ec;"' : '') + '>' +
           '<td class="num">' + sl + '</td>' +
           '<td style="white-space:nowrap;">' + esc(fmtDateDMY(d)) + '</td>' +
+          '<td style="' + shiftStyle + 'white-space:nowrap;">' + shiftLabel + '</td>' +
           '<td><strong>' + esc(a.emp_name || "-") + '</strong></td>' +
           '<td>' + esc(a.emp_code || "-") + '</td>' +
           '<td>' + esc(fromTm || "-") + '</td>' +
@@ -1708,14 +1726,14 @@ function openAllocDetailModal(bookingKey, equipment) {
     // Per-date subtotal row
     html +=
       '<tr style="background:#f4f7ff;font-weight:600;">' +
-        '<td colspan="6" style="text-align:right;">Subtotal for ' + esc(fmtDateDMY(d)) + ' (' + dayRows.length + ' member-day' + (dayRows.length === 1 ? '' : 's') + '):</td>' +
+        '<td colspan="7" style="text-align:right;">Subtotal for ' + esc(fmtDateDMY(d)) + ' (' + dayRows.length + ' member-day' + (dayRows.length === 1 ? '' : 's') + '):</td>' +
         '<td class="num" style="color:#0a6;">₹ ' + fmt(daySubtotal, 0) + '</td>' +
         '<td colspan="2"></td>' +
       '</tr>';
   });
   html += '</tbody>' +
     '<tfoot><tr style="background:#e8f7ef;font-weight:700;">' +
-      '<td colspan="6" style="text-align:right;">Grand Total:</td>' +
+      '<td colspan="7" style="text-align:right;">Grand Total:</td>' +
       '<td class="num" style="color:#0a6;">₹ ' + fmt(totalCost, 0) + '</td>' +
       '<td colspan="2"></td>' +
     '</tr></tfoot>' +
@@ -1867,6 +1885,13 @@ async function openManpowerAllocationModal_(line) {
   // Reset Shift to "-- select shift --" so each open forces an explicit pick.
   var shiftSel = document.getElementById("manpowerShiftSelect");
   if (shiftSel) shiftSel.value = "";
+  // Reset member search box and hide its bar until members are loaded.
+  var searchInp = document.getElementById("manpowerMemberSearch");
+  if (searchInp) searchInp.value = "";
+  var searchBar = document.getElementById("manpowerSearchBar");
+  if (searchBar) searchBar.style.display = "none";
+  var searchHint = document.getElementById("manpowerSearchHint");
+  if (searchHint) searchHint.textContent = "";
   document.getElementById("manpowerMembersBlock").innerHTML =
     '<div class="empty" style="padding:24px;text-align:center;color:#999;">Pick a date, team and shift, then click <strong>Load team members</strong>.</div>';
   document.getElementById("manpowerOtherTeamBlock").style.display = "none";
@@ -1935,15 +1960,52 @@ async function manpowerLoadTeam_() {
   if (statusEl) statusEl.textContent = MANPOWER_STATE.members.length + " member(s) loaded";
 }
 window.manpowerLoadTeam_ = manpowerLoadTeam_;
+// Read the current search query (lowercased, trimmed). Used by the renderer
+// and Select All so they all stay in sync without a separate state var.
+function _manpowerSearchQuery_() {
+  var el = document.getElementById("manpowerMemberSearch");
+  return el ? String(el.value || "").trim().toLowerCase() : "";
+}
+function _manpowerMatchesSearch_(m, q) {
+  if (!q) return true;
+  var n = String(m.emp_name || "").toLowerCase();
+  var c = String(m.emp_code || "").toLowerCase();
+  return n.indexOf(q) !== -1 || c.indexOf(q) !== -1;
+}
+// Re-render the members table whenever the search box changes. Cheap because
+// the underlying member array is small (typically <60 rows).
+function _manpowerOnSearch_() {
+  _manpowerRenderMembers_();
+  // Hint counter â€" "5 of 24 shown" so the user understands the filter.
+  var hint = document.getElementById("manpowerSearchHint");
+  if (!hint) return;
+  var q = _manpowerSearchQuery_();
+  var ms = MANPOWER_STATE.members || [];
+  if (!q || !ms.length) { hint.textContent = ""; return; }
+  var shown = ms.filter(function(m){ return _manpowerMatchesSearch_(m, q); }).length;
+  hint.textContent = shown + " of " + ms.length + " shown";
+}
+function _manpowerClearSearch_() {
+  var el = document.getElementById("manpowerMemberSearch");
+  if (el) el.value = "";
+  _manpowerOnSearch_();
+}
 function _manpowerRenderMembers_() {
   var block = document.getElementById("manpowerMembersBlock");
   if (!block) return;
   var ms = MANPOWER_STATE.members;
+  // Toggle search bar visibility â€" only useful once members are loaded.
+  var searchBar = document.getElementById("manpowerSearchBar");
+  if (searchBar) searchBar.style.display = ms.length ? "flex" : "none";
   if (!ms.length) {
     block.innerHTML = '<div class="empty" style="padding:24px;text-align:center;color:#999;">No active members in this team.</div>';
     _manpowerUpdateCount_(); return;
   }
+  var q = _manpowerSearchQuery_();
   var rowsHtml = ms.map(function(m, i){
+    // Keep the original index in data-idx so checkbox / Remove handlers
+    // still point to the right slot even when rows are filtered out.
+    if (!_manpowerMatchesSearch_(m, q)) return "";
     var disabled = !!m.conflict;
     var rowBg = m.conflict ? "background:#ffe4e4;" : (m.foreign ? "background:#fff8ec;" : "");
     var rightLabel = "";
@@ -1967,6 +2029,10 @@ function _manpowerRenderMembers_() {
       '</td>' +
     '</tr>';
   }).join("");
+  // Empty-state when the search filters EVERY row out â€" tell the user.
+  if (!rowsHtml && q) {
+    rowsHtml = '<tr><td colspan="5" style="padding:18px;text-align:center;color:#888;font-size:12px;">No members match &quot;' + esc(q) + '&quot;. <a href="javascript:void(0)" onclick="_manpowerClearSearch_()" style="color:#4a7dd6;">Clear search</a></td></tr>';
+  }
   block.innerHTML =
     '<table style="width:100%;border-collapse:collapse;font-size:12px;">' +
       '<thead><tr style="background:#f3f4f6;">' +
@@ -1992,15 +2058,19 @@ function _manpowerRenderMembers_() {
       }
     };
   });
-  // Master "Select All" â€" toggles every NON-conflict member at once. Conflict
-  // rows stay locked because they're already allocated elsewhere.
+  // Master "Select All" â€" toggles every VISIBLE non-conflict member. When a
+  // search filter is active it operates only on the rows the user actually
+  // sees so search + bulk-select feels intuitive. Conflict rows always stay
+  // locked because they're already allocated elsewhere.
   var master = block.querySelector("#manpowerSelectAll");
   if (master) {
     master.onclick = function(e){ e.stopPropagation(); };
     master.onchange = function(){
       var want = master.checked;
+      var q = _manpowerSearchQuery_();
       MANPOWER_STATE.members.forEach(function(m, i){
         if (m.conflict) return; // can't toggle a conflicted row
+        if (!_manpowerMatchesSearch_(m, q)) return; // skip rows filtered out
         m.checked = want;
       });
       // Update DOM checkboxes without re-rendering the whole table.
