@@ -1299,11 +1299,19 @@ function findCommitConflict_(selfLk, eqpt, start, end) {
     var lk2 = lineKey(l);
     if (lk2 === selfLk) continue;
     if ((LINE_EQPT[lk2] || "") !== eqpt) continue;
+    // Skip lines that are NOT shown in the Reschedule modal so the conflict
+    // check stays consistent with what the user can see:
+    //   1. Done-marked lines â€" that equipment slot is released, no clash.
+    //   2. Partial bookings (only one of commit_start / commit_end set) â€"
+    //      these are half-saved entries that the modal hides; treating them
+    //      as 1-day bookings produced confusing "DD-MM to DD-MM" ghost
+    //      conflicts the user could not find or clear from the modal.
+    if (typeof isLineDone === "function" && isLineDone(l)) continue;
     var s2 = LINE_CSTART[lk2] || "";
     var e2 = LINE_CEND[lk2] || "";
-    if (!s2 && !e2) continue; // other line has no booking â€" nothing to clash with
-    var b1 = s2 || e2;
-    var b2 = e2 || s2;
+    if (!s2 || !e2) continue; // skip both empty AND partial (modal parity)
+    var b1 = s2;
+    var b2 = e2;
     if (a1 <= b2 && b1 <= a2) {
       return { lk: lk2, eqpt: eqpt, start: s2, end: e2, by: LINE_CBY[lk2] || "" };
     }
@@ -6241,11 +6249,36 @@ function wireDoneTicksGlobal() {
       var tr = sel.closest("tr"); if (!tr) return;
       var lk = tr.getAttribute("data-lk") || "";
       var oldVal = getLineEqpt(lk) || "";
-      if (!canInputChange_(oldVal, sel.value || "", "EQPT", "eqpt")) {
+      var newVal = sel.value || "";
+      if (!canInputChange_(oldVal, newVal, "EQPT", "eqpt")) {
         sel.value = oldVal;
         return;
       }
-      setLineEqpt(lk, sel.value);
+      // Conflict-check whenever the user picks a NEW (non-empty) EQPT and this
+      // line already has at least one commit date. Mirrors the check that runs
+      // when commit dates change â€" without this, a user could silently move a
+      // booking onto an equipment that is already occupied on the same range.
+      if (newVal && newVal !== oldVal) {
+        var startC = (typeof getLineCStart === "function") ? (getLineCStart(lk) || "") : (LINE_CSTART[lk] || "");
+        var endC   = (typeof getLineCEnd   === "function") ? (getLineCEnd(lk)   || "") : (LINE_CEND[lk]   || "");
+        if (startC || endC) {
+          var conflict = findCommitConflict_(lk, newVal, startC, endC);
+          if (conflict) {
+            var byTxt = conflict.by ? " by " + conflict.by : "";
+            var rangeTxt;
+            if (conflict.start && conflict.end) {
+              rangeTxt = fmtDateDMY(conflict.start) + " to " + fmtDateDMY(conflict.end);
+            } else {
+              rangeTxt = "on " + fmtDateDMY(conflict.end || conflict.start);
+            }
+            alert("Equipment " + newVal + " is already booked " + rangeTxt + byTxt +
+                  ". Pick a different equipment or change the commit dates first.");
+            sel.value = oldVal;
+            return;
+          }
+        }
+      }
+      setLineEqpt(lk, newVal);
       if (typeof window.__currentDrillRecompute === "function") window.__currentDrillRecompute();
       if (typeof window.__drillRenderBody === "function") window.__drillRenderBody();
       if (typeof renderTable === "function") renderTable();
