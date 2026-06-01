@@ -248,10 +248,11 @@
      no longer forces a width â€" the grid handles layout. */
   .equipment-block-card { margin-bottom: 18px; }
   .dashboard-status-row .equipment-block-wrap { max-height: 320px; overflow-y: auto; }
-  /* Status row now holds 3 cards (EQPT / HOD / Party balance). Auto-fit so
-     cards wrap gracefully on narrower viewports. */
-  .row.dashboard-status-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  @media (max-width: 1200px) { .row.dashboard-status-row { grid-template-columns: 1fr 1fr; } }
+  /* Status row holds 3 cards (EQPT / HOD / Party balance). Equipment table
+     has the most columns and densest data, so it gets ~50% of the row;
+     HOD and Party split the remaining width equally. */
+  .row.dashboard-status-row { grid-template-columns: 2fr 1fr 1fr; }
+  @media (max-width: 1200px) { .row.dashboard-status-row { grid-template-columns: 3fr 2fr; } }
   @media (max-width: 700px)  { .row.dashboard-status-row { grid-template-columns: 1fr; } }
   .page-tabs { display: inline-flex; gap: 6px; margin-left: 10px; vertical-align: middle; }
   .page-tab {
@@ -5009,6 +5010,10 @@ function renderKpis() {
   if (Array.isArray(_src) && _todayISO) {
     _src.forEach(function(l){
       if (!l || (typeof isLineDone === "function" && isLineDone(l))) return;
+      // Skip lines whose ERP FG-level balance is already 0 (FG delivered).
+      // Mirrors the Equipment Blocking Status filter so the overdue KPI
+      // never reports lines that no longer need any production.
+      if (num(l["SFG_REQUIRED_AG_BAL TO PRD FG"]) <= 0) return;
       var lk = lineKey(l);
       var ce = LINE_CEND[lk];
       if (!ce || ce >= _todayISO) return;
