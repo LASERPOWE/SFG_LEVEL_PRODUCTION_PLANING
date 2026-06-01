@@ -724,10 +724,11 @@
                 <th style="text-align:right;">Days</th>
                 <th style="text-align:right;">Free Days</th>
                 <th style="text-align:right;">Overdue</th>
+                <th style="text-align:right;" title="Total manpower allocation cost for today (sum of rates of every member allocated to this equipment today)">Today&#39;s Alloc Cost</th>
               </tr>
             </thead>
             <tbody id="equipmentBlockBody">
-              <tr><td colspan="6" class="empty">Assign EQPT in drill-down to see blocking status.</td></tr>
+              <tr><td colspan="7" class="empty">Assign EQPT in drill-down to see blocking status.</td></tr>
             </tbody>
             <tfoot id="equipmentBlockFoot"></tfoot>
           </table>
@@ -1565,6 +1566,42 @@ function _manpowerDaysForBooking_(bookingKey, equipment) {
   return allocs.filter(function(a){
     return String(a.equipment || "").trim() === String(equipment).trim() &&
            String(a.booking_line_key || "").trim() === String(bookingKey).trim();
+  }).length;
+}
+// Sum the day-rate of every member allocated to (equipment) on a SPECIFIC date.
+// Used by the Equipment Blocking Status table to show today's allocation cost
+// per equipment. Returns 0 when no allocations recorded for that date.
+function _manpowerCostForEqptOnDate_(equipment, dateISO) {
+  if (!equipment || !dateISO) return 0;
+  var allocs = (MANPOWER_ALLOC_CACHE && Array.isArray(MANPOWER_ALLOC_CACHE.all)) ? MANPOWER_ALLOC_CACHE.all : [];
+  if (!allocs.length) return 0;
+  var rateMap = _manpowerMembersByCode_();
+  var eqptTrim = String(equipment).trim();
+  var dateTrim = String(dateISO).trim();
+  var total = 0;
+  allocs.forEach(function(a){
+    if (String(a.equipment || "").trim() !== eqptTrim) return;
+    if (String(a.date || "").trim() !== dateTrim) return;
+    // Prefer the rate stamped on the allocation row; fall back to current
+    // Team Master rate for legacy rows that never stored it.
+    var savedRate = num(a.rate);
+    if (savedRate > 0) { total += savedRate; return; }
+    var m = rateMap.get(String(a.emp_code || "").trim());
+    var rate = m ? num(m.rate) : 0;
+    if (rate > 0) total += rate;
+  });
+  return total;
+}
+// How many members allocated to (equipment) on a specific date â€" tooltip helper.
+function _manpowerMembersForEqptOnDate_(equipment, dateISO) {
+  if (!equipment || !dateISO) return 0;
+  var allocs = (MANPOWER_ALLOC_CACHE && Array.isArray(MANPOWER_ALLOC_CACHE.all)) ? MANPOWER_ALLOC_CACHE.all : [];
+  if (!allocs.length) return 0;
+  var eqptTrim = String(equipment).trim();
+  var dateTrim = String(dateISO).trim();
+  return allocs.filter(function(a){
+    return String(a.equipment || "").trim() === eqptTrim &&
+           String(a.date || "").trim() === dateTrim;
   }).length;
 }
 // ---- Allocation detail popup ----
@@ -5157,7 +5194,7 @@ function renderEquipmentBlockTable(filteredRows, filterCtx) {
     return b.balance - a.balance;
   });
   if (!rows.length) {
-    body.innerHTML = '<tr><td colspan="6" class="empty">Assign EQPT in drill-down to see blocking status.</td></tr>';
+    body.innerHTML = '<tr><td colspan="7" class="empty">Assign EQPT in drill-down to see blocking status.</td></tr>';
     if (foot) foot.innerHTML = "";
     return;
   }
@@ -5168,7 +5205,14 @@ function renderEquipmentBlockTable(filteredRows, filterCtx) {
   var totalBalance = 0;
   var totalFreeDays = 0;
   var totalOverdue = 0;
+  var totalTodayCost = 0;
   var latestBlockedTill = "";
+  // Today's manpower allocation cost is only available if the allocations
+  // cache has been populated. We compute per-row; rows whose cost is 0
+  // either have nothing booked today OR the cache hasn't loaded yet (the
+  // dashboard bootstrap kicks off the fetch and re-renders when ready).
+  var todayCostFn = (typeof _manpowerCostForEqptOnDate_ === "function") ? _manpowerCostForEqptOnDate_ : null;
+  var todayMembersFn = (typeof _manpowerMembersForEqptOnDate_ === "function") ? _manpowerMembersForEqptOnDate_ : null;
   body.innerHTML = rows.map(function(r){
     var days = daysUntilISO(r.maxDate);
     var daysText = days == null ? "-" : (days < 0 ? Math.abs(days) + " overdue" : days);
@@ -5184,6 +5228,12 @@ function renderEquipmentBlockTable(filteredRows, filterCtx) {
     var btnHtml = ' <button class="reschedule-btn" data-eqpt="' + esc(r.eqpt) + '" title="' + esc(btnTitle) + '">Reschedule</button>';
     var overdueCls = r.overdue > 0 ? "num overdue-count overdue-danger-cell" : "num overdue-count zero";
     var rowCls = r.overdue > 0 ? 'eqpt-row eqpt-row-overdue' : 'eqpt-row';
+    var todayCost = todayCostFn ? todayCostFn(r.eqpt, todayISO) : 0;
+    var todayMembers = todayMembersFn ? todayMembersFn(r.eqpt, todayISO) : 0;
+    totalTodayCost += todayCost;
+    var todayCostHtml = todayCost > 0
+      ? '<td class="num" style="color:#0a6;font-weight:700;white-space:nowrap;" title="' + esc(todayMembers + " member(s) allocated to " + r.eqpt + " today") + '">&#8377; ' + fmt(todayCost, 0) + '</td>'
+      : '<td class="num" style="color:#bbb;" title="No manpower allocated to ' + esc(r.eqpt) + ' today">&mdash;</td>';
     return '<tr class="' + rowCls + '" data-eqpt="' + esc(r.eqpt) + '" title="Click name to filter pivot by EQPT = ' + esc(r.eqpt) + (r.overdue > 0 ? ' â€” ' + r.overdue + ' overdue line(s)' : '') + '">' +
       '<td><strong>' + esc(r.eqpt) + '</strong>' + btnHtml + '</td>' +
       '<td class="num">' + fmt(r.balance, 3) + '</td>' +
@@ -5191,10 +5241,14 @@ function renderEquipmentBlockTable(filteredRows, filterCtx) {
       '<td class="num' + (days != null && days < 0 ? ' bal-neg' : '') + '">' + esc(String(daysText)) + '</td>' +
       '<td class="num">' + esc(String(freeDays)) + '</td>' +
       '<td class="' + overdueCls + '">' + esc(String(r.overdue)) + '</td>' +
+      todayCostHtml +
     '</tr>';
   }).join("");
   if (foot) {
     var latestDays = daysUntilISO(latestBlockedTill);
+    var totalTodayHtml = totalTodayCost > 0
+      ? '<td class="num" style="color:#0a6;font-weight:700;white-space:nowrap;"><strong>&#8377; ' + fmt(totalTodayCost, 0) + '</strong></td>'
+      : '<td class="num" style="color:#bbb;"><strong>&mdash;</strong></td>';
     foot.innerHTML =
       '<tr>' +
         '<td><strong>Grand Total (' + esc(String(rows.length)) + ' EQPT)</strong></td>' +
@@ -5203,6 +5257,7 @@ function renderEquipmentBlockTable(filteredRows, filterCtx) {
         '<td class="num' + (latestDays != null && latestDays < 0 ? ' bal-neg' : '') + '"><strong>' + esc(String(latestDays == null ? "-" : latestDays)) + '</strong></td>' +
         '<td class="num"><strong>' + esc(String(totalFreeDays)) + '</strong></td>' +
         '<td class="num"><strong>' + esc(String(totalOverdue)) + '</strong></td>' +
+        totalTodayHtml +
       '</tr>';
   }
   // Wire row clicks â€" each row drills the pivot table down to lines on that
@@ -7717,6 +7772,16 @@ if (typeof currentRole === "function" && currentRole() !== "anonymous") {
     }
     if (typeof loadMcStatusData === "function") {
       try { loadMcStatusData(false).catch(function(){}); } catch(e) {}
+    }
+    // Warm the manpower allocations cache so the Equipment Blocking Status
+    // table can display "Today's Alloc Cost" without waiting for the user to
+    // open the Reschedule modal. Re-render the table once the data lands.
+    if (typeof _manpowerLoadAllAllocations_ === "function") {
+      _manpowerLoadAllAllocations_().then(function(){
+        if (typeof renderEquipmentBlockTable === "function") {
+          try { renderEquipmentBlockTable(); } catch(e) {}
+        }
+      }).catch(function(e){ console.warn("Manpower allocations pre-load failed:", e && e.message); });
     }
   })();
 }
