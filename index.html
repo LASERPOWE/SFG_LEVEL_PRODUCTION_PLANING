@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <title>SFG BOM Requirements Dashboard</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%230d2b6e'/%3E%3Crect x='0' y='0' width='32' height='64' rx='0' fill='%231a56a0'/%3E%3Crect x='0' y='0' width='12' height='64' rx='12 0 0 12' fill='%231a56a0'/%3E%3Crect x='52' y='0' width='12' height='64' rx='0 12 12 0' fill='%230d2b6e'/%3E%3Ctext x='18' y='43' text-anchor='middle' font-family='Arial Black,sans-serif' font-weight='900' font-size='26' fill='%23f5a623'%3EL%3C/text%3E%3Ctext x='46' y='43' text-anchor='middle' font-family='Arial Black,sans-serif' font-weight='900' font-size='26' fill='%23ffffff'%3EC%3C/text%3E%3C/svg%3E" />
 <style>
   :root { color-scheme: light; }
   * { box-sizing: border-box; }
@@ -422,6 +423,13 @@
   .schedule-table tr.overdue-row td { background: #ffe4e4; }
   .schedule-table tr.overdue-row td:first-child { box-shadow: inset 4px 0 0 #c92a2a; }
   .overdue-badge { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 8px; background: #c92a2a; color: #fff; font-size: 10px; font-weight: 700; letter-spacing: .2px; }
+  .stage-nav-cell { cursor: pointer; transition: background .15s; }
+  .stage-nav-cell:hover { background: #dbeafe !important; }
+  .stage-nav-cell:hover span:first-child { text-decoration: underline; }
+  @keyframes navpulse { 0%{background:#fef08a;} 60%{background:#fef08a;} 100%{background:transparent;} }
+  .nav-highlight { animation: navpulse 2.5s ease-out forwards; }
+  #drillBackBtn { background:#fff; border:1px solid #4a7dd6; color:#4a7dd6; border-radius:5px; padding:3px 10px; font-size:12px; font-weight:600; cursor:pointer; display:none; }
+  #drillBackBtn:hover { background:#eef4ff; }
   .schedule-table td.rc-count-pos { color: #c87f00; font-weight: 700; }
   .schedule-table td.rc-count-zero { color: #aaa; font-weight: 400; }
   .schedule-table td.free-before-gap { background: #fff2cc; color: #8a5a00; font-weight: 700; }
@@ -873,6 +881,9 @@
         <label>SFG Level 4
           <select id="fltL4"><option value="">All</option></select>
         </label>
+        <label>Stages
+          <select id="fltStage"><option value="">All</option></select>
+        </label>
         <label>EQPT
           <select id="fltEqpt"><option value="">All</option></select>
         </label>
@@ -1142,9 +1153,12 @@
   <div class="modal-backdrop" id="drillModal">
     <div class="modal">
       <div class="modal-head">
-        <div>
-          <h2 id="drillTitle">Drill Down</h2>
-          <div class="meta" id="drillMeta"></div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <button id="drillBackBtn" onclick="drillGoBack_()">&#8592; Back</button>
+          <div>
+            <h2 id="drillTitle">Drill Down</h2>
+            <div class="meta" id="drillMeta"></div>
+          </div>
         </div>
         <button class="modal-close" id="drillClose">&times;</button>
       </div>
@@ -1292,7 +1306,11 @@ let LINES = [];
 let LINES_ALL = [];
 let EQPT_MASTER = [];
 let HOD_MASTER = [];
+let SFG_LEVEL_MAP = {};
+let SFG_STAGE_NO_MAP = {};
 let META = {};
+var DRILL_BACK_STATE = null;
+var CURRENT_DRILL_CONTEXT = { bom: "", code: "", name: "" };
 let REMOTE_INPUTS_LOADING = false;
 let DATA_LOAD_IN_PROGRESS = false;
 let REMOTE_INPUT_KEYS = new Set();
@@ -2611,6 +2629,9 @@ function renderEqptScheduleBody_() {
       '<td>' + esc(fgItem) + '</td>' +
       '<td title="' + esc(sfgItem) + '">' + esc(sfgItem || "â€”") + '</td>' +
       '<td title="' + esc(sfgLevelTxt) + '">' + esc(sfgLevelTxt) + '</td>' +
+      renderStageInfoCell_(line, true, "reschedule") +
+      renderNewScheduleCell_(line) +
+      renderStageInfoCell_(line, false, "reschedule") +
       '<td class="num">' + esc(balTxt) + '</td>' +
       '<td>' + esc(hodName) + '</td>' +
       '<td class="num">' + p.currentDurationDays + ' day' + (p.currentDurationDays === 1 ? '' : 's') + '</td>' +
@@ -2684,6 +2705,9 @@ function renderEqptScheduleBody_() {
         '<th>FG Item</th>' +
         '<th>SFG Item</th>' +
         '<th>SFG Level</th>' +
+        '<th>Prev Stage | Max End</th>' +
+        '<th>Present Stage</th>' +
+        '<th>Next Stage | Max Start</th>' +
         '<th style="text-align:right;">Balance Qty</th>' +
         '<th>HOD</th>' +
         '<th style="text-align:right;">Duration</th>' +
@@ -3283,6 +3307,100 @@ const LINE_DONE = (function() { try { return JSON.parse(localStorage.getItem(LIN
 function saveLineDone() { try { localStorage.setItem(LINE_DONE_KEY, JSON.stringify(LINE_DONE)); } catch(e) {} }
 function lineKey(l) {
   return (l.PORD_NO || "") + "||" + (l.MC_NO || "") + "||" + (l.SFG_BOM || "") + "||" + (l.SFG_CODE || "");
+}
+function extractSqMm(sfgName) {
+  if (!sfgName) return "";
+  var m = String(sfgName).match(/(\d+(?:\.\d+)?)\s*SQ\.?\s*MM/i);
+  return m ? m[1] : "";
+}
+function extractAllSqMm(sfgName) {
+  if (!sfgName) return [];
+  var re = /(\d+(?:\.\d+)?)\s*SQ\.?\s*MM/gi;
+  var result = [], m;
+  while ((m = re.exec(String(sfgName))) !== null) result.push(m[1]);
+  return result;
+}
+function renderNewScheduleCell_(line) {
+  var l3 = String(line.SFG_LEVEL_3_NAME || "").trim().toUpperCase();
+  var l4 = String(line.SFG_LEVEL_4_NAME || "").trim().toUpperCase();
+  var ns = (l3 && l4) ? (SFG_LEVEL_MAP[l3 + "|" + l4] || "-") : "-";
+  return '<td><span style="font-weight:600;color:#4a7dd6;">' + esc(ns) + '</span></td>';
+}
+function renderStageInfoCell_(line, isPrev, srcType) {
+  var cl3 = String(line.SFG_LEVEL_3_NAME || "").trim().toUpperCase();
+  var cl4 = String(line.SFG_LEVEL_4_NAME || "").trim().toUpperCase();
+  var curSched = (cl3 && cl4) ? (SFG_LEVEL_MAP[cl3 + "|" + cl4] || "") : "";
+  var curStage = curSched ? (SFG_STAGE_NO_MAP[curSched] || 0) : 0;
+  if (!curStage) return '<td style="color:#bbb;">-</td>';
+  var pordNo = line.PORD_NO || "";
+  var curSqMms = extractAllSqMm(line.SFG_NAME);
+  function sqMmOk(ol) {
+    if ((ol.PORD_NO || "") !== pordNo) return false;
+    if (curSqMms.length > 0) {
+      var oMms = extractAllSqMm(ol.SFG_NAME);
+      if (oMms.length > 0) {
+        var hit = false;
+        for (var i = 0; i < oMms.length; i++) { if (curSqMms.indexOf(oMms[i]) >= 0) { hit = true; break; } }
+        if (!hit) return false;
+      }
+    }
+    return true;
+  }
+  var adjStageNo = 0;
+  LINES.forEach(function(ol) {
+    if (!sqMmOk(ol)) return;
+    var ol3 = String(ol.SFG_LEVEL_3_NAME || "").trim().toUpperCase();
+    var ol4 = String(ol.SFG_LEVEL_4_NAME || "").trim().toUpperCase();
+    var oSched = (ol3 && ol4) ? (SFG_LEVEL_MAP[ol3 + "|" + ol4] || "") : "";
+    var oStage = oSched ? (SFG_STAGE_NO_MAP[oSched] || 0) : 0;
+    if (!oStage) return;
+    if (isPrev && oStage < curStage && oStage > adjStageNo) adjStageNo = oStage;
+    if (!isPrev && oStage > curStage && (adjStageNo === 0 || oStage < adjStageNo)) adjStageNo = oStage;
+  });
+  if (!adjStageNo) return '<td style="color:#bbb;">-</td>';
+  var adjSchedName = "", maxDate = "", adjNet = 0, adjDone = 0;
+  var adjBom = "", adjCode = "", adjSfgName = "";
+  LINES.forEach(function(ol) {
+    if (!sqMmOk(ol)) return;
+    var ol3 = String(ol.SFG_LEVEL_3_NAME || "").trim().toUpperCase();
+    var ol4 = String(ol.SFG_LEVEL_4_NAME || "").trim().toUpperCase();
+    var oSched = (ol3 && ol4) ? (SFG_LEVEL_MAP[ol3 + "|" + ol4] || "") : "";
+    var oStage = oSched ? (SFG_STAGE_NO_MAP[oSched] || 0) : 0;
+    if (oStage !== adjStageNo) return;
+    if (!adjSchedName) adjSchedName = oSched;
+    if (!adjBom) { adjBom = ol.SFG_BOM || ""; adjCode = ol.SFG_CODE || ""; adjSfgName = ol.SFG_NAME || ""; }
+    var olk = lineKey(ol);
+    var d = isPrev ? (LINE_CEND[olk] || "") : (LINE_CSTART[olk] || "");
+    if (d && (!maxDate || d > maxDate)) maxDate = d;
+    var oNet = num(ol.SFG_NET_ORD_QTY);
+    var oDone = (typeof isLineDone === "function" && isLineDone(ol)) ? oNet : (typeof getLinePDManual === "function" ? getLinePDManual(lineKey(ol)) : 0);
+    adjNet += oNet; adjDone += oDone;
+  });
+  if (!adjSchedName) return '<td style="color:#bbb;">-</td>';
+  var adjBal = Math.max(0, adjNet - adjDone);
+  var um = line.SFG_UM || "";
+  var dateStr = maxDate ? fmtDateDMY(maxDate) : "-";
+  var balColor = adjBal > 0.001 ? "#c92a2a" : "#2f9e44";
+  var balStr = adjNet > 0 ? fmt(adjBal, 3) + (um ? " " + um : "") : "";
+  var navAttrs = "";
+  if (adjBom && adjCode) {
+    var st = srcType || "drill";
+    navAttrs = ' class="stage-nav-cell"' +
+      ' data-adj-bom="' + esc(adjBom) + '"' +
+      ' data-adj-code="' + esc(adjCode) + '"' +
+      ' data-adj-sfgname="' + esc(adjSfgName) + '"' +
+      ' data-adj-pord="' + esc(pordNo) + '"' +
+      ' data-src-type="' + esc(st) + '"' +
+      ' data-src-bom="' + esc(st === "drill" ? CURRENT_DRILL_CONTEXT.bom : "") + '"' +
+      ' data-src-code="' + esc(st === "drill" ? CURRENT_DRILL_CONTEXT.code : "") + '"' +
+      ' data-src-name="' + esc(st === "drill" ? CURRENT_DRILL_CONTEXT.name : "") + '"' +
+      ' data-src-pord="' + esc(pordNo) + '"';
+  }
+  return '<td' + navAttrs + ' style="white-space:nowrap;">' +
+    '<span style="font-weight:600;color:#4a7dd6;">' + esc(adjSchedName) + '</span><br>' +
+    '<span style="font-size:11px;color:#555;">' + esc(dateStr) + '</span>' +
+    (balStr ? '<br><span style="font-size:11px;font-weight:600;color:' + balColor + ';">Bal: ' + esc(balStr) + '</span>' : '') +
+    '</td>';
 }
 function isLineDone(l) { return !!LINE_DONE[lineKey(l)]; }
 function setLineDone(l, done) {
@@ -5015,6 +5133,27 @@ async function fetchEqptMasterStatic() {
   }
 }
 
+async function fetchSfgLevelMasterStatic() {
+  try {
+    var live = await fetchLiveData("SFG LEVEL MASTER MANUAL");
+    var rows = live && Array.isArray(live.rows) ? live.rows : [];
+    var map = {};      // "L3|L4" -> NEW_SCHEDULE name
+    var stageMap = {}; // NEW_SCHEDULE name -> STAGE_NO (integer)
+    rows.forEach(function(r) {
+      var l3 = String(r["SFG_LEVEL_3_NAME"] || "").trim().toUpperCase();
+      var l4 = String(r["SFG_LEVEL_4_NAME"] || "").trim().toUpperCase();
+      var ns = String(r["NEW SCHEDULE"] || r["NEW_SCHEDULE"] || "").trim();
+      var sno = parseInt(r["STAGE NO"] || r["STAGE_NO"] || 0, 10);
+      if (l3 && l4 && ns) map[l3 + "|" + l4] = ns;
+      if (ns && sno && !stageMap[ns]) stageMap[ns] = sno;
+    });
+    return { map: map, stageMap: stageMap };
+  } catch(e) {
+    console.warn("SFG LEVEL MASTER fetch failed", e);
+    return { map: {}, stageMap: {} };
+  }
+}
+
 async function fetchHodMasterStatic() {
   var tabNames = ["HOD MASTER", "HOD_MASTER", "HODMASTER"];
   for (var i = 0; i < tabNames.length; i++) {
@@ -5173,9 +5312,13 @@ async function loadData(force, silent) {
     // which in turn resets the user's active EQPT/HOD filter. We only
     // re-fetch on initial load and on manual Refresh button clicks (force).
     if (force || !EQPT_MASTER.length || !HOD_MASTER.length) {
-      const masters = await Promise.all([fetchEqptMasterStatic(), fetchHodMasterStatic()]);
+      const masters = await Promise.all([fetchEqptMasterStatic(), fetchHodMasterStatic(), fetchSfgLevelMasterStatic()]);
       if (masters[0] && masters[0].length) EQPT_MASTER = masters[0];
       if (masters[1] && masters[1].length) HOD_MASTER = masters[1];
+      if (masters[2] && masters[2].map && Object.keys(masters[2].map).length) {
+        SFG_LEVEL_MAP = masters[2].map;
+        SFG_STAGE_NO_MAP = masters[2].stageMap || {};
+      }
     }
     ROWS = buildPivotStatic(rows, netKey);
     LINES = buildLinesStatic(rows, netKey, dateKey);
@@ -5222,6 +5365,7 @@ function renderAll() {
     um:   document.getElementById("fltUm").value,
     l3:   document.getElementById("fltL3").value,
     l4:   document.getElementById("fltL4").value,
+    stage:(function(){ var el = document.getElementById("fltStage"); return el ? el.value : ""; })(),
     eqpt: document.getElementById("fltEqpt").value,
     hod:  document.getElementById("fltHod").value,
     party: (function(){ var el = document.getElementById("fltParty"); return el ? el.value : ""; })(),
@@ -5246,9 +5390,10 @@ function renderAll() {
     if (ok) el.value = val;
   }
   restoreSel("fltUm",   saved.um);
-  restoreSel("fltL3",   saved.l3);
-  restoreSel("fltL4",   saved.l4);
-  restoreSel("fltEqpt", saved.eqpt);
+  restoreSel("fltL3",    saved.l3);
+  restoreSel("fltL4",    saved.l4);
+  restoreSel("fltStage", saved.stage);
+  restoreSel("fltEqpt",  saved.eqpt);
   restoreSel("fltHod",  saved.hod);
   restoreSel("fltParty", saved.party);
   restoreSel("fltApprove", saved.approve);
@@ -5262,6 +5407,7 @@ function renderAll() {
   document.getElementById("fltL3").onchange = onAnyFilterChange;
   document.getElementById("fltL4").onchange = onAnyFilterChange;
   document.getElementById("fltUm").onchange = onAnyFilterChange;
+  var _stgOnch = document.getElementById("fltStage"); if (_stgOnch) _stgOnch.onchange = onAnyFilterChange;
   document.getElementById("fltEqpt").onchange = onAnyFilterChange;
   document.getElementById("fltHod").onchange = onAnyFilterChange;
   var _pt = document.getElementById("fltParty"); if (_pt) _pt.onchange = onAnyFilterChange;
@@ -6177,7 +6323,7 @@ function renderTable(opts) {
   // re-render after a needed restore doesn't trigger the cascade again.
   if (!opts.skipDependentCascade) {
     var _filterSnapshot = {};
-    ["fltUm","fltL3","fltL4","fltEqpt","fltHod","fltParty","fltApprove","fltCStart","fltCEnd","fltRangeStart","fltRangeEnd"].forEach(function(id){
+    ["fltUm","fltL3","fltL4","fltStage","fltEqpt","fltHod","fltParty","fltApprove","fltCStart","fltCEnd","fltRangeStart","fltRangeEnd"].forEach(function(id){
       var el = document.getElementById(id);
       _filterSnapshot[id] = el ? el.value : "";
     });
@@ -6216,6 +6362,8 @@ function renderTable(opts) {
   var fUm = document.getElementById("fltUm").value;
   var fL3 = document.getElementById("fltL3").value;
   var fL4 = document.getElementById("fltL4").value;
+  var _stgEl = document.getElementById("fltStage");
+  var fStage = _stgEl ? _stgEl.value : "";
   var fEqpt = document.getElementById("fltEqpt").value;
   var fHod = document.getElementById("fltHod").value;
   var _ptEl = document.getElementById("fltParty");
@@ -6249,6 +6397,12 @@ function renderTable(opts) {
     if (fUm && r.UM !== fUm) return false;
     if (fL3 && r.L3 !== fL3) return false;
     if (fL4 && r.L4 !== fL4) return false;
+    if (fStage) {
+      var sk = String(r.L3 || "").trim().toUpperCase() + "|" + String(r.L4 || "").trim().toUpperCase();
+      var rowStage = SFG_LEVEL_MAP[sk] || "";
+      if (fStage === "__NONASSIGN__") { if (rowStage) return false; }
+      else if (rowStage !== fStage) return false;
+    }
     if (nzOnly && r.REQ_SUM <= 0) return false;
     var hasLineFilters = !!(fEqpt || fHod || fParty || fApprove || fCStart || fCEnd || rangeStart || rangeEnd || USER_PENDING_MODE || ADMIN_PENDING_MODE);
     var agg = null;
@@ -6397,7 +6551,11 @@ function renderTable(opts) {
   // side-table tbodies.
   if (typeof applyRowSelectionHighlight_ === "function") applyRowSelectionHighlight_();
 }
-function openDrillDown(bom, code, name) {
+function openDrillDown(bom, code, name, backState) {
+  CURRENT_DRILL_CONTEXT = { bom: bom || "", code: code || "", name: name || "" };
+  DRILL_BACK_STATE = backState || null;
+  var bb = document.getElementById("drillBackBtn");
+  if (bb) bb.style.display = DRILL_BACK_STATE ? "inline-block" : "none";
   function computeMatching() {
     var fE = document.getElementById("fltEqpt").value;
     var fH = document.getElementById("fltHod").value;
@@ -6590,6 +6748,10 @@ function renderPordTable(lines, um) {
     { key: "APPROVE_STATUS", label: "Approve" },
     { key: "FG_ITEM_NAME", label: "FG Item" },
     { key: "FG_LEVEL_4_NAME", label: "FG L4" },
+    { key: "_sfg_item_name", label: "SFG Item Name" },
+    { key: "_prev_stage", label: "Prev Stage | Max Commit End" },
+    { key: "_new_schedule", label: "Present Stage" },
+    { key: "_next_stage", label: "Next Stage | Max Commit Start" },
     { key: "FG_NET_ORDERQTY", label: "FG Net (" + um + ")", num: true },
     { key: "FG_PRODUCTION_QTY", label: "Produced", num: true },
     { key: "FG_BALANCE_TO_PRODUCTION", label: "Balance", num: true },
@@ -6627,6 +6789,18 @@ function renderPordTable(lines, um) {
         return '<td class="line-done-cell"><input type="checkbox" class="line-done-chk"' + (done ? ' checked' : '') + disDone + ' /></td>';
       }
       if (c.key === "_status") return '<td>' + (open ? '<span class="pill pill-open">Open</span>' : '<span class="pill pill-closed">Done</span>') + '</td>';
+      if (c.key === "_sfg_item_name") {
+        var sn = l.SFG_NAME || "";
+        return '<td title="' + esc(sn) + '">' + esc(sn) + '</td>';
+      }
+      if (c.key === "_new_schedule") {
+        var l3 = String(l.SFG_LEVEL_3_NAME || "").trim().toUpperCase();
+        var l4 = String(l.SFG_LEVEL_4_NAME || "").trim().toUpperCase();
+        var ns = (l3 && l4) ? (SFG_LEVEL_MAP[l3 + "|" + l4] || "-") : "-";
+        return '<td><span style="font-weight:500;color:#4a7dd6;">' + esc(ns) + '</span></td>';
+      }
+      if (c.key === "_prev_stage") return renderStageInfoCell_(l, true, "drill");
+      if (c.key === "_next_stage") return renderStageInfoCell_(l, false, "drill");
       if (c.key === "_sfg_balance") {
         // SFG Balance Qty = SFG Net Order Qty â€" Production Done Qty (manual
         // per-line input). When Done is ticked, prod_done snaps to sfgNet so
@@ -6780,9 +6954,17 @@ function openPordItemsModal(pord) {
         (maxEnd   ? " / Latest end <strong>" + esc(fmtDateDMY(maxEnd)) + "</strong>" : "") +
         (maxTarget? " / Latest target <strong>" + esc(fmtDateDMY(maxTarget)) + "</strong>" : "");
     }
-    // Sort by commit_start (ascending; blanks last) so earliest planned
-    // items are at the top.
+    // Helper: get stage no for a line via SFG_LEVEL_MAP + SFG_STAGE_NO_MAP
+    function getLineStageNo(l) {
+      var l3 = String(l.SFG_LEVEL_3_NAME || "").trim().toUpperCase();
+      var l4 = String(l.SFG_LEVEL_4_NAME || "").trim().toUpperCase();
+      var ns = (l3 && l4) ? (SFG_LEVEL_MAP[l3 + "|" + l4] || "") : "";
+      return ns ? (SFG_STAGE_NO_MAP[ns] || 999) : 999;
+    }
+    // Sort by Stage No ascending (blanks/unknown last); secondary by commit_start
     var sorted = rows.slice().sort(function(a, b){
+      var sa = getLineStageNo(a), sb = getLineStageNo(b);
+      if (sa !== sb) return sa - sb;
       var as = getLineCStart(lineKey(a)) || "9999-12-31";
       var bs = getLineCStart(lineKey(b)) || "9999-12-31";
       return as < bs ? -1 : as > bs ? 1 : 0;
@@ -6794,19 +6976,24 @@ function openPordItemsModal(pord) {
       var ce = getLineCEnd(lk);
       var td = (typeof getLineDateFromRow === "function") ? getLineDateFromRow(l) : "";
       var endOverdue = ce && todayISO && ce < todayISO;
-      // SFG Balance = SFG Net Order Qty â€" Production Done Qty (manual).
-      // Done tick snaps PD to net so balance lands on 0.
       var sfgNet = num(l.SFG_NET_ORD_QTY);
       var pdNow = (typeof isLineDone === "function" && isLineDone(l)) ? sfgNet : (typeof getLinePDManual === "function" ? getLinePDManual(lineKey(l)) : 0);
       var sfgBal = Math.max(0, sfgNet - pdNow);
       var balTxt = sfgNet > 0 ? fmt(sfgBal, 3) : "-";
       var balCls = sfgBal > 0.0005 ? "num sfg-balance-cell" : "num sfg-balance-cell bal-zero";
+      // New Schedule lookup
+      var pl3 = String(l.SFG_LEVEL_3_NAME || "").trim().toUpperCase();
+      var pl4 = String(l.SFG_LEVEL_4_NAME || "").trim().toUpperCase();
+      var newSched = (pl3 && pl4) ? (SFG_LEVEL_MAP[pl3 + "|" + pl4] || "-") : "-";
+      var stageNo = (newSched !== "-") ? (SFG_STAGE_NO_MAP[newSched] || "") : "";
+      var schedLabel = stageNo ? (stageNo + ". " + newSched) : newSched;
       return '<tr>' +
         '<td class="num">' + (i + 1) + '</td>' +
         '<td>' + esc(l.SFG_CODE || "-") + '</td>' +
         '<td title="' + esc(l.SFG_NAME || "") + '">' + esc((l.SFG_NAME || "-").slice(0, 50)) + '</td>' +
         '<td>' + esc(l.SFG_LEVEL_3_NAME || "-") + '</td>' +
         '<td>' + esc(l.SFG_LEVEL_4_NAME || "-") + '</td>' +
+        '<td><span style="font-weight:600;color:#4a7dd6;">' + esc(schedLabel) + '</span></td>' +
         '<td>' + esc(l.MC_NO || "-") + '</td>' +
         '<td>' + esc((typeof getLineEqpt === "function" ? getLineEqpt(lineKey(l)) : "") || "-") + '</td>' +
         '<td>' + esc((typeof getLineHod === "function" ? getLineHod(lineKey(l)) : "") || "-") + '</td>' +
@@ -6827,6 +7014,7 @@ function openPordItemsModal(pord) {
             '<th>SFG Name</th>' +
             '<th>SFG L3</th>' +
             '<th>SFG L4</th>' +
+            '<th>New Schedule</th>' +
             '<th>MC No</th>' +
             '<th>EQPT</th>' +
             '<th>HOD</th>' +
@@ -7342,6 +7530,8 @@ function applyAllFilters_(opts) {
   var fUm = ex === "UM" ? "" : document.getElementById("fltUm").value;
   var fL3 = ex === "L3" ? "" : document.getElementById("fltL3").value;
   var fL4 = ex === "L4" ? "" : document.getElementById("fltL4").value;
+  var _stgElA = document.getElementById("fltStage");
+  var fStageA = (ex === "STAGE" || !_stgElA) ? "" : _stgElA.value;
   var fEqpt = ex === "EQPT" ? "" : document.getElementById("fltEqpt").value;
   var fHod  = ex === "HOD"  ? "" : document.getElementById("fltHod").value;
   var fPel = document.getElementById("fltParty");
@@ -7374,6 +7564,12 @@ function applyAllFilters_(opts) {
     if (fUm && r.UM !== fUm) return false;
     if (fL3 && r.L3 !== fL3) return false;
     if (fL4 && r.L4 !== fL4) return false;
+    if (fStageA) {
+      var skA = String(r.L3 || "").trim().toUpperCase() + "|" + String(r.L4 || "").trim().toUpperCase();
+      var rsA = SFG_LEVEL_MAP[skA] || "";
+      if (fStageA === "__NONASSIGN__") { if (rsA) return false; }
+      else if (rsA !== fStageA) return false;
+    }
     if (nzOnly && r.REQ_SUM <= 0) return false;
     var hasLineFilters = !!(fEqpt || fHod || fParty || fApprove || fCS || fCE || fRS || fRE || USER_PENDING_MODE || ADMIN_PENDING_MODE);
     var agg = null;
@@ -7434,6 +7630,27 @@ function refreshFilters() {
   if (umSel.value && umVals.indexOf(umSel.value) < 0) umSel.value = "";
   populateSelect(l3Sel, l3Vals);
   populateSelect(l4Sel, l4Vals);
+  var stageSel = document.getElementById("fltStage");
+  if (stageSel) {
+    var curStageVal = stageSel.value;
+    var stageNames = Object.keys(SFG_STAGE_NO_MAP).sort(function(a, b) {
+      return (SFG_STAGE_NO_MAP[a] || 99) - (SFG_STAGE_NO_MAP[b] || 99);
+    });
+    // Check if any visible BOM has no stage assigned
+    var hasUnassigned = rowsExcluding("STAGE").some(function(r) {
+      var sk = String(r.L3 || "").trim().toUpperCase() + "|" + String(r.L4 || "").trim().toUpperCase();
+      return !(SFG_LEVEL_MAP[sk]);
+    });
+    var nonAssignOpt = hasUnassigned
+      ? '<option value="__NONASSIGN__"' + (curStageVal === "__NONASSIGN__" ? ' selected' : '') + '>Non Assign</option>'
+      : '';
+    stageSel.innerHTML = '<option value="">All</option>' +
+      stageNames.map(function(name) {
+        var no = SFG_STAGE_NO_MAP[name] || "";
+        var label = no ? no + ". " + name : name;
+        return '<option value="' + esc(name) + '"' + (curStageVal === name ? ' selected' : '') + '>' + esc(label) + '</option>';
+      }).join("") + nonAssignOpt;
+  }
 }
 // Bundle the UM/L3/L4 dependency refresh with all line-level Excel-style
 // dependent populates (EQPT / HOD / Party / Approve / CStart / CEnd). Called
@@ -7474,7 +7691,7 @@ function refreshAllDependentDropdowns_() {
 window.refreshAllDependentDropdowns_ = refreshAllDependentDropdowns_;
 function clearFilters() {
   [
-    "fltUm","fltL3","fltL4","fltEqpt","fltHod",
+    "fltUm","fltL3","fltL4","fltStage","fltEqpt","fltHod",
     "fltParty","fltApprove","fltCStart","fltCEnd",
     "fltRangeStart","fltRangeEnd","fltSearch"
   ].forEach(function(id){
@@ -8427,6 +8644,11 @@ if (typeof currentRole === "function" && currentRole() !== "anonymous") {
   })();
 }
 if (typeof startAutoRefresh === "function") startAutoRefresh();
-</script>
-</body>
-</html>
+
+// ── Stage cell navigation ──────────────────────────────────────────────────
+function highlightPordRow_(pordNo) {
+  if (!pordNo) return;
+  setTimeout(function() {
+    var content = document.getElementById("drillContent");
+    if (!content) return;
+    var rows = content.querySelectorAll("tr[data-lk]")
