@@ -197,7 +197,7 @@
   .party-group.open .party-head::before { content: '\25BE '; color: #4a7dd6; }
   .mc-block { margin: 8px 0; padding-left: 10px; border-left: 3px solid #cfd7e5; }
   .mc-head { font-size: 12px; font-weight: 600; color: #333; margin-bottom: 4px; }
-  .pord-wrap { overflow: hidden; max-width: 100%; margin: 4px 0 6px; border: 1px solid #eef0f2; border-radius: 4px; }
+  .pord-wrap { overflow-x: auto; max-width: 100%; margin: 4px 0 6px; border: 1px solid #eef0f2; border-radius: 4px; }
   .pord-wrap::-webkit-scrollbar { height: 10px; }
   .pord-wrap::-webkit-scrollbar-track { background: #f3f4f6; }
   .pord-wrap::-webkit-scrollbar-thumb { background: #cfd7e5; border-radius: 5px; }
@@ -206,7 +206,7 @@
      width 100% lets the browser distribute columns, and word-break on the
      text cells means long Party / FG Item / SFG Name strings wrap instead
      of stretching the column. */
-  .pord-table { border-collapse: collapse; font-size: 11px; width: 100%; table-layout: auto; }
+  .pord-table { border-collapse: collapse; font-size: 11px; width: max-content; min-width: 100%; table-layout: auto; }
   .pord-table th { background: #fafbfc; padding: 4px 6px; text-align: left; font-weight: 500; color: #555; border-bottom: 1px solid #eef0f2; white-space: nowrap; position: sticky; top: 0; z-index: 1; }
   .pord-table td { padding: 4px 6px; border-bottom: 1px solid #f3f4f6; white-space: normal; word-break: break-word; vertical-align: top; }
   .pord-table tr:last-child td { border-bottom: none; }
@@ -8707,7 +8707,6 @@ document.addEventListener("click", function(e) {
   var backState = { srcType: srcType, srcBom: srcBom, srcCode: srcCode, srcName: srcName, srcPord: srcPord };
   navigateToStage_(adjBom, adjCode, adjSfgName, adjPord, backState);
 });
-
 </script>
 </body>
 </html>
