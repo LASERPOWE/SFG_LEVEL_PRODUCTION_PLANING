@@ -8651,4 +8651,63 @@ function highlightPordRow_(pordNo) {
   setTimeout(function() {
     var content = document.getElementById("drillContent");
     if (!content) return;
-    var rows = content.querySelectorAll("tr[data-lk]")
+    var rows = content.querySelectorAll("tr[data-lk]");
+    for (var i = 0; i < rows.length; i++) {
+      var lk = rows[i].getAttribute("data-lk") || "";
+      if (lk.split("||")[0] === pordNo) {
+        rows[i].classList.add("nav-highlight");
+        rows[i].scrollIntoView({ behavior: "smooth", block: "center" });
+        setTimeout(function(r){ r.classList.remove("nav-highlight"); }, 3000, rows[i]);
+        break;
+      }
+    }
+  }, 350);
+}
+
+function navigateToStage_(adjBom, adjCode, adjSfgName, adjPord, backState) {
+  if (backState && backState.srcType === "reschedule") {
+    var rsm = document.getElementById("eqptScheduleModal");
+    if (rsm) rsm.classList.remove("open");
+  }
+  openDrillDown(adjBom, adjCode, adjSfgName, backState);
+  highlightPordRow_(adjPord);
+}
+
+function drillGoBack_() {
+  var state = DRILL_BACK_STATE;
+  DRILL_BACK_STATE = null;
+  var bb = document.getElementById("drillBackBtn");
+  if (bb) bb.style.display = "none";
+  if (!state) return;
+  if (state.srcType === "reschedule") {
+    document.getElementById("drillModal").classList.remove("open");
+    var rsm = document.getElementById("eqptScheduleModal");
+    if (rsm) rsm.classList.add("open");
+  } else {
+    openDrillDown(state.srcBom, state.srcCode, state.srcName, null);
+    highlightPordRow_(state.srcPord);
+  }
+}
+window.drillGoBack_ = drillGoBack_;
+
+document.addEventListener("click", function(e) {
+  var td = e.target.closest ? e.target.closest(".stage-nav-cell") : null;
+  if (!td) return;
+  e.stopPropagation();
+  var adjBom     = td.getAttribute("data-adj-bom") || "";
+  var adjCode    = td.getAttribute("data-adj-code") || "";
+  var adjSfgName = td.getAttribute("data-adj-sfgname") || "";
+  var adjPord    = td.getAttribute("data-adj-pord") || "";
+  var srcType    = td.getAttribute("data-src-type") || "drill";
+  var srcBom     = td.getAttribute("data-src-bom") || "";
+  var srcCode    = td.getAttribute("data-src-code") || "";
+  var srcName    = td.getAttribute("data-src-name") || "";
+  var srcPord    = td.getAttribute("data-src-pord") || "";
+  if (!adjBom || !adjCode) return;
+  var backState = { srcType: srcType, srcBom: srcBom, srcCode: srcCode, srcName: srcName, srcPord: srcPord };
+  navigateToStage_(adjBom, adjCode, adjSfgName, adjPord, backState);
+});
+
+</script>
+</body>
+</html>
