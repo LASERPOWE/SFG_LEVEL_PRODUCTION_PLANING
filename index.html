@@ -288,6 +288,32 @@
   .equipment-block-table tr.eqpt-row-stopped:not(.eqpt-row-overdue) td { background: #fff7d6; }
   .equipment-block-table tr.eqpt-row-stopped:not(.eqpt-row-overdue):hover td { background: #ffeebd; }
   .equipment-block-table tr.eqpt-row-stopped td:first-child { box-shadow: inset 4px 0 0 #d4a106; }
+  /* BAL INSP AG OFFER page styles */
+  #balInspContent .bal-insp-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  #balInspContent .bal-insp-table th { background: #eaf1fb; padding: 9px 10px; border-bottom: 2px solid #b8cde8; text-align: left; font-weight: 600; white-space: nowrap; position: sticky; top: 0; cursor: pointer; user-select: none; z-index: 2; }
+  #balInspContent .bal-insp-table th:hover { background: #daeaf8; }
+  #balInspContent .bal-insp-table td { padding: 7px 10px; border-bottom: 1px solid #eef0f2; vertical-align: middle; }
+  #balInspContent .bal-insp-table tbody tr:hover { background: #eef4ff; }
+  #balInspContent .bal-insp-table tfoot td { background: #f3f6fb; font-weight: 700; border-top: 2px solid #b8cde8; position: sticky; bottom: 0; }
+  .bi-pct-high   { background: #ffeaea; color: #b03030; font-weight: 700; }
+  .bi-pct-mid    { background: #fff6e0; color: #8a5a00; font-weight: 600; }
+  .bi-pct-low    { background: #eaf7ee; color: #1f7a3a; font-weight: 500; }
+  .bi-pct-zero   { background: #f4f4f4; color: #999; }
+  /* BAL INSP drill-down modal */
+  #balInspContent .bal-insp-table tbody tr { cursor: pointer; }
+  .bi-drill-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .bi-drill-table th { background: #eaf1fb; padding: 8px 10px; border-bottom: 2px solid #b8cde8; text-align: left; font-weight: 600; white-space: nowrap; position: sticky; top: 0; z-index: 2; }
+  .bi-drill-table td { padding: 6px 10px; border-bottom: 1px solid #eef0f2; vertical-align: middle; white-space: nowrap; }
+  .bi-drill-table tbody tr:hover td { background: #eef4ff; }
+  .bi-drill-party-header td { background: #1a3a6e !important; color: #fff !important; font-weight: 700; font-size: 12px; letter-spacing: 0.03em; padding: 7px 10px; }
+  .bi-drill-party-header td .bi-party-pill { display: inline-block; background: rgba(255,255,255,0.15); border-radius: 4px; padding: 1px 8px; margin-left: 8px; font-size: 11px; font-weight: 400; }
+  .bi-drill-subtotal td { background: #dce8f8 !important; font-weight: 700; color: #17324d; border-top: 1px solid #b8cde8; border-bottom: 2px solid #b8cde8; }
+  .bi-drill-grandtotal td { background: #1a3a6e !important; color: #fff !important; font-weight: 700; position: sticky; bottom: 0; }
+  .bi-status-pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 600; white-space: nowrap; }
+  .bi-status-done    { background: #e6f6ec; color: #1f7a3a; }
+  .bi-status-pending { background: #fff4e0; color: #a8650a; }
+  .bi-status-cancel  { background: #ffeaea; color: #b03030; }
+  .bi-status-other   { background: #f0f0f0; color: #555; }
   /* Print to PDF button â€" emerald palette so it stands apart from Refresh / Export. */
   .print-pdf-btn { background: #0f9d58; color: #fff; border: 1px solid #0a7d46; border-radius: 4px; padding: 4px 10px; font-size: 11px; cursor: pointer; font-weight: 600; }
   .print-pdf-btn:hover { background: #0a7d46; }
@@ -342,15 +368,15 @@
      primary table; the PORD card sticks at 280px on the right. On narrow
      viewports (<1100px) the PORD card wraps below to keep the pivot
      fully usable. */
-  .pivot-side-wrap { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 14px; align-items: start; }
+  .pivot-side-wrap { display: grid; grid-template-columns: minmax(0, 1fr) 480px; gap: 14px; align-items: start; }
   @media (max-width: 1100px) {
     .pivot-side-wrap { grid-template-columns: 1fr; }
   }
   .pord-balance-card { position: sticky; top: 10px; max-height: calc(100vh - 30px); display: flex; flex-direction: column; }
   .pord-balance-wrap { overflow-y: auto; flex: 1; border: 1px solid #e6e8eb; border-radius: 6px; }
-  .pord-balance-table { width: 100%; border-collapse: collapse; font-size: 11px; }
-  .pord-balance-table th { background: #f3f4f6; padding: 6px 8px; border-bottom: 1px solid #d6d8db; text-align: left; font-weight: 600; white-space: nowrap; position: sticky; top: 0; z-index: 1; }
-  .pord-balance-table td { padding: 5px 8px; border-bottom: 1px solid #eef0f2; vertical-align: top; }
+  .pord-balance-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .pord-balance-table th { background: #f3f4f6; padding: 7px 10px; border-bottom: 1px solid #d6d8db; text-align: left; font-weight: 600; white-space: nowrap; position: sticky; top: 0; z-index: 1; }
+  .pord-balance-table td { padding: 6px 10px; border-bottom: 1px solid #eef0f2; vertical-align: middle; white-space: nowrap; }
   .pord-balance-table tr:last-child td { border-bottom: none; }
   .pord-balance-table tr.pord-row { cursor: pointer; }
   .pord-balance-table tr.pord-row:hover { background: #f1f6ff; }
@@ -781,6 +807,7 @@
       <button class="page-tab active" id="dashboardPageBtn" type="button" onclick="showDashboardPage()">SFG Dashboard</button>
       <button class="page-tab" id="teamMasterPageBtn" type="button" onclick="showTeamMasterPage()">Team Master</button>
       <button class="page-tab" id="mcStatusPageBtn" type="button" onclick="showMcStatusPage()">MC Status</button>
+      <button class="page-tab" id="balInspPageBtn" type="button" onclick="showBalInspPage()">BAL INSP AG OFFER</button>
     </span>
     <span class="auth-bar" id="authBar">
       <span class="auth-badge role-anonymous" id="authBadge">Not logged in</span>
@@ -937,10 +964,12 @@
             <tr>
               <th class="sortable" data-sort-table="pordbal" data-sort-key="pord">PORD No<span class="sort-arrow"></span></th>
               <th class="sortable" data-sort-table="pordbal" data-sort-key="balance" style="text-align:right;">SFG Balance<span class="sort-arrow"></span></th>
+              <th class="sortable" data-sort-table="pordbal" data-sort-key="maxDate" style="text-align:center;">Max End Date<span class="sort-arrow"></span></th>
+              <th class="sortable" data-sort-table="pordbal" data-sort-key="daysLeft" style="text-align:right;">Days Left<span class="sort-arrow"></span></th>
             </tr>
           </thead>
           <tbody id="pordBalanceBody">
-            <tr><td colspan="2" class="empty">Loading...</td></tr>
+            <tr><td colspan="4" class="empty">Loading...</td></tr>
           </tbody>
           <tfoot id="pordBalanceFoot"></tfoot>
         </table>
@@ -1045,6 +1074,86 @@
         <table class="pivot-table" id="mcStatusPivotTable">
           <thead><tr id="mcStatusHead"></tr></thead>
           <tbody id="mcStatusBody"><tr><td class="empty">Open MC Status page to load data.</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- BAL INSP AG OFFER Page -->
+  <div id="balInspContent" style="display:none">
+    <div class="kpis" id="balInspKpis"></div>
+    <div class="card">
+      <h3>BAL INSP AG OFFER <span class="hint">- Item-wise: NET OFFER QTY, BALANCE INSPECTION QTY &amp; % OF BALANCE &nbsp;|&nbsp; Source: BAL_INS_AG_OFF_BI_DUMP</span></h3>
+      <div class="filters">
+        <label>Search
+          <input id="balInspSearch" type="text" placeholder="Item code, name, UM..." oninput="renderBalInspTable()" />
+        </label>
+        <label>Balance Status
+          <select id="balInspBalMode" onchange="renderBalInspTable()">
+            <option value="pending" selected>Pending (balance &gt; 0)</option>
+            <option value="done">Done (balance = 0)</option>
+            <option value="all">All</option>
+          </select>
+        </label>
+        <label title="Show only items where % Balance is at least this value">Min % Bal
+          <input id="balInspMinPct" type="number" min="0" max="100" step="1" placeholder="e.g. 50" oninput="renderBalInspTable()" style="width:80px;" />
+        </label>
+        <button class="clear-filter-btn" type="button" onclick="clearBalInspFilters()">Clear Filters</button>
+        <span id="balInspMeta" style="margin-left:auto;font-size:11px;color:#666;"></span>
+      </div>
+      <div class="table-wrap" style="max-height:650px;">
+        <table class="bal-insp-table">
+          <thead>
+            <tr>
+              <th onclick="sortBalInsp_('ITEM_CODE')" id="biTh_ITEM_CODE">#&nbsp;Item Code <span class="sort-arrow">&#8597;</span></th>
+              <th onclick="sortBalInsp_('ITEM_NAME')" id="biTh_ITEM_NAME">Item Name <span class="sort-arrow">&#8597;</span></th>
+              <th onclick="sortBalInsp_('UM')" id="biTh_UM">UM <span class="sort-arrow">&#8597;</span></th>
+              <th onclick="sortBalInsp_('NET_OFFER')" id="biTh_NET_OFFER" style="text-align:right;">NET OFFER QTY <span class="sort-arrow">&#8597;</span></th>
+              <th onclick="sortBalInsp_('BAL_INSP')" id="biTh_BAL_INSP" style="text-align:right;">BAL INSP QTY <span class="sort-arrow">&#8597;</span></th>
+              <th onclick="sortBalInsp_('MC_STOCK')" id="biTh_MC_STOCK" style="text-align:right;">MC STOCK (KM) <span class="sort-arrow">&#8597;</span></th>
+              <th onclick="sortBalInsp_('PCT')" id="biTh_PCT" style="text-align:right;">% OF BALANCE <span class="sort-arrow">&#8597;</span></th>
+              <th onclick="sortBalInsp_('OFFERS')" id="biTh_OFFERS" style="text-align:right;">Offers <span class="sort-arrow">&#8597;</span></th>
+            </tr>
+          </thead>
+          <tbody id="balInspBody">
+            <tr><td colspan="7" class="empty">Open BAL INSP AG OFFER page to load data.</td></tr>
+          </tbody>
+          <tfoot id="balInspFoot"></tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- BAL INSP AG OFFER — Party-wise drill-down modal -->
+  <div class="modal-backdrop" id="balInspDrillModal" style="z-index:62;" onclick="if(event.target.id==='balInspDrillModal')closeBalInspDrillModal()">
+    <div class="modal" style="max-width:1500px;width:96vw;">
+      <div class="modal-head">
+        <div>
+          <h2 id="biDrillTitle">Item Details</h2>
+          <div class="meta" id="biDrillMeta"></div>
+        </div>
+        <button class="modal-close" onclick="closeBalInspDrillModal()">&times;</button>
+      </div>
+      <div class="modal-body" style="padding:0;overflow-x:auto;max-height:72vh;overflow-y:auto;">
+        <table class="bi-drill-table">
+          <thead>
+            <tr>
+              <th>Party (ACC NAME)</th>
+              <th>Offer No</th>
+              <th>MC No</th>
+              <th>Off Date</th>
+              <th>Insp Propose Date</th>
+              <th style="text-align:right;">Net Offer</th>
+              <th style="text-align:right;">Net Insp Entry</th>
+              <th style="text-align:right;">Bal Insp Qty</th>
+              <th style="text-align:right;">MC STOCK (KM)</th>
+              <th style="text-align:right;">% Balance</th>
+              <th>MC Status</th>
+              <th>Inspection Status</th>
+              <th style="min-width:160px;background:#fffbe6;">INSP DATE DECIDED<br><span style="font-weight:400;font-size:10px;color:#888;">(In consultation with inspector)</span></th>
+            </tr>
+          </thead>
+          <tbody id="biDrillBody"></tbody>
         </table>
       </div>
     </div>
@@ -3770,8 +3879,9 @@ async function fetchLiveData(tab) {
 }
 
 function refreshActivePage(force) {
-  if (CURRENT_PAGE === "team") return loadTeamMasterData(!!force);
-  if (CURRENT_PAGE === "mc") return loadMcStatusData(!!force);
+  if (CURRENT_PAGE === "team")    return loadTeamMasterData(!!force);
+  if (CURRENT_PAGE === "mc")      return loadMcStatusData(!!force);
+  if (CURRENT_PAGE === "balinsp") return loadBalInspData(!!force);
   return loadData(!!force);
 }
 window.refreshActivePage = refreshActivePage;
@@ -3826,19 +3936,383 @@ async function hardRefreshAll_() {
 window.hardRefreshAll_ = hardRefreshAll_;
 
 function setPageTabState_() {
-  var dashBtn = document.getElementById("dashboardPageBtn");
-  var teamBtn = document.getElementById("teamMasterPageBtn");
-  var mcBtn = document.getElementById("mcStatusPageBtn");
-  if (dashBtn) dashBtn.classList.toggle("active", CURRENT_PAGE === "dashboard");
-  if (teamBtn) teamBtn.classList.toggle("active", CURRENT_PAGE === "team");
-  if (mcBtn) mcBtn.classList.toggle("active", CURRENT_PAGE === "mc");
-  var contentEl = document.getElementById("content");
-  var teamEl = document.getElementById("teamMasterContent");
-  var mcEl = document.getElementById("mcStatusContent");
+  var dashBtn    = document.getElementById("dashboardPageBtn");
+  var teamBtn    = document.getElementById("teamMasterPageBtn");
+  var mcBtn      = document.getElementById("mcStatusPageBtn");
+  var balInspBtn = document.getElementById("balInspPageBtn");
+  if (dashBtn)    dashBtn.classList.toggle("active",    CURRENT_PAGE === "dashboard");
+  if (teamBtn)    teamBtn.classList.toggle("active",    CURRENT_PAGE === "team");
+  if (mcBtn)      mcBtn.classList.toggle("active",      CURRENT_PAGE === "mc");
+  if (balInspBtn) balInspBtn.classList.toggle("active", CURRENT_PAGE === "balinsp");
+  var contentEl    = document.getElementById("content");
+  var teamEl       = document.getElementById("teamMasterContent");
+  var mcEl         = document.getElementById("mcStatusContent");
+  var balInspEl    = document.getElementById("balInspContent");
   if (contentEl) contentEl.style.display = CURRENT_PAGE === "dashboard" && ROWS.length ? "" : "none";
-  if (teamEl) teamEl.style.display = CURRENT_PAGE === "team" ? "" : "none";
-  if (mcEl) mcEl.style.display = CURRENT_PAGE === "mc" ? "" : "none";
+  if (teamEl)    teamEl.style.display    = CURRENT_PAGE === "team"     ? "" : "none";
+  if (mcEl)      mcEl.style.display      = CURRENT_PAGE === "mc"       ? "" : "none";
+  if (balInspEl) balInspEl.style.display = CURRENT_PAGE === "balinsp"  ? "" : "none";
 }
+
+// ============================================================
+// BAL INSP AG OFFER page globals + logic
+// ============================================================
+var BAL_INSP_ROWS = [];
+var BAL_INSP_META = {};
+var BAL_INSP_SORT = { col: "PCT", asc: false };
+var BAL_INSP_DATES = {};   // keyed by offer_item_key → insp_date_decided string
+
+function loadBalInspInputs_() {
+  return new Promise(function(resolve) {
+    var cb = "__balInspInputsCb_" + Date.now() + "_" + Math.floor(Math.random() * 1e5);
+    var script = document.createElement("script");
+    var done = false;
+    function finish(payload) {
+      if (done) return; done = true;
+      try { delete window[cb]; } catch(e) { window[cb] = undefined; }
+      if (script.parentNode) script.parentNode.removeChild(script);
+      var recs = payload && Array.isArray(payload.records) ? payload.records : [];
+      recs.forEach(function(r) {
+        var k = String(r.offer_item_key || "").trim();
+        if (k) BAL_INSP_DATES[k] = String(r.insp_date_decided || "").trim();
+      });
+      resolve();
+    }
+    window[cb] = function(p) { finish(p); };
+    script.onerror = function() { finish(null); };
+    setTimeout(function() { finish(null); }, 10000);
+    var qs = new URLSearchParams({ action: "list_bal_insp_inputs", callback: cb, _: String(Date.now()) });
+    script.src = INPUT_API_URL + (INPUT_API_URL.indexOf("?") >= 0 ? "&" : "?") + qs.toString();
+    document.head.appendChild(script);
+  });
+}
+
+function saveBalInspInspDate_(offerItemKey, dateVal) {
+  var body = new URLSearchParams();
+  body.set("action", "upsert_bal_insp");
+  body.set("offer_item_key", offerItemKey);
+  body.set("insp_date_decided", dateVal || "");
+  body.set("updated_at", new Date().toISOString());
+  try {
+    var _s = typeof loadSession === "function" ? loadSession() : null;
+    body.set("updated_by", _s && _s.username ? _s.username : "");
+  } catch(_e) {}
+  BAL_INSP_DATES[offerItemKey] = dateVal || "";
+  fetch(INPUT_API_URL, {
+    method: "POST", mode: "no-cors",
+    headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+    body: body
+  }).catch(function(e) { console.warn("BAL INSP date save failed", e); });
+}
+window.saveBalInspInspDate_ = saveBalInspInspDate_;
+
+function showBalInspPage() {
+  CURRENT_PAGE = "balinsp";
+  setPageTabState_();
+  if (!BAL_INSP_ROWS.length) loadBalInspData(false);
+}
+window.showBalInspPage = showBalInspPage;
+
+async function loadBalInspData(force) {
+  var btn = document.getElementById("refreshBtn");
+  var errEl = document.getElementById("error");
+  var loadingEl = document.getElementById("loading");
+  var metaEl = document.getElementById("balInspMeta");
+  if (errEl) errEl.style.display = "none";
+  if (loadingEl) { loadingEl.style.display = ""; loadingEl.textContent = "Fetching BAL_INS_AG_OFF_BI_DUMP from Google Sheets..."; }
+  if (btn) { btn.disabled = true; btn.textContent = "Refreshing..."; }
+  try {
+    var live = await fetchLiveData("BAL_INS_AG_OFF_BI_DUMP");
+    if (live && live.error) throw new Error(live.error);
+    BAL_INSP_ROWS = live && Array.isArray(live.rows) ? live.rows : [];
+    BAL_INSP_META = { exported_at: live.exported_at, row_count: BAL_INSP_ROWS.length };
+    if (metaEl) metaEl.textContent = BAL_INSP_ROWS.length + " rows / live as of " + (BAL_INSP_META.exported_at || "").slice(0,19).replace("T"," ");
+    // Pre-load saved inspection dates so modal opens instantly on row click
+    if (typeof INPUT_API_URL === "string" && INPUT_API_URL.trim()) {
+      loadBalInspInputs_().catch(function(e){ console.warn("BAL INSP dates preload failed", e); });
+    }
+    renderBalInspTable();
+  } catch(e) {
+    if (errEl) { errEl.style.display = "block"; errEl.textContent = "Failed to load BAL_INS_AG_OFF_BI_DUMP: " + e.message; }
+  } finally {
+    if (loadingEl) loadingEl.style.display = "none";
+    if (btn) { btn.disabled = false; btn.textContent = "Refresh"; }
+  }
+}
+window.loadBalInspData = loadBalInspData;
+
+function _biNum(v) { var n = parseFloat(v); return isNaN(n) ? 0 : n; }
+
+function buildBalInspPivot_() {
+  var map = {};
+  BAL_INSP_ROWS.forEach(function(r) {
+    var code = String(r["ITEM_CODE"] || "").trim();
+    var name = String(r["ITEM_NAME"] || "").trim();
+    var um   = String(r["UM"] || "").trim();
+    var key  = code + "||" + name + "||" + um;
+    if (!map[key]) map[key] = { ITEM_CODE: code, ITEM_NAME: name, UM: um, NET_OFFER: 0, BAL_INSP: 0, MC_STOCK: 0, OFFERS: 0 };
+    map[key].NET_OFFER += _biNum(r["NET OFFER"]);
+    map[key].BAL_INSP  += _biNum(r["BAL INSP QTY"]);
+    map[key].MC_STOCK  += _biNum(r["MC STOCK"]);
+    map[key].OFFERS    += 1;
+  });
+  return Object.values(map).map(function(g) {
+    var pct = g.NET_OFFER > 0 ? (g.BAL_INSP / g.NET_OFFER) * 100 : 0;
+    g.PCT = Math.round(pct * 100) / 100;
+    return g;
+  });
+}
+
+function sortBalInsp_(col) {
+  if (BAL_INSP_SORT.col === col) { BAL_INSP_SORT.asc = !BAL_INSP_SORT.asc; }
+  else { BAL_INSP_SORT.col = col; BAL_INSP_SORT.asc = (col === "ITEM_CODE" || col === "ITEM_NAME"); }
+  renderBalInspTable();
+}
+window.sortBalInsp_ = sortBalInsp_;
+
+function clearBalInspFilters() {
+  var s = document.getElementById("balInspSearch"); if (s) s.value = "";
+  var m = document.getElementById("balInspBalMode"); if (m) m.value = "pending";
+  var p = document.getElementById("balInspMinPct"); if (p) p.value = "";
+  renderBalInspTable();
+}
+window.clearBalInspFilters = clearBalInspFilters;
+
+function renderBalInspTable() {
+  var tbody = document.getElementById("balInspBody");
+  var tfoot = document.getElementById("balInspFoot");
+  var kpisEl = document.getElementById("balInspKpis");
+  if (!tbody) return;
+
+  var pivot = buildBalInspPivot_();
+
+  // Filters
+  var search = (document.getElementById("balInspSearch") || {}).value || "";
+  var balMode = (document.getElementById("balInspBalMode") || {}).value || "pending";
+  var minPct  = parseFloat((document.getElementById("balInspMinPct") || {}).value || "");
+  var sq = search.trim().toLowerCase();
+
+  var filtered = pivot.filter(function(g) {
+    if (balMode === "pending" && g.BAL_INSP <= 0) return false;
+    if (balMode === "done"    && g.BAL_INSP > 0)  return false;
+    if (!isNaN(minPct) && g.PCT < minPct) return false;
+    if (sq && !(
+      g.ITEM_CODE.toLowerCase().indexOf(sq) >= 0 ||
+      g.ITEM_NAME.toLowerCase().indexOf(sq) >= 0 ||
+      g.UM.toLowerCase().indexOf(sq) >= 0
+    )) return false;
+    return true;
+  });
+
+  // Sort
+  var sc = BAL_INSP_SORT.col, sa = BAL_INSP_SORT.asc;
+  filtered.sort(function(a, b) {
+    var av = a[sc], bv = b[sc];
+    if (typeof av === "string") return sa ? av.localeCompare(bv) : bv.localeCompare(av);
+    return sa ? av - bv : bv - av;
+  });
+
+  // Update sort arrow indicators
+  ["ITEM_CODE","ITEM_NAME","UM","NET_OFFER","BAL_INSP","MC_STOCK","PCT","OFFERS"].forEach(function(c) {
+    var th = document.getElementById("biTh_" + c);
+    if (!th) return;
+    var arrow = th.querySelector(".sort-arrow");
+    if (!arrow) return;
+    if (c === sc) { arrow.textContent = sa ? "▲" : "▼"; arrow.style.color = "#2f6fdf"; }
+    else { arrow.textContent = "⇅"; arrow.style.color = "#aaa"; }
+  });
+
+  // KPI cards
+  var totalOffer = 0, totalBal = 0;
+  pivot.forEach(function(g){ totalOffer += g.NET_OFFER; totalBal += g.BAL_INSP; });
+  var overallPct = totalOffer > 0 ? (totalBal / totalOffer * 100).toFixed(1) : "0.0";
+  var pendingItems = pivot.filter(function(g){ return g.BAL_INSP > 0; }).length;
+  if (kpisEl) {
+    kpisEl.innerHTML =
+      '<div class="kpi"><div class="label">Total Items</div><div class="value">' + pivot.length + '</div><div class="sub2">unique item codes</div></div>' +
+      '<div class="kpi"><div class="label">Items Pending Insp.</div><div class="value" style="color:#b03030;">' + pendingItems + '</div><div class="sub2">balance &gt; 0</div></div>' +
+      '<div class="kpi"><div class="label">Total NET OFFER QTY</div><div class="value">' + totalOffer.toFixed(3) + '</div><div class="sub2">sum across all items</div></div>' +
+      '<div class="kpi"><div class="label">Total BAL INSP QTY</div><div class="value" style="color:#b03030;">' + totalBal.toFixed(3) + '</div><div class="sub2">pending inspection</div></div>' +
+      '<div class="kpi"><div class="label">Overall % Balance</div><div class="value" style="color:' + (parseFloat(overallPct) > 50 ? '#b03030' : parseFloat(overallPct) > 20 ? '#8a5a00' : '#1f7a3a') + ';">' + overallPct + '%</div><div class="sub2">BAL / NET OFFER</div></div>';
+  }
+
+  // Rows
+  if (!filtered.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="empty">No items match the current filters.</td></tr>';
+    if (tfoot) tfoot.innerHTML = "";
+    return;
+  }
+
+  var sumOffer = 0, sumBal = 0, sumStock = 0;
+  var html = "";
+  filtered.forEach(function(g, i) {
+    var pct = g.PCT;
+    var pctClass = pct === 0 ? "bi-pct-zero" : pct >= 75 ? "bi-pct-high" : pct >= 30 ? "bi-pct-mid" : "bi-pct-low";
+    sumOffer += g.NET_OFFER;
+    sumBal   += g.BAL_INSP;
+    sumStock += g.MC_STOCK;
+    var _c = g.ITEM_CODE.replace(/'/g,"\\x27"), _n = g.ITEM_NAME.replace(/'/g,"\\x27"), _u = (g.UM||"").replace(/'/g,"\\x27");
+    html += '<tr title="Click to see party-wise detail" onclick="openBalInspDrill_(\'' + _c + '\',\'' + _n + '\',\'' + _u + '\')">' +
+      '<td>' + (i+1) + '. ' + (g.ITEM_CODE || '<span class="bom-empty">-</span>') + '</td>' +
+      '<td>' + (g.ITEM_NAME || '<span class="bom-empty">-</span>') + '</td>' +
+      '<td><span class="pill ' + (g.UM === "KM" ? "pill-km" : g.UM === "KG" ? "pill-kg" : "pill-empty") + '">' + (g.UM || "-") + '</span></td>' +
+      '<td class="num">' + g.NET_OFFER.toFixed(3) + '</td>' +
+      '<td class="num">' + g.BAL_INSP.toFixed(3) + '</td>' +
+      '<td class="num">' + g.MC_STOCK.toFixed(3) + '</td>' +
+      '<td class="num ' + pctClass + '">' + pct.toFixed(1) + '%</td>' +
+      '<td class="num">' + g.OFFERS + '</td>' +
+    '</tr>';
+  });
+  tbody.innerHTML = html;
+
+  // Footer totals
+  var footPct = sumOffer > 0 ? (sumBal / sumOffer * 100).toFixed(1) : "0.0";
+  if (tfoot) {
+    tfoot.innerHTML = '<tr>' +
+      '<td colspan="3">Total (' + filtered.length + ' items)</td>' +
+      '<td class="num">' + sumOffer.toFixed(3) + '</td>' +
+      '<td class="num">' + sumBal.toFixed(3) + '</td>' +
+      '<td class="num">' + sumStock.toFixed(3) + '</td>' +
+      '<td class="num">' + footPct + '%</td>' +
+      '<td class="num"></td>' +
+    '</tr>';
+  }
+}
+window.renderBalInspTable = renderBalInspTable;
+
+// ---- BAL INSP DRILL-DOWN (party-wise detail) ----
+
+function _biStatusClass(s) {
+  if (!s) return "bi-status-other";
+  var u = s.toUpperCase();
+  if (u.indexOf("CANCEL") >= 0) return "bi-status-cancel";
+  if (u.indexOf("COMPLET") >= 0 || u.indexOf("DONE") >= 0 || u.indexOf("PASSED") >= 0) return "bi-status-done";
+  if (u.indexOf("PENDING") >= 0 || u.indexOf("TO BE") >= 0 || u.indexOf("PENDING") >= 0) return "bi-status-pending";
+  return "bi-status-other";
+}
+
+function openBalInspDrill_(itemCode, itemName, um) {
+  // Filter source rows for this item
+  var rows = BAL_INSP_ROWS.filter(function(r) {
+    return String(r["ITEM_CODE"] || "").trim() === itemCode &&
+           String(r["ITEM_NAME"] || "").trim() === itemName;
+  });
+
+  // Title + meta
+  var titleEl = document.getElementById("biDrillTitle");
+  var metaEl  = document.getElementById("biDrillMeta");
+  if (titleEl) titleEl.textContent = itemCode + " — " + itemName;
+
+  var totOffer = 0, totBal = 0, totInsp = 0;
+  rows.forEach(function(r) {
+    totOffer += _biNum(r["NET OFFER"]);
+    totBal   += _biNum(r["BAL INSP QTY"]);
+    totInsp  += _biNum(r["NET INSP ENTRY"]);
+  });
+  var ovPct = totOffer > 0 ? (totBal / totOffer * 100).toFixed(1) : "0.0";
+  var parties = Array.from(new Set(rows.map(function(r){ return String(r["ACC_NAME"] || "").trim(); }))).filter(Boolean);
+  if (metaEl) metaEl.textContent =
+    "UM: " + (um || "-") + "  |  " + rows.length + " offer line(s)  |  " + parties.length + " party(ies)  |  " +
+    "Net Offer: " + totOffer.toFixed(3) + "  |  Bal Insp: " + totBal.toFixed(3) + "  |  Balance: " + ovPct + "%";
+
+  // Group by party (ACC_NAME)
+  var partyMap = {};
+  var partyOrder = [];
+  rows.forEach(function(r) {
+    var party = String(r["ACC_NAME"] || "").trim() || "(No Party)";
+    if (!partyMap[party]) { partyMap[party] = []; partyOrder.push(party); }
+    partyMap[party].push(r);
+  });
+  partyOrder.sort();
+
+  var html = "";
+  var grandOffer = 0, grandBal = 0, grandInsp = 0, grandStock = 0;
+
+  partyOrder.forEach(function(party) {
+    var pRows = partyMap[party];
+    var pOffer = 0, pBal = 0, pInsp = 0, pStock = 0;
+
+    // Party header row
+    html += '<tr class="bi-drill-party-header">' +
+      '<td colspan="13">&#9654; ' + party +
+      '<span class="bi-party-pill">' + pRows.length + ' line(s)</span></td></tr>';
+
+    // Data rows
+    pRows.forEach(function(r) {
+      var no  = _biNum(r["NET OFFER"]);
+      var bi  = _biNum(r["BAL INSP QTY"]);
+      var ni  = _biNum(r["NET INSP ENTRY"]);
+      var ms  = _biNum(r["MC STOCK"]);
+      var pct = no > 0 ? (bi / no * 100) : 0;
+      var pctClass = pct === 0 ? "bi-pct-zero" : pct >= 75 ? "bi-pct-high" : pct >= 30 ? "bi-pct-mid" : "bi-pct-low";
+      var mcSt   = String(r["MC STATUS"] || "").trim();
+      var inSpSt = String(r["INSPECTION STATUS"] || "").trim();
+      var oiKey  = String(r["OFFER NO+ITEMCODE"] || (String(r["OFFER NO"]||"").trim() + String(r["ITEM_CODE"]||"").trim())).trim();
+      var savedDate = BAL_INSP_DATES[oiKey] || "";
+      var safeKey = oiKey.replace(/\\/g,"\\\\").replace(/'/g,"\\x27");
+      pOffer += no; pBal += bi; pInsp += ni; pStock += ms;
+
+      html += '<tr>' +
+        '<td>' + party + '</td>' +
+        '<td>' + (r["OFFER NO"] || "-") + '</td>' +
+        '<td>' + (r["MC_NO"] || "-") + '</td>' +
+        '<td>' + (r["OFF DATE"] || "-") + '</td>' +
+        '<td>' + (r["INSP_PROPOSE_DATE"] || "-") + '</td>' +
+        '<td class="num">' + no.toFixed(3) + '</td>' +
+        '<td class="num">' + (ni || ni === 0 ? ni.toFixed ? ni.toFixed(3) : ni : "-") + '</td>' +
+        '<td class="num">' + bi.toFixed(3) + '</td>' +
+        '<td class="num">' + ms.toFixed(3) + '</td>' +
+        '<td class="num ' + pctClass + '">' + pct.toFixed(1) + '%</td>' +
+        '<td><span class="bi-status-pill ' + _biStatusClass(mcSt) + '">' + (mcSt || "-") + '</span></td>' +
+        '<td><span class="bi-status-pill ' + _biStatusClass(inSpSt) + '">' + (inSpSt || "-") + '</span></td>' +
+        '<td class="input-cell" style="background:#fffbe6;">' +
+          '<input type="date" class="prod-input" style="width:145px;" value="' + savedDate + '" ' +
+          'onchange="saveBalInspInspDate_(\'' + safeKey + '\',this.value)" ' +
+          'title="INSPECTION DATE DESIDED IN CONSULTATION WITH INSPECTOR" />' +
+        '</td>' +
+      '</tr>';
+    });
+
+    // Party subtotal
+    var pPct = pOffer > 0 ? (pBal / pOffer * 100).toFixed(1) : "0.0";
+    html += '<tr class="bi-drill-subtotal">' +
+      '<td colspan="5" style="text-align:right;padding-right:14px;">Sub-total — ' + party + '</td>' +
+      '<td class="num">' + pOffer.toFixed(3) + '</td>' +
+      '<td class="num">' + pInsp.toFixed(3) + '</td>' +
+      '<td class="num">' + pBal.toFixed(3) + '</td>' +
+      '<td class="num">' + pStock.toFixed(3) + '</td>' +
+      '<td class="num">' + pPct + '%</td>' +
+      '<td colspan="3"></td>' +
+    '</tr>';
+
+    grandOffer += pOffer; grandBal += pBal; grandInsp += pInsp; grandStock += pStock;
+  });
+
+  // Grand total
+  var gPct = grandOffer > 0 ? (grandBal / grandOffer * 100).toFixed(1) : "0.0";
+  html += '<tr class="bi-drill-grandtotal">' +
+    '<td colspan="5" style="text-align:right;padding-right:14px;">GRAND TOTAL</td>' +
+    '<td class="num">' + grandOffer.toFixed(3) + '</td>' +
+    '<td class="num">' + grandInsp.toFixed(3) + '</td>' +
+    '<td class="num">' + grandBal.toFixed(3) + '</td>' +
+    '<td class="num">' + grandStock.toFixed(3) + '</td>' +
+    '<td class="num">' + gPct + '%</td>' +
+    '<td colspan="3"></td>' +
+  '</tr>';
+
+  var tbody = document.getElementById("biDrillBody");
+  if (tbody) tbody.innerHTML = html;
+
+  var modal = document.getElementById("balInspDrillModal");
+  if (modal) modal.classList.add("open");
+}
+window.openBalInspDrill_ = openBalInspDrill_;
+
+function closeBalInspDrillModal() {
+  var modal = document.getElementById("balInspDrillModal");
+  if (modal) modal.classList.remove("open");
+}
+window.closeBalInspDrillModal = closeBalInspDrillModal;
 
 function showDashboardPage() {
   CURRENT_PAGE = "dashboard";
@@ -5337,6 +5811,8 @@ async function loadData(force, silent) {
     if (teamEl) teamEl.style.display = CURRENT_PAGE === "team" ? "" : "none";
     var mcEl = document.getElementById("mcStatusContent");
     if (mcEl) mcEl.style.display = CURRENT_PAGE === "mc" ? "" : "none";
+    var balInspEl = document.getElementById("balInspContent");
+    if (balInspEl) balInspEl.style.display = CURRENT_PAGE === "balinsp" ? "" : "none";
     renderAll();
   } catch(e) {
     if (silent) {
@@ -6094,8 +6570,12 @@ function renderPordBalanceTable(filteredRows, filterCtx) {
     var pd = (typeof getLineProdDone === "function") ? getLineProdDone(l) : 0;
     var balance = Math.max(0, net - pd);
     if (balance <= 0.0005) return;
-    if (!map.has(pord)) map.set(pord, { pord: pord, balance: 0 });
-    map.get(pord).balance += balance;
+    if (!map.has(pord)) map.set(pord, { pord: pord, balance: 0, maxDate: "" });
+    var entry = map.get(pord);
+    entry.balance += balance;
+    var lk = (typeof lineKey === "function") ? lineKey(l) : "";
+    var ce = lk ? (LINE_CEND[lk] || "") : "";
+    if (ce && (!entry.maxDate || ce > entry.maxDate)) entry.maxDate = ce;
   });
   var rows = Array.from(map.values());
   if (PORDBAL_SORT.key) {
@@ -6103,6 +6583,8 @@ function renderPordBalanceTable(filteredRows, filterCtx) {
     rows.sort(function(a, b){
       var av, bv;
       if (PORDBAL_SORT.key === "pord") { av = String(a.pord || "").toLowerCase(); bv = String(b.pord || "").toLowerCase(); }
+      else if (PORDBAL_SORT.key === "maxDate")  { av = a.maxDate || ""; bv = b.maxDate || ""; }
+      else if (PORDBAL_SORT.key === "daysLeft") { av = a.maxDate ? a.daysLeft : -99999; bv = b.maxDate ? b.daysLeft : -99999; }
       else { av = a.balance; bv = b.balance; }
       return _cmpAny_(av, bv) * dir;
     });
@@ -6110,7 +6592,7 @@ function renderPordBalanceTable(filteredRows, filterCtx) {
     rows.sort(function(a, b){ return b.balance - a.balance; });
   }
   if (!rows.length) {
-    body.innerHTML = '<tr><td colspan="2" class="empty" style="padding:18px;text-align:center;color:#888;">No open PORDs.</td></tr>';
+    body.innerHTML = '<tr><td colspan="4" class="empty" style="padding:18px;text-align:center;color:#888;">No open PORDs.</td></tr>';
     if (foot) foot.innerHTML = "";
     return;
   }
@@ -6118,9 +6600,26 @@ function renderPordBalanceTable(filteredRows, filterCtx) {
   body.innerHTML = rows.map(function(r){
     total += r.balance;
     var isActive = PORDBAL_ACTIVE && PORDBAL_ACTIVE === r.pord;
+    var today = new Date().toISOString().slice(0,10);
+    var dateStyle = "", daysStyle = "", daysLabel = "—";
+    var dateLabel = r.maxDate || "—";
+    if (r.maxDate) {
+      var msPerDay = 86400000;
+      var diff = Math.round((new Date(r.maxDate) - new Date(today)) / msPerDay);
+      r.daysLeft = diff;
+      daysLabel = diff === 0 ? "Today" : diff > 0 ? "+" + diff + " d" : diff + " d";
+      if (diff < 0)      { dateStyle = "color:#b03030;font-weight:700;"; daysStyle = "color:#b03030;font-weight:700;"; }
+      else if (diff <= 7){ dateStyle = "color:#8a5a00;font-weight:600;"; daysStyle = "color:#8a5a00;font-weight:600;"; }
+      else               { dateStyle = "color:#1f7a3a;";                 daysStyle = "color:#1f7a3a;"; }
+    } else {
+      r.daysLeft = null;
+      dateStyle = "color:#bbb;"; daysStyle = "color:#bbb;";
+    }
     return '<tr class="pord-row' + (isActive ? ' pord-row-active' : '') + '" data-pord="' + esc(r.pord) + '" title="Click to filter pivot by ' + esc(r.pord) + '">' +
       '<td><strong>' + esc(r.pord) + '</strong></td>' +
       '<td class="num" style="text-align:right;font-weight:600;">' + fmt(r.balance, 3) + '</td>' +
+      '<td style="text-align:center;' + dateStyle + '">' + dateLabel + '</td>' +
+      '<td class="num" style="text-align:right;' + daysStyle + '">' + daysLabel + '</td>' +
     '</tr>';
   }).join("");
   if (foot) {
@@ -6128,6 +6627,7 @@ function renderPordBalanceTable(filteredRows, filterCtx) {
       '<tr style="background:#e8f7ef;font-weight:700;">' +
         '<td><strong>' + rows.length + ' PORD(s)</strong></td>' +
         '<td class="num" style="text-align:right;color:#0a6;"><strong>' + fmt(total, 3) + '</strong></td>' +
+        '<td></td><td></td>' +
       '</tr>';
   }
   // Click row: drop PORD_NO into the global search and re-render. Second
